@@ -18,7 +18,7 @@ import { Toast, ToastType } from './components/Toast';
 import { BIKES, ADDITIONAL_CHARGES, TESTIMONIALS } from './constants';
 import type { LegalContent } from './types';
 
-const { HashRouter, Routes, Route, Navigate, useNavigate } = ReactRouterDOM;
+const { BrowserRouter, Routes, Route, Navigate, useNavigate } = ReactRouterDOM;
 
 // Global Toast Context
 interface ToastContextType {
@@ -126,10 +126,10 @@ const App: React.FC = () => {
 
   return (
     <ToastContext.Provider value={{ showToast }}>
-      <HashRouter>
+      <BrowserRouter>
         <AppContent />
         {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
-      </HashRouter>
+      </BrowserRouter>
     </ToastContext.Provider>
   );
 };
