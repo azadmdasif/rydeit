@@ -17,17 +17,19 @@ export const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
+    // Use window.location.origin to ensure the user is returned to the correct domain
+    // without getting stuck on localhost:3000 if that's the default in Supabase.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + window.location.pathname
+        redirectTo: window.location.origin
       }
     });
     if (error) {
       setError(error.message);
       showToast(error.message, 'error');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleAuth = async (e: React.FormEvent) => {
