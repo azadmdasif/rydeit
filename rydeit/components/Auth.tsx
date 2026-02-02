@@ -17,8 +17,6 @@ export const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    // Use window.location.origin to ensure the user is returned to the correct domain
-    // without getting stuck on localhost:3000 if that's the default in Supabase.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -48,7 +46,7 @@ export const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
         });
         if (error) throw error;
         
-        showToast('Registration successful! Profile initialized.', 'success');
+        showToast('Registration successful! Check your email or try logging in.', 'success');
       }
       onSuccess();
     } catch (err: any) {
