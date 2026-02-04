@@ -40,11 +40,17 @@ export const MyBookings: React.FC = () => {
   const LOGO_PATH = '/images/logo.png';
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
-      if (session?.user) fetchAll(session.user.id);
-      else setLoading(false);
-    });
+      if (session?.user) {
+        console.log("Fetching data for user:", session.user.id);
+        fetchAll(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    };
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -58,8 +64,17 @@ export const MyBookings: React.FC = () => {
   const fetchAll = async (userId: string) => {
     setLoading(true);
     try {
-      const { data: pData } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      const { data: bData } = await supabase.from('bookings').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+      const { data: pData, error: pError } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      const { data: bData, error: bError } = await supabase.from('bookings').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+
+      if (pError) console.error("Profile Fetch Error:", pError);
+      if (bError) {
+        console.error("Bookings Fetch Error:", bError);
+        showToast("Error loading rides. Check RLS policies.", "error");
+      }
+
+      console.log("Profile Data:", pData);
+      console.log("Bookings Data:", bData);
 
       if (pData) {
         setProfile(pData);
@@ -69,9 +84,10 @@ export const MyBookings: React.FC = () => {
         setEditDlNumber(pData.dl_number || '');
         setEditAadhaarNumber(pData.aadhaar_number || '');
       }
-      if (bData) setBookings(bData);
+      
+      setBookings(bData || []);
     } catch (err) {
-      console.error("Dashboard Fetch Error:", err);
+      console.error("Dashboard Fetch Catch:", err);
     } finally {
       setLoading(false);
     }
@@ -260,16 +276,10 @@ export const MyBookings: React.FC = () => {
         payment_method: 'cash'
       }).eq('readable_id', bookingId);
       
-      if (error) {
-          if (error.message.includes('payment_method')) {
-              showToast("Database error: payment_method column missing.", "error");
-          } else {
-              throw error;
-          }
-      } else {
-          setShowCashConfirmation(true);
-          if (user) fetchAll(user.id);
-      }
+      if (error) throw error;
+      
+      setShowCashConfirmation(true);
+      if (user) fetchAll(user.id);
     } catch (err: any) {
       showToast(err.message, 'error');
     } finally {
@@ -319,7 +329,7 @@ export const MyBookings: React.FC = () => {
       head: [['Particulars', 'Description']],
       body: [
         ['Customer Name', booking.customer_name || 'N/A'],
-        ['Email', booking.customer_email || 'N/A'],
+        ['Email', booking.customer_name || 'N/A'], // Map name as placeholder if email not in booking table
         ['Phone', booking.customer_phone || 'N/A'],
         ['Machine Model', bike?.name || 'N/A'],
         ['Pickup', `${booking.pickup_date} @ ${booking.pickup_time}`],

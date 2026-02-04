@@ -9,7 +9,7 @@ export interface Bike {
   color: 'orange' | 'yellow' | 'black' | 'teal';
   category: BikeCategory;
   dailyRate: number;
-  status: 'Available' | 'Booked';
+  status: 'Available' | 'Booked' | 'Running' | 'Maintenance';
 }
 
 export type BookingStatus = 
@@ -17,7 +17,8 @@ export type BookingStatus =
   | 'verifying_payment' 
   | 'booking_confirmed' 
   | 'ongoing' 
-  | 'completed';
+  | 'completed'
+  | 'cancelled';
 
 export interface UserProfile {
   id: string;
@@ -30,6 +31,17 @@ export interface UserProfile {
   dl_number: string | null;
   aadhaar_number: string | null;
   is_verified: boolean;
+  is_admin?: boolean;
+  is_blocked?: boolean;
+}
+
+export interface MaintenanceLog {
+  id: string;
+  bike_id: number;
+  description: string;
+  cost: number;
+  date: string;
+  odometer_reading?: number;
 }
 
 export interface AdditionalCharge {

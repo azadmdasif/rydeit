@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-// Fix: Use namespace import for react-router-dom to resolve "no exported member" errors in certain TS environments
 import * as ReactRouterDOM from 'react-router-dom';
 import { supabase } from '../supabase';
+import { useAuth } from '../App';
 
 const { Link, useLocation } = ReactRouterDOM;
 
@@ -22,20 +22,8 @@ const NavLink: React.FC<{to: string, children: React.ReactNode}> = ({ to, childr
 
 export const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const { user, isAdmin } = useAuth();
   const location = useLocation();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     setIsMenuOpen(false);
@@ -79,6 +67,15 @@ export const Header: React.FC = () => {
                 <NavLink key={item.to} to={item.to}>{item.label}</NavLink>
             ))}
             
+            {isAdmin && (
+               <Link 
+                to="/admin"
+                className={`text-brand-teal font-black text-[11px] tracking-widest hover:text-white transition-all uppercase border px-4 py-1.5 rounded-full animate-pulse shadow-[0_0_15px_rgba(0,194,199,0.2)] ${location.pathname.startsWith('/admin') ? 'border-brand-yellow text-brand-yellow' : 'border-brand-teal/30'}`}
+               >
+                 Admin Panel
+               </Link>
+            )}
+
             <Link 
                 to="/book"
                 className="bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2.5 px-6 rounded-full hover:bg-brand-yellow hover:text-brand-black transition-all shadow-lg hidden lg:block"
@@ -103,7 +100,7 @@ export const Header: React.FC = () => {
                     <div className="w-6 h-6 rounded-full bg-brand-teal/20 flex items-center justify-center text-brand-teal group-hover:bg-brand-teal group-hover:text-white transition-all">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     </div>
-                    <span className="text-[10px] text-brand-teal font-black uppercase tracking-widest">My Dashboard</span>
+                    <span className="text-[10px] text-brand-teal font-black uppercase tracking-widest">Dashboard</span>
                   </Link>
                   <button 
                     onClick={() => supabase.auth.signOut()}
@@ -116,15 +113,6 @@ export const Header: React.FC = () => {
               )}
             </div>
           </nav>
-          
-          <div className="md:hidden flex items-center gap-3">
-              <Link 
-                  to="/book"
-                  className="bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2 px-4 rounded-full"
-              >
-                  BOOK
-              </Link>
-          </div>
         </div>
       </header>
       
@@ -134,7 +122,7 @@ export const Header: React.FC = () => {
         }`}
       >
         <div className="absolute inset-0 bg-brand-black/95" onClick={() => setIsMenuOpen(false)}></div>
-        <div className="relative w-4/5 max-w-xs h-full bg-brand-gray-dark p-8 flex flex-col shadow-2xl overflow-y-auto">
+        <div className="relative w-4/5 max-w-xs h-full bg-brand-gray-dark p-8 flex flex-col shadow-2xl">
             <div className="flex justify-between items-center mb-12">
                 <span className="font-heading text-2xl text-brand-yellow uppercase">RYDEIT</span>
                 <button onClick={() => setIsMenuOpen(false)} className="p-2 text-white">
@@ -145,20 +133,10 @@ export const Header: React.FC = () => {
             </div>
             <nav className="flex flex-col space-y-6">
                 {menuItems.map(item => (
-                    <Link key={item.to} to={item.to} className="text-xl text-white hover:text-brand-teal font-bold uppercase tracking-widest">{item.label}</Link>
+                    <Link key={item.to} to={item.to} className="text-xl text-white font-bold uppercase tracking-widest">{item.label}</Link>
                 ))}
-                {user && (
-                  <Link to="/my-bookings" className="text-xl text-brand-teal font-bold uppercase tracking-widest">My Dashboard</Link>
-                )}
+                {isAdmin && <Link to="/admin" className="text-xl text-brand-teal font-bold uppercase tracking-widest">Admin Panel</Link>}
             </nav>
-            <div className="mt-12 space-y-4">
-                {user ? (
-                   <button onClick={() => supabase.auth.signOut()} className="w-full text-center py-4 border border-red-500/30 text-red-500 font-bold uppercase tracking-widest text-xs rounded-xl">Sign Out</button>
-                ) : (
-                  <Link to="/login" className="block text-center w-full bg-brand-teal text-brand-black font-heading py-4 rounded-full uppercase tracking-widest text-sm">Sign In / Up</Link>
-                )}
-                <Link to="/book" className="block text-center w-full bg-brand-orange text-white font-heading py-4 rounded-full uppercase tracking-widest text-sm">BOOK NOW</Link>
-            </div>
         </div>
       </div>
     </>
