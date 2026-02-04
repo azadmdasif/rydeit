@@ -75,7 +75,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
   const navigate = useNavigate();
   const { showToast } = useToast();
   
-  // Step initialization: Jump to details if bikeId is present in URL
   const [step, setStep] = useState<BookingStep>(() => {
     const urlBikeId = searchParams.get('bikeId');
     if (urlBikeId) return 'details';
@@ -88,7 +87,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
   const [applyDiscount, setApplyDiscount] = useState(true);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  // Initialize form data, giving priority to URL params
   const [formData, setFormData] = useState<BookingDetails>(() => {
     const saved = localStorage.getItem('rydeit_draft');
     const urlBikeId = searchParams.get('bikeId');
@@ -116,7 +114,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     return initialData;
   });
 
-  // Sync state if search params change while component is mounted
   useEffect(() => {
     const urlBikeId = searchParams.get('bikeId');
     if (urlBikeId && urlBikeId !== formData.bikeId) {
@@ -131,38 +128,43 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     return () => subscription.unsubscribe();
   }, []);
 
+  // Sync Profile with Form Data (Both Ways)
   useEffect(() => {
-    if (user) {
-      const syncProfile = async () => {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-        const draft = JSON.parse(localStorage.getItem('rydeit_draft') || '{}');
+    const syncProfile = async () => {
+      if (!user) return;
+
+      // 1. Fetch current profile state
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      
+      // 2. Push draft data to profile if the profile fields are currently empty
+      // This ensures that new registrants get their Name/Whatsapp/Email synced immediately
+      if (formData.name || formData.whatsapp || formData.email) {
+        const updates: any = { id: user.id };
+        let needsSync = false;
+
+        if (!profile?.full_name && formData.name) { updates.full_name = formData.name; needsSync = true; }
+        if (!profile?.whatsapp && formData.whatsapp) { updates.whatsapp = formData.whatsapp; needsSync = true; }
+        if (!profile?.email && (formData.email || user.email)) { updates.email = formData.email || user.email; needsSync = true; }
         
-        if (profile && (!profile.full_name || !profile.whatsapp || !profile.email)) {
-          const updates: any = {};
-          if (!profile.full_name && draft.name) updates.full_name = draft.name;
-          if (!profile.whatsapp && draft.whatsapp) updates.whatsapp = draft.whatsapp;
-          if (!profile.phone && (draft.phone || draft.whatsapp)) updates.phone = draft.phone || draft.whatsapp;
-          if (!profile.email && draft.email) updates.email = draft.email;
-
-          if (Object.keys(updates).length > 0) {
-            const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
-            if (!error) {
-              showToast("Profile settings updated with your booking details", "success");
-            }
-          }
+        if (needsSync) {
+          const { error: upsertError } = await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
+          if (upsertError) console.error("Sync to profile failed:", upsertError);
+          else console.log("Profile updated with booking identity.");
         }
+      }
 
-        if (profile) {
-          setFormData(prev => ({
-            ...prev,
-            name: prev.name || profile.full_name || '',
-            email: prev.email || user.email || profile.email || '',
-            whatsapp: prev.whatsapp || profile.whatsapp || ''
-          }));
-        }
-      };
-      syncProfile();
-    }
+      // 3. Pre-fill the form from profile if the user already has data (for returning users)
+      if (profile && (!formData.name || !formData.whatsapp)) {
+        setFormData(prev => ({
+          ...prev,
+          name: prev.name || profile.full_name || '',
+          whatsapp: prev.whatsapp || profile.whatsapp || '',
+          email: prev.email || profile.email || user.email || ''
+        }));
+      }
+    };
+
+    syncProfile();
   }, [user]);
 
   useEffect(() => {
@@ -173,16 +175,17 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
 
   useEffect(() => {
     if (user && step === 'payment') {
-      const linkBooking = async () => {
+      const linkBookingAndRedirect = async () => {
         const { error } = await supabase.from('bookings').update({ user_id: user.id }).eq('readable_id', bookingId);
         if (!error) {
           localStorage.removeItem('rydeit_draft');
           localStorage.removeItem('rydeit_pending_id');
           localStorage.removeItem('rydeit_current_step');
+          showToast("Ride linked to your profile!", "success");
           navigate('/my-bookings');
         }
       };
-      linkBooking();
+      linkBookingAndRedirect();
     }
   }, [user, step, bookingId, navigate]);
 
@@ -219,7 +222,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         let blockEnd = new Date(temp);
         if (h >= 8 && h < 14) { blockPrice = 0.4 * rEff; blockDuration = 6; blockEnd.setHours(14,0,0,0); }
         else if (h >= 14 && h < 20) { blockPrice = 0.4 * rEff; blockDuration = 6; blockEnd.setHours(20,0,0,0); }
-        // Fix: inner setDate() was missing the required day argument. Replaced with getDate() to increment correctly.
         else { blockPrice = 0.2 * rEff; blockDuration = 12; if (h >= 20) { blockEnd.setDate(blockEnd.getDate() + 1); blockEnd.setHours(8,0,0,0); } else { blockEnd.setHours(8,0,0,0); } }
         const actualEnd = extraEnd < blockEnd ? extraEnd : blockEnd;
         const usedHours = (actualEnd.getTime() - temp.getTime()) / (1000 * 3600);
@@ -307,7 +309,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       dropMethod: 'garage',
       outstation: false 
     }));
-    // Remove query params to prevent immediate jump back to details
     navigate('/book', { replace: true });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -637,12 +638,19 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
               {!user ? (
                 <div className="space-y-10">
                   <div className="w-20 h-20 bg-brand-orange/20 rounded-full flex items-center justify-center mx-auto text-brand-orange">
-                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2-0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-3xl font-heading text-white uppercase tracking-tighter">Draft Reserved</h3>
                     <p className="text-brand-gray-light font-sans text-[10px] tracking-widest uppercase opacity-60">Reserved ID: {bookingId}</p>
                   </div>
+
+                  <div className="bg-brand-orange/10 border border-brand-orange/20 p-8 rounded-3xl animate-pulse">
+                    <p className="text-white font-bold uppercase text-xs tracking-[0.2em] leading-relaxed">
+                      Action Required: Please pay the advance <span className="text-brand-yellow text-xl">₹{charges?.advance}</span> to confirm your slot.
+                    </p>
+                  </div>
+
                   <div className="bg-brand-black/60 p-8 rounded-[2.5rem] border-2 border-brand-orange/30 shadow-2xl">
                     <p className="text-brand-orange font-bold text-xs uppercase mb-8 tracking-widest">Sign in to claim this order & pay</p>
                     <Auth onSuccess={() => {}} />

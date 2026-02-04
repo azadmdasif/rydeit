@@ -44,7 +44,6 @@ export const MyBookings: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
       if (session?.user) {
-        console.log("Fetching data for user:", session.user.id);
         fetchAll(session.user.id);
       } else {
         setLoading(false);
@@ -73,11 +72,9 @@ export const MyBookings: React.FC = () => {
         showToast("Error loading rides. Check RLS policies.", "error");
       }
 
-      console.log("Profile Data:", pData);
-      console.log("Bookings Data:", bData);
-
       if (pData) {
         setProfile(pData);
+        // Initialize editing state with profile data
         setEditName(pData.full_name || '');
         setEditPhone(pData.phone || '');
         setEditWhatsapp(pData.whatsapp || '');
@@ -111,8 +108,16 @@ export const MyBookings: React.FC = () => {
   };
 
   const generateRentalAgreement = async (booking: any, autoDownload = true) => {
-    if (!profile || !profile.dl_number || !profile.aadhaar_number) {
-        showToast("Complete your Identity details before signing.", "warning");
+    // 1. Check Profile Completeness (Name, WhatsApp)
+    if (!profile || !profile.full_name || !profile.whatsapp) {
+        showToast("Complete your Profile details (Name & WhatsApp) before signing.", "warning");
+        setActiveTab("profile");
+        return;
+    }
+
+    // 2. Check Identity Completeness (Docs & Numbers)
+    if (!profile.dl_number || !profile.aadhaar_number || !profile.dl_url || !profile.aadhaar_url) {
+        showToast("Complete your Identity verification (DL & Aadhaar) before signing.", "warning");
         setActiveTab("identity");
         return;
     }
@@ -293,7 +298,6 @@ export const MyBookings: React.FC = () => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const logoBase64 = await getLogoBase64();
     
-    // Header Bar
     doc.setFillColor(18, 18, 18);
     doc.rect(0, 0, 210, 45, 'F');
     
@@ -310,7 +314,6 @@ export const MyBookings: React.FC = () => {
     doc.setFont('helvetica', 'normal');
     doc.text('PREMIUM BIKE RENTALS KOLKATA', 55, 30);
 
-    // Metadata
     doc.setTextColor(100);
     doc.setFontSize(10);
     doc.text(`Receipt ID: ${booking.readable_id}`, 145, 20);
@@ -329,7 +332,7 @@ export const MyBookings: React.FC = () => {
       head: [['Particulars', 'Description']],
       body: [
         ['Customer Name', booking.customer_name || 'N/A'],
-        ['Email', booking.customer_name || 'N/A'], // Map name as placeholder if email not in booking table
+        ['Email', booking.customer_email || 'N/A'],
         ['Phone', booking.customer_phone || 'N/A'],
         ['Machine Model', bike?.name || 'N/A'],
         ['Pickup', `${booking.pickup_date} @ ${booking.pickup_time}`],
@@ -345,7 +348,6 @@ export const MyBookings: React.FC = () => {
       columnStyles: { 0: { cellWidth: 50, fontStyle: 'bold' } }
     });
 
-    // Signature/Footer
     const finalY = (doc as any).lastAutoTable.finalY + 30;
     doc.setFontSize(10);
     doc.text('Digitally Authorized by Rydeit Management', pageWidth / 2, finalY, { align: 'center' });
@@ -397,12 +399,13 @@ export const MyBookings: React.FC = () => {
 
       if (type === 'payment' && bookingId) {
         await supabase.from('bookings').update({ payment_screenshot_url: publicUrl, status: 'verifying_payment' }).eq('readable_id', bookingId);
+        showToast('Thank you for your payment, our executives are checking its confirmation status. your money is safe!', 'success');
       } else {
         const updateData = type === 'dl' ? { dl_url: publicUrl } : { aadhaar_url: publicUrl };
         await supabase.from('profiles').update(updateData).eq('id', user.id);
+        showToast('Uploaded Successfully.', 'success');
       }
       
-      showToast('Uploaded Successfully.', 'success');
       fetchAll(user.id);
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -510,16 +513,29 @@ export const MyBookings: React.FC = () => {
                       </div>
                       
                       <div className="flex flex-col items-center lg:items-end gap-6 w-full lg:w-auto">
-                        <div className="text-center lg:text-right">
+                        <div className="text-center lg:text-right flex flex-col items-center lg:items-end">
                           <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase mb-4 border ${
-                              status === 'completed' ? 'bg-green-500/10 text-green-500' : 
-                              status === 'ongoing' ? 'bg-brand-teal/10 text-brand-teal' : 
-                              status === 'booking_confirmed' ? 'bg-brand-teal/20 text-brand-teal animate-pulse' :
-                              status === 'verifying_payment' ? 'bg-brand-yellow/10 text-brand-yellow' :
-                              'bg-brand-orange/10 text-brand-orange'
+                              status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 
+                              status === 'ongoing' ? 'bg-brand-teal/10 text-brand-teal border-brand-teal/20' : 
+                              status === 'booking_confirmed' ? 'bg-brand-teal/20 text-brand-teal border-brand-teal/40 animate-pulse' :
+                              status === 'verifying_payment' ? 'bg-brand-yellow/10 text-brand-yellow border-brand-yellow/20' :
+                              'bg-brand-orange/10 text-brand-orange border-brand-orange/20'
                           }`}>
                               {status.replace('_', ' ')}
                           </span>
+                          
+                          {status === 'verifying_payment' && (
+                            <div className="mb-4">
+                                <a 
+                                  href="tel:+917686022245" 
+                                  className="inline-flex items-center justify-center gap-1.5 text-[9px] font-black text-white bg-brand-teal/80 hover:bg-brand-orange px-4 py-2 rounded-full uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                  Call us for questions?
+                                </a>
+                            </div>
+                          )}
+
                           <p className="text-3xl font-heading text-white">₹{booking.total_rent}</p>
                         </div>
 
@@ -640,7 +656,7 @@ export const MyBookings: React.FC = () => {
           <form onSubmit={handleUpdateProfile} className="animate-fade-in max-w-2xl bg-brand-gray-dark/30 p-12 rounded-[3rem] border border-white/5 space-y-10 mx-auto lg:mx-0">
             <h3 className="text-xl font-heading text-brand-yellow uppercase tracking-widest">Profile</h3>
             <div className="space-y-6">
-              <input type="text" value={user.email} disabled className="w-full bg-brand-black/20 border border-white/5 rounded-2xl p-5 text-white/20 font-bold outline-none cursor-not-allowed text-sm" />
+              <input type="text" value={user?.email || ''} disabled className="w-full bg-brand-black/20 border border-white/5 rounded-2xl p-5 text-white/20 font-bold outline-none cursor-not-allowed text-sm" />
               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Full Name" className="w-full bg-brand-black/60 border border-white/10 rounded-2xl p-5 text-white font-bold outline-none focus:border-brand-orange transition-all text-sm" required />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -658,10 +674,15 @@ export const MyBookings: React.FC = () => {
         )}
 
         {showCashConfirmation && (
-          <Modal isOpen={showCashConfirmation} onClose={() => setShowCashConfirmation(false)} title="PAYMENT IN PROGRESS">
+          <Modal isOpen={showCashConfirmation} onClose={() => setShowCashConfirmation(false)} title="PAYMENT LOGGED">
               <div className="py-8 text-center space-y-8 animate-fade-in">
-                  <h3 className="text-2xl font-heading text-white uppercase tracking-tighter">CASH PAYMENT LOGGED</h3>
-                  <p className="text-brand-gray-light font-sans text-sm leading-relaxed opacity-80 px-4">Our executives are currently checking your payment reception. Confirmation will be sent soon.</p>
+                  <div className="w-20 h-20 bg-brand-teal/20 rounded-full flex items-center justify-center mx-auto text-brand-teal">
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <h3 className="text-2xl font-heading text-white uppercase tracking-tighter">THANK YOU FOR YOUR PAYMENT</h3>
+                  <p className="text-brand-gray-light font-sans text-sm leading-relaxed opacity-80 px-4">
+                    Our executives are checking its confirmation status. Your money is safe!
+                  </p>
                   <button onClick={() => setShowCashConfirmation(false)} className="w-full bg-brand-orange text-white py-5 rounded-2xl font-heading uppercase tracking-widest text-sm">GOT IT</button>
               </div>
           </Modal>

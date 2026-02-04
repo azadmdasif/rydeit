@@ -62,9 +62,17 @@ export const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
       <h4 className="text-white font-heading text-xl uppercase mb-2 text-center">
         {isLogin ? 'Welcome Back' : 'Join the Club'}
       </h4>
-      <p className="text-brand-gray-light text-[10px] uppercase font-black tracking-widest text-center mb-8 opacity-60">
+      <p className="text-brand-gray-light text-[10px] uppercase font-black tracking-widest text-center mb-4 opacity-60">
         Skip paperwork on every ride.
       </p>
+
+      {!isLogin && (
+        <div className="mb-6 p-4 bg-brand-teal/10 border border-brand-teal/20 rounded-xl animate-bounce">
+          <p className="text-brand-teal text-[10px] font-black uppercase tracking-widest text-center">
+            Please write your email and new password.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-4">
         <button

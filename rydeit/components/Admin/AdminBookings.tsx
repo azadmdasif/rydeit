@@ -9,36 +9,77 @@ interface AdminBookingsProps {
   initialFilter?: string;
 }
 
+type TimeRange = 'all_time' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
+
 export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'all' }) => {
   const { showToast } = useToast();
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
-  const [filter, setFilter] = useState(initialFilter);
+  
+  // Filtering States
+  const [statusFilter, setStatusFilter] = useState(initialFilter);
+  const [timeRange, setTimeRange] = useState<TimeRange>('all_time');
+  const [customRange, setCustomRange] = useState({
+    start: new Date().toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
   
   const [adjustment, setAdjustment] = useState({ amount: 0, reason: '', type: 'fee' });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     fetchBookings();
-  }, [filter]);
+  }, [statusFilter, timeRange, customRange]);
 
   const fetchBookings = async () => {
     setLoading(true);
     let query = supabase.from('bookings').select('*').order('created_at', { ascending: false });
     
-    if (filter === 'pending') query = query.eq('status', 'verifying_payment');
-    if (filter === 'running') query = query.eq('status', 'ongoing');
-    if (filter === 'completed') query = query.eq('status', 'completed');
+    // 1. Status Filter
+    if (statusFilter === 'pending') query = query.eq('status', 'verifying_payment');
+    if (statusFilter === 'running') query = query.eq('status', 'ongoing');
+    if (statusFilter === 'completed') query = query.eq('status', 'completed');
 
-    const { data } = await query;
-    if (data) {
-      if (filter === 'overdue') {
-        const now = new Date();
+    // 2. Time Filter
+    const now = new Date();
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+
+    if (timeRange === 'today') {
+      startDate = new Date(now.setHours(0, 0, 0, 0));
+    } else if (timeRange === 'yesterday') {
+      startDate = new Date(now.setDate(now.getDate() - 1));
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === 'this_week') {
+      const day = now.getDay();
+      startDate = new Date(now.setDate(now.getDate() - day));
+      startDate.setHours(0, 0, 0, 0);
+    } else if (timeRange === 'this_month') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (timeRange === 'custom') {
+      startDate = new Date(customRange.start);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(customRange.end);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    if (startDate) query = query.gte('created_at', startDate.toISOString());
+    if (endDate) query = query.lte('created_at', endDate.toISOString());
+
+    const { data, error } = await query;
+    
+    if (error) {
+      showToast(error.message, 'error');
+    } else if (data) {
+      if (statusFilter === 'overdue') {
+        const currentNow = new Date();
         const overdue = data.filter(b => {
           if (b.status !== 'ongoing') return false;
           const returnDate = new Date(`${b.return_date}T${b.return_time}`);
-          return returnDate < now;
+          return returnDate < currentNow;
         });
         setBookings(overdue);
       } else {
@@ -115,8 +156,9 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
   };
 
   return (
-    <div className="animate-fade-in space-y-12 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+    <div className="animate-fade-in space-y-8 max-w-7xl mx-auto">
+      {/* Header & Main Filters */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
         <div>
           <h2 className="text-4xl font-heading text-white uppercase tracking-tighter">Ride Ledger</h2>
           <p className="text-brand-teal text-[9px] font-black uppercase tracking-[0.4em] mt-2">Operational Log</p>
@@ -126,8 +168,8 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
           {['all', 'pending', 'running', 'overdue', 'completed'].map(f => (
             <button 
                 key={f} 
-                onClick={() => setFilter(f)} 
-                className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${filter === f ? (f === 'overdue' ? 'bg-red-500 text-white' : 'bg-brand-orange text-white') : 'text-white/40 hover:text-white'}`}
+                onClick={() => setStatusFilter(f)} 
+                className={`px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${statusFilter === f ? (f === 'overdue' ? 'bg-red-500 text-white' : 'bg-brand-orange text-white') : 'text-white/40 hover:text-white'}`}
             >
               {f}
             </button>
@@ -135,6 +177,57 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
         </div>
       </div>
 
+      {/* Time Based Filters */}
+      <div className="flex flex-col md:flex-row gap-6 items-center bg-brand-gray-dark/40 p-6 rounded-[2.5rem] border border-white/5 shadow-xl">
+        <div className="flex flex-wrap gap-2 flex-grow">
+          {[
+            { id: 'all_time', label: 'All Time' },
+            { id: 'today', label: 'Today' },
+            { id: 'yesterday', label: 'Yesterday' },
+            { id: 'this_week', label: 'This Week' },
+            { id: 'this_month', label: 'This Month' },
+            { id: 'custom', label: 'Custom' }
+          ].map(range => (
+            <button 
+              key={range.id}
+              onClick={() => setTimeRange(range.id as TimeRange)}
+              className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all border ${
+                timeRange === range.id 
+                ? 'bg-brand-teal text-brand-black border-brand-teal' 
+                : 'bg-brand-black/40 text-white/40 border-white/5 hover:border-white/20'
+              }`}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+
+        {timeRange === 'custom' && (
+          <div className="flex items-center gap-4 animate-fade-in bg-brand-black/60 p-3 rounded-2xl border border-white/5">
+            <div className="flex flex-col px-3">
+              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">From</span>
+              <input 
+                type="date" 
+                value={customRange.start} 
+                onChange={(e) => setCustomRange(p => ({...p, start: e.target.value}))}
+                className="bg-transparent text-[10px] font-bold text-white outline-none cursor-pointer" 
+              />
+            </div>
+            <div className="w-px h-6 bg-white/10"></div>
+            <div className="flex flex-col px-3">
+              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">To</span>
+              <input 
+                type="date" 
+                value={customRange.end} 
+                onChange={(e) => setCustomRange(p => ({...p, end: e.target.value}))}
+                className="bg-transparent text-[10px] font-bold text-white outline-none cursor-pointer" 
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bookings Table */}
       <div className="bg-brand-gray-dark/40 rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -148,54 +241,69 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {bookings.map(booking => {
-                const bike = BIKES.find(b => b.id === booking.bike_id);
-                const isOverdue = booking.status === 'ongoing' && new Date(`${booking.return_date}T${booking.return_time}`) < new Date();
-                
-                return (
-                  <tr key={booking.id} className="hover:bg-brand-teal/[0.02] transition-colors group">
-                    <td className="px-10 py-8">
-                      <div className="flex items-center gap-6">
-                        <div className="text-center">
-                            <div className="text-brand-orange text-[9px] font-black uppercase mb-1">{booking.readable_id}</div>
-                            <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10">
-                                <img src={bike?.imageUrl} className="w-full h-full object-cover" />
-                            </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="py-20 text-center">
+                    <div className="w-10 h-10 border-2 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest">Querying Records...</p>
+                  </td>
+                </tr>
+              ) : bookings.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-20 text-center">
+                    <p className="text-[10px] font-black text-white/10 uppercase tracking-[0.5em]">No Data in this Window</p>
+                  </td>
+                </tr>
+              ) : (
+                bookings.map(booking => {
+                  const bike = BIKES.find(b => b.id === booking.bike_id);
+                  const isOverdue = booking.status === 'ongoing' && new Date(`${booking.return_date}T${booking.return_time}`) < new Date();
+                  
+                  return (
+                    <tr key={booking.id} className="hover:bg-brand-teal/[0.02] transition-colors group">
+                      <td className="px-10 py-8">
+                        <div className="flex items-center gap-6">
+                          <div className="text-center">
+                              <div className="text-brand-orange text-[9px] font-black uppercase mb-1">{booking.readable_id}</div>
+                              <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10">
+                                  <img src={bike?.imageUrl} className="w-full h-full object-cover" />
+                              </div>
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-white uppercase tracking-tight">{booking.customer_name}</div>
+                            <div className="text-[10px] text-brand-teal font-black uppercase tracking-widest mt-1">{bike?.name}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-bold text-white uppercase tracking-tight">{booking.customer_name}</div>
-                          <div className="text-[10px] text-brand-teal font-black uppercase tracking-widest mt-1">{bike?.name}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-10 py-8">
-                      <span className={`inline-block px-4 py-2 rounded-xl text-[9px] font-black uppercase border tracking-widest ${
-                        booking.status === 'completed' ? 'border-green-500/30 text-green-500' :
-                        booking.status === 'ongoing' ? (isOverdue ? 'border-red-500/50 text-red-500 animate-pulse' : 'border-brand-teal/30 text-brand-teal') :
-                        booking.status === 'verifying_payment' ? 'border-brand-yellow/30 text-brand-yellow' :
-                        'border-white/10 text-white/40'
-                      }`}>
-                        {isOverdue ? 'OVERDUE' : booking.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-10 py-8">
-                      <div className="text-[10px] text-white/60 font-bold uppercase">{booking.pickup_date} @ {booking.pickup_time}</div>
-                      <div className={`text-[10px] mt-1 uppercase font-bold ${isOverdue ? 'text-red-500' : 'text-white/30'}`}>Return {booking.return_date}</div>
-                    </td>
-                    <td className="px-10 py-8">
-                      <div className="text-sm font-heading text-white">₹{booking.total_rent + (booking.adjustment_amount || 0)}</div>
-                    </td>
-                    <td className="px-10 py-8 text-right">
-                      <button 
-                        onClick={() => setSelectedBooking(booking)} 
-                        className="text-[9px] font-black text-brand-teal uppercase tracking-widest border border-brand-teal/20 px-6 py-3 rounded-xl hover:bg-brand-teal hover:text-black transition-all shadow-lg"
-                      >
-                        Operate
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td className="px-10 py-8">
+                        <span className={`inline-block px-4 py-2 rounded-xl text-[9px] font-black uppercase border tracking-widest ${
+                          booking.status === 'completed' ? 'border-green-500/30 text-green-500' :
+                          booking.status === 'ongoing' ? (isOverdue ? 'border-red-500/50 text-red-500 animate-pulse' : 'border-brand-teal/30 text-brand-teal') :
+                          booking.status === 'verifying_payment' ? 'border-brand-yellow/30 text-brand-yellow' :
+                          'border-white/10 text-white/40'
+                        }`}>
+                          {isOverdue ? 'OVERDUE' : booking.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-10 py-8">
+                        <div className="text-[10px] text-white/60 font-bold uppercase">{booking.pickup_date} @ {booking.pickup_time}</div>
+                        <div className={`text-[10px] mt-1 uppercase font-bold ${isOverdue ? 'text-red-500' : 'text-white/30'}`}>Return {booking.return_date}</div>
+                      </td>
+                      <td className="px-10 py-8">
+                        <div className="text-sm font-heading text-white">₹{booking.total_rent + (booking.adjustment_amount || 0)}</div>
+                      </td>
+                      <td className="px-10 py-8 text-right">
+                        <button 
+                          onClick={() => setSelectedBooking(booking)} 
+                          className="text-[9px] font-black text-brand-teal uppercase tracking-widest border border-brand-teal/20 px-6 py-3 rounded-xl hover:bg-brand-teal hover:text-black transition-all shadow-lg"
+                        >
+                          Operate
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

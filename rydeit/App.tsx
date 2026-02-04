@@ -117,27 +117,20 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [user, setUser] = useState<any>(null);
-  // Use localStorage to persist admin state across background refreshes
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('rydeit_is_admin') === 'true');
   const [loading, setLoading] = useState(true);
 
   const checkAdminStatus = async (userId: string) => {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
-    
     try {
       const fetchPromise = supabase.from('profiles').select('is_admin').eq('id', userId).maybeSingle();
       const result: any = await Promise.race([fetchPromise, timeout]);
-      
       if (result.error) throw result.error;
       const status = !!result.data?.is_admin;
-      
-      // Update persistent cache
       localStorage.setItem('rydeit_is_admin', status.toString());
       return status;
     } catch (err: any) {
       console.warn("Admin check failed or timed out:", err);
-      // If we already have a cached admin status, stick with it on failure 
-      // rather than kicking the user out immediately.
       return localStorage.getItem('rydeit_is_admin') === 'true';
     }
   };
@@ -158,9 +151,7 @@ const App: React.FC = () => {
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth State Changed:", event);
       setUser(session?.user ?? null);
-      
       if (session?.user) {
         const adminStatus = await checkAdminStatus(session.user.id);
         setIsAdmin(adminStatus);
