@@ -121,16 +121,17 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const checkAdminStatus = async (userId: string) => {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
     try {
+      // Shorter timeout for better UX, but handle it gracefully
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
       const fetchPromise = supabase.from('profiles').select('is_admin').eq('id', userId).maybeSingle();
       const result: any = await Promise.race([fetchPromise, timeout]);
-      if (result.error) throw result.error;
-      const status = !!result.data?.is_admin;
+      
+      const status = !!result?.data?.is_admin;
       localStorage.setItem('rydeit_is_admin', status.toString());
       return status;
-    } catch (err: any) {
-      console.warn("Admin check failed or timed out:", err);
+    } catch (err) {
+      // On error or timeout, return current cached state to avoid disrupting session
       return localStorage.getItem('rydeit_is_admin') === 'true';
     }
   };
@@ -139,6 +140,11 @@ const App: React.FC = () => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
+      
+      // OPTIMIZATION: Show the app immediately if we have a session.
+      // Admin verification happens in the background.
+      setLoading(false);
+
       if (session?.user) {
         const adminStatus = await checkAdminStatus(session.user.id);
         setIsAdmin(adminStatus);
@@ -146,7 +152,6 @@ const App: React.FC = () => {
         setIsAdmin(false);
         localStorage.removeItem('rydeit_is_admin');
       }
-      setLoading(false);
     };
     init();
 
