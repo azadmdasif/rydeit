@@ -44,10 +44,10 @@ const StepIndicator: React.FC<{ currentStep: BookingStep, onStepClick: (step: Bo
               onClick={() => onStepClick(s.key)}
               className="flex flex-col items-center group transition-transform active:scale-95 cursor-pointer"
             >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${isActive ? 'bg-brand-orange text-white shadow-[0_0_20px_rgba(255,95,31,0.6)] scale-110' : isCompleted ? 'bg-brand-teal text-brand-black' : 'bg-brand-gray-dark text-white/20 border border-white/10 group-hover:border-white/40'}`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${isActive ? 'bg-brand-orange text-white shadow-[0_0_20px_rgba(255,95,31,0.6)] scale-110' : isCompleted ? 'bg-brand-teal text-brand-black' : 'bg-brand-gray-dark text-white/40 border border-white/20 group-hover:border-white/60'}`}>
                 {isCompleted ? '✓' : idx + 1}
               </div>
-              <span className={`text-[10px] uppercase font-black mt-2 tracking-widest transition-colors ${isActive ? 'text-brand-orange' : 'text-white/20 group-hover:text-white/40'}`}>{s.label}</span>
+              <span className={`text-[10px] uppercase font-black mt-2 tracking-widest transition-colors ${isActive ? 'text-brand-orange' : 'text-white/60 group-hover:text-white/80'}`}>{s.label}</span>
             </button>
             {idx < steps.length - 1 && (
               <div className={`flex-grow h-[2px] mx-2 -mt-4 transition-colors duration-500 ${isCompleted ? 'bg-brand-teal' : 'bg-brand-gray-dark'}`} />
@@ -59,14 +59,14 @@ const StepIndicator: React.FC<{ currentStep: BookingStep, onStepClick: (step: Bo
   );
 };
 
-const inputStyle = () => `bg-brand-black/40 border border-white/5 rounded-xl p-4 text-white w-full focus:outline-none focus:border-brand-orange transition-all placeholder:text-white/20 font-sans text-sm`;
+const inputStyle = () => `bg-brand-black/40 border border-white/10 rounded-xl p-4 text-white w-full focus:outline-none focus:border-brand-orange transition-all placeholder:text-white/40 font-sans text-sm`;
 
 const SectionHeader: React.FC<{ number: string, title: string; subtitle?: string }> = ({ number, title, subtitle }) => (
   <div className="mb-6">
-    <h4 className="text-brand-yellow font-heading text-base tracking-widest uppercase flex items-center gap-3">
-        <span className="text-brand-orange opacity-40">{number}.</span> {title}
+    <h4 className="text-brand-yellow font-heading text-lg tracking-widest uppercase flex items-center gap-3">
+        <span className="text-brand-orange">{number}.</span> {title}
     </h4>
-    {subtitle && <p className="text-[10px] text-brand-gray-light opacity-40 uppercase font-black tracking-widest mt-1 ml-8">{subtitle}</p>}
+    {subtitle && <p className="text-[10px] text-white/70 uppercase font-black tracking-widest mt-1 ml-9">{subtitle}</p>}
   </div>
 );
 
@@ -86,6 +86,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
   const [user, setUser] = useState<any>(null);
   const [applyDiscount, setApplyDiscount] = useState(true);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [hasSubmittedDetails, setHasSubmittedDetails] = useState(false);
 
   const [formData, setFormData] = useState<BookingDetails>(() => {
     const saved = localStorage.getItem('rydeit_draft');
@@ -128,32 +129,19 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     return () => subscription.unsubscribe();
   }, []);
 
-  // Sync Profile with Form Data (Both Ways)
+  // Sync Profile with Form Data
   useEffect(() => {
     const syncProfile = async () => {
       if (!user) return;
-
-      // 1. Fetch current profile state
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-      
-      // 2. Push draft data to profile if the profile fields are currently empty
-      // This ensures that new registrants get their Name/Whatsapp/Email synced immediately
       if (formData.name || formData.whatsapp || formData.email) {
         const updates: any = { id: user.id };
         let needsSync = false;
-
         if (!profile?.full_name && formData.name) { updates.full_name = formData.name; needsSync = true; }
         if (!profile?.whatsapp && formData.whatsapp) { updates.whatsapp = formData.whatsapp; needsSync = true; }
         if (!profile?.email && (formData.email || user.email)) { updates.email = formData.email || user.email; needsSync = true; }
-        
-        if (needsSync) {
-          const { error: upsertError } = await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
-          if (upsertError) console.error("Sync to profile failed:", upsertError);
-          else console.log("Profile updated with booking identity.");
-        }
+        if (needsSync) await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
       }
-
-      // 3. Pre-fill the form from profile if the user already has data (for returning users)
       if (profile && (!formData.name || !formData.whatsapp)) {
         setFormData(prev => ({
           ...prev,
@@ -163,7 +151,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         }));
       }
     };
-
     syncProfile();
   }, [user]);
 
@@ -285,13 +272,50 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const isDetailsStepValid = () => {
+    const basicInfo = formData.name && formData.whatsapp && formData.email;
+    const addressNeeded = formData.pickupMethod === 'home' || formData.dropMethod === 'home';
+    if (addressNeeded && !formData.address.trim()) return false;
+    return !!basicInfo;
+  };
+
   const handleStepClick = (newStep: BookingStep) => {
-    if ((newStep === 'details' || newStep === 'payment') && !formData.bikeId) {
-      showToast("Please select a machine first", "info");
+    // Selection is always accessible
+    if (newStep === 'selection') {
+      setStep(newStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    setStep(newStep);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Details only accessible if bike is selected
+    if (newStep === 'details') {
+      if (!formData.bikeId) {
+        showToast("Please select a machine first", "info");
+        return;
+      }
+      setStep(newStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Payment step restriction:
+    // Only allow if they are already on payment (moving back/forth) or have submitted successfully.
+    // Manual jump to Step 3 is blocked if they haven't submitted the form yet.
+    if (newStep === 'payment') {
+      if (step === 'payment') return; // already here
+
+      if (!hasSubmittedDetails) {
+          if (!isDetailsStepValid()) {
+            showToast("Please fill in your identity and journey context first.", "warning");
+          } else {
+            showToast("Click 'Submit Request' at the bottom to proceed to payment.", "info");
+          }
+          return;
+      }
+      
+      setStep(newStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handlePreviousStep = () => {
@@ -302,6 +326,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
 
   const handleBookNewRide = () => {
     setStep('selection');
+    setHasSubmittedDetails(false);
     setFormData(prev => ({ 
       ...prev, 
       bikeId: '',
@@ -363,6 +388,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       const { error } = await supabase.from('bookings').upsert(payload, { onConflict: 'readable_id' });
       if (error) throw error;
 
+      setHasSubmittedDetails(true);
       setStep('payment');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
@@ -380,11 +406,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       const elementRect = el.getBoundingClientRect().top;
       const elementPosition = elementRect - bodyRect;
       const offsetPosition = elementPosition - offset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth'
-      });
+      window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
     }
   };
 
@@ -430,7 +452,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                             <h4 className="text-white font-bold text-xs uppercase tracking-tight">{b.name}</h4>
                             <div className="flex items-center gap-2 mt-1">
                                 <p className="text-brand-teal font-heading text-lg">₹{b.dailyRate}</p>
-                                <span className="text-[8px] text-white/30 uppercase font-black tracking-widest">/ day</span>
+                                <span className="text-[8px] text-white/60 uppercase font-black tracking-widest">/ day</span>
                             </div>
                             <button 
                                 onClick={() => handleBikeSelection(b.id.toString())} 
@@ -457,16 +479,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                     <SectionHeader number="1" title="Identity" subtitle="Who is riding?" />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">Legal Name</label>
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">Legal Name</label>
                             <input type="text" placeholder="John Doe" value={formData.name} onChange={(e) => setFormData(p => ({...p, name: e.target.value}))} className={inputStyle()} required />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">WhatsApp Number</label>
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">WhatsApp Number</label>
                             <input type="tel" placeholder="10 Digit Mobile" value={formData.whatsapp} onChange={(e) => setFormData(p => ({...p, whatsapp: e.target.value}))} className={inputStyle()} required />
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">Email Address</label>
+                        <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">Email Address</label>
                         <input type="email" placeholder="ride@adventure.com" value={formData.email} onChange={(e) => setFormData(p => ({...p, email: e.target.value}))} className={inputStyle()} required />
                     </div>
                   </div>
@@ -475,16 +497,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                     <SectionHeader number="2" title="Journey Context" subtitle="Where are you headed?" />
                     
                     <div className="space-y-4">
-                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-2">Travel Zone Selection</label>
+                        <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">Travel Zone Selection</label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <button type="button" onClick={() => setFormData(p => ({...p, outstation: false}))} className={`py-5 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${!formData.outstation ? 'bg-brand-teal text-brand-black shadow-lg shadow-brand-teal/20' : 'bg-brand-black/40 text-white/40 border border-white/5'}`}>I will travel within Kolkata</button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, outstation: true}))} className={`py-5 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.outstation ? 'bg-brand-teal text-brand-black shadow-lg shadow-brand-teal/20' : 'bg-brand-black/40 text-white/40 border border-white/5'}`}>I will travel outside city (+₹99/day)</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, outstation: false}))} className={`py-5 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${!formData.outstation ? 'bg-brand-teal text-brand-black shadow-lg shadow-brand-teal/20' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>I will travel within Kolkata</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, outstation: true}))} className={`py-5 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.outstation ? 'bg-brand-teal text-brand-black shadow-lg shadow-brand-teal/20' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>I will travel outside city (+₹99/day)</button>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div className="space-y-4">
-                            <label className="text-[10px] font-black text-brand-teal uppercase tracking-[0.2em] ml-2 flex items-center justify-between">
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2 flex items-center justify-between">
                               Pickup Schedule
                               {charges?.isEarlyPickup && <span className="text-brand-orange animate-pulse font-bold">Early Pickup (+₹99)</span>}
                               {charges?.isLatePickup && <span className="text-brand-orange animate-pulse font-bold">Late Pickup (+₹99)</span>}
@@ -493,7 +515,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                             <input type="time" min="06:00" max="22:00" value={formData.fromTime} onChange={(e) => setFormData(p => ({...p, fromTime: e.target.value}))} className={inputStyle()} required />
                         </div>
                         <div className="space-y-4">
-                            <label className="text-[10px] font-black text-brand-teal uppercase tracking-[0.2em] ml-2 flex items-center justify-between">
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2 flex items-center justify-between">
                               Drop Schedule
                               {charges?.isEarlyDrop && <span className="text-brand-orange animate-pulse font-bold">Early Drop (+₹99)</span>}
                               {charges?.isLateDrop && <span className="text-brand-orange animate-pulse font-bold">Late Drop (+₹99)</span>}
@@ -510,13 +532,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
                             <label className="text-[10px] font-black text-brand-yellow uppercase tracking-[0.2em] ml-2">How to get vehicle?</label>
-                            <button type="button" onClick={() => setFormData(p => ({...p, pickupMethod: 'garage'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.pickupMethod === 'garage' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/40 border border-white/5'}`}>Pickup from Garage (Free)</button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, pickupMethod: 'home'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.pickupMethod === 'home' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/40 border border-white/5'}`}>Deliver to Address (+₹199)</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, pickupMethod: 'garage'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.pickupMethod === 'garage' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Pickup from Garage (Free)</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, pickupMethod: 'home'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.pickupMethod === 'home' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Deliver to Address (+₹199)</button>
                         </div>
                         <div className="space-y-4">
                             <label className="text-[10px] font-black text-brand-yellow uppercase tracking-[0.2em] ml-2">How to return vehicle?</label>
-                            <button type="button" onClick={() => setFormData(p => ({...p, dropMethod: 'garage'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.dropMethod === 'garage' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/40 border border-white/5'}`}>Drop at Garage (Free)</button>
-                            <button type="button" onClick={() => setFormData(p => ({...p, dropMethod: 'home'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.dropMethod === 'home' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/40 border border-white/5'}`}>Pickup from my Address (+₹199)</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, dropMethod: 'garage'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.dropMethod === 'garage' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Drop at Garage (Free)</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, dropMethod: 'home'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.dropMethod === 'home' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Pickup from my Address (+₹199)</button>
                         </div>
                     </div>
 
@@ -537,7 +559,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                     </div>
 
                     <div className="space-y-5">
-                      <div className="flex justify-between items-center text-[11px] text-white/40 uppercase font-black">
+                      <div className="flex justify-between items-center text-[11px] text-white/80 uppercase font-black">
                         <span>Standard Fare</span>
                         <span className="text-white">₹{charges?.referencePrice}</span>
                       </div>
@@ -550,78 +572,54 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                       )}
                       
                       {charges?.earlyLatePickupFee ? (
-                          <div className="flex justify-between items-center text-[9px] text-brand-orange/60 uppercase font-black">
+                          <div className="flex justify-between items-center text-[9px] text-brand-orange uppercase font-black">
                             <span>{charges.isEarlyPickup ? 'Early Pickup' : 'Late Pickup'} Fee</span>
                             <span>+₹{charges.earlyLatePickupFee}</span>
                           </div>
                       ) : null}
                       {charges?.earlyLateDropFee ? (
-                          <div className="flex justify-between items-center text-[9px] text-brand-orange/60 uppercase font-black">
+                          <div className="flex justify-between items-center text-[9px] text-brand-orange uppercase font-black">
                             <span>{charges.isEarlyDrop ? 'Early Drop' : 'Late Drop'} Fee</span>
                             <span>+₹{charges.earlyLateDropFee}</span>
                           </div>
                       ) : null}
 
                       {charges?.deliveryFee ? (
-                        <div className="flex justify-between items-center text-[9px] text-brand-teal/60 uppercase font-black">
+                        <div className="flex justify-between items-center text-[9px] text-brand-teal uppercase font-black">
                             <span>Delivery Fee</span>
                             <span>+₹{charges.deliveryFee}</span>
                         </div>
                       ) : null}
 
                       {charges?.homePickupFee ? (
-                        <div className="flex justify-between items-center text-[9px] text-brand-teal/60 uppercase font-black">
+                        <div className="flex justify-between items-center text-[9px] text-brand-teal uppercase font-black">
                             <span>Home Pickup Fee</span>
                             <span>+₹{charges.homePickupFee}</span>
                         </div>
                       ) : null}
 
-                      <div className="pt-5 border-t border-white/5">
+                      <div className="pt-5 border-t border-white/10">
                         <div className="flex justify-between items-end font-heading text-white">
                             <span className="text-xs tracking-widest">Final Rent</span>
                             <span className="text-4xl text-brand-yellow">₹{charges?.finalPayable}</span>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] text-white/40 uppercase font-black mt-2">
+                        <div className="flex justify-between items-center text-[10px] text-white/80 uppercase font-black mt-2">
                             <span>Advance to Pay</span>
                             <span className="text-brand-teal">₹{charges?.advance}</span>
                         </div>
                       </div>
                     </div>
 
-                    {charges?.hasDiscount && (
-                        <button 
-                          type="button" 
-                          onClick={() => setApplyDiscount(!applyDiscount)} 
-                          className={`w-full group relative p-5 rounded-2xl border-2 transition-all duration-500 overflow-hidden ${
-                            applyDiscount 
-                            ? 'bg-brand-yellow/10 border-brand-yellow shadow-[0_0_20px_rgba(255,199,0,0.3)]' 
-                            : 'bg-brand-black/40 border-dashed border-white/10 hover:border-brand-yellow/40'
-                          }`}
-                        >
-                          <div className="flex flex-col items-center text-center space-y-1 relative z-10">
-                            <span className={`text-[8px] font-black uppercase tracking-[0.3em] ${applyDiscount ? 'text-brand-yellow' : 'text-white/40'}`}>
-                              {applyDiscount ? 'PROMOCODE APPLIED' : 'PROMOCODE AVAILABLE'}
-                            </span>
-                            <span className={`text-[11px] font-heading tracking-widest ${applyDiscount ? 'text-brand-yellow font-bold' : 'text-white/60'}`}>
-                              {applyDiscount 
-                                ? `RYDENOW (-₹${charges.discountAmount})` 
-                                : `Apply "RYDENOW" to save ₹${charges.discountAmount}`
-                              }
-                            </span>
-                          </div>
-                        </button>
-                    )}
-
                     <div className="space-y-6">
                         <div className="flex items-start gap-4 group">
-                            <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} className="mt-1 w-4 h-4 rounded bg-brand-black border-white/10 text-brand-teal focus:ring-brand-teal cursor-pointer" id="tc-check" />
-                            <label htmlFor="tc-check" className="text-[9px] text-white/40 uppercase font-bold tracking-widest leading-relaxed cursor-pointer select-none">
+                            <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} className="mt-1 w-4 h-4 rounded bg-brand-black border-white/20 text-brand-teal focus:ring-brand-teal cursor-pointer" id="tc-check" />
+                            <label htmlFor="tc-check" className="text-[10px] text-white/80 uppercase font-bold tracking-widest leading-relaxed cursor-pointer select-none">
                                 I accept all <button type="button" onClick={() => onShowPolicy(TERMS_AND_CONDITIONS)} className="text-brand-teal hover:underline font-black">rental terms</button> and city travel regulations.
                             </label>
                         </div>
 
                         <div className="flex gap-4">
-                            <button type="button" onClick={handlePreviousStep} className="flex-1 bg-white/5 text-white/40 py-6 rounded-2xl font-heading tracking-widest border border-white/10 hover:bg-white/10 transition-all uppercase text-[10px]">Back</button>
+                            <button type="button" onClick={handlePreviousStep} className="flex-1 bg-white/5 text-white/60 py-6 rounded-2xl font-heading tracking-widest border border-white/10 hover:bg-white/10 transition-all uppercase text-[10px]">Back</button>
                             <button type="submit" disabled={isSubmitting} className="flex-[2] bg-brand-orange text-white py-6 rounded-2xl font-heading tracking-widest hover:scale-[1.03] transition-all shadow-[0_0_25px_rgba(255,95,31,0.3)] disabled:opacity-50">
                                 {isSubmitting ? 'PROCESSING...' : 'Submit Request'}
                             </button>
@@ -638,11 +636,11 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
               {!user ? (
                 <div className="space-y-10">
                   <div className="w-20 h-20 bg-brand-orange/20 rounded-full flex items-center justify-center mx-auto text-brand-orange">
-                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2-0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2-0 00-2-2H6a2 2 0 00-2 2v6a2 2-0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-3xl font-heading text-white uppercase tracking-tighter">Draft Reserved</h3>
-                    <p className="text-brand-gray-light font-sans text-[10px] tracking-widest uppercase opacity-60">Reserved ID: {bookingId}</p>
+                    <p className="text-white/60 font-sans text-[10px] tracking-widest uppercase">Reserved ID: {bookingId}</p>
                   </div>
 
                   <div className="bg-brand-orange/10 border border-brand-orange/20 p-8 rounded-3xl animate-pulse">
@@ -668,7 +666,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                 <div className="space-y-8 py-20 flex flex-col items-center">
                    <div className="w-20 h-20 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>
                    <h3 className="text-3xl font-heading text-white uppercase tracking-tighter">Syncing Order...</h3>
-                   <p className="text-brand-gray-light text-xs tracking-widest uppercase opacity-60">Attaching your rider profile</p>
+                   <p className="text-white/60 text-xs tracking-widest uppercase">Attaching your rider profile</p>
                 </div>
               )}
             </div>
