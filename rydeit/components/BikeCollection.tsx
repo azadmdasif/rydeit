@@ -33,7 +33,13 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
       </div>
       
       <div className="relative h-60 overflow-hidden">
-        <img src={bike.imageUrl} alt={bike.name} className={`w-full h-full object-cover transition-transform duration-500 ${!isBooked ? 'group-hover:scale-110' : 'grayscale opacity-60'}`} />
+        <img 
+          src={bike.imageUrl} 
+          alt={bike.name} 
+          loading="lazy"
+          decoding="async"
+          className={`w-full h-full object-cover transition-transform duration-500 ${!isBooked ? 'group-hover:scale-110' : 'grayscale opacity-60'}`} 
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
            <span className="text-white text-xs font-bold uppercase tracking-widest">View Details</span>
         </div>
