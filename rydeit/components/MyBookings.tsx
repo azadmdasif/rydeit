@@ -63,18 +63,21 @@ export const MyBookings: React.FC = () => {
   const fetchAll = async (userId: string) => {
     setLoading(true);
     try {
-      const { data: pData, error: pError } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      const { data: bData, error: bError } = await supabase.from('bookings').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+      // OPTIMIZATION: Concurrent fetching
+      const [profileRes, bookingsRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+        supabase.from('bookings').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+      ]);
 
-      if (pError) console.error("Profile Fetch Error:", pError);
-      if (bError) {
-        console.error("Bookings Fetch Error:", bError);
-        showToast("Error loading rides. Check RLS policies.", "error");
+      if (profileRes.error) console.error("Profile Fetch Error:", profileRes.error);
+      if (bookingsRes.error) {
+        console.error("Bookings Fetch Error:", bookingsRes.error);
+        showToast("Error loading rides.", "error");
       }
 
-      if (pData) {
+      if (profileRes.data) {
+        const pData = profileRes.data;
         setProfile(pData);
-        // Initialize editing state with profile data
         setEditName(pData.full_name || '');
         setEditPhone(pData.phone || '');
         setEditWhatsapp(pData.whatsapp || '');
@@ -82,14 +85,16 @@ export const MyBookings: React.FC = () => {
         setEditAadhaarNumber(pData.aadhaar_number || '');
       }
       
-      setBookings(bData || []);
+      setBookings(bookingsRes.data || []);
     } catch (err) {
       console.error("Dashboard Fetch Catch:", err);
     } finally {
       setLoading(false);
     }
   };
-
+  
+  // ... rest of the component (functions for PDF generation, uploads, etc. stay the same)
+  
   const getLogoBase64 = (): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -108,14 +113,12 @@ export const MyBookings: React.FC = () => {
   };
 
   const generateRentalAgreement = async (booking: any, autoDownload = true) => {
-    // 1. Check Profile Completeness (Name, WhatsApp)
     if (!profile || !profile.full_name || !profile.whatsapp) {
         showToast("Complete your Profile details (Name & WhatsApp) before signing.", "warning");
         setActiveTab("profile");
         return;
     }
 
-    // 2. Check Identity Completeness (Docs & Numbers)
     if (!profile.dl_number || !profile.aadhaar_number || !profile.dl_url || !profile.aadhaar_url) {
         showToast("Complete your Identity verification (DL & Aadhaar) before signing.", "warning");
         setActiveTab("identity");
@@ -133,7 +136,6 @@ export const MyBookings: React.FC = () => {
       doc.addImage(logoBase64, 'PNG', pageWidth / 2 - 15, 10, 30, 30);
     }
 
-    // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text('RENTAL AGREEMENT & CUSTOMER DECLARATION', pageWidth / 2, y, { align: 'center' });
@@ -184,7 +186,6 @@ export const MyBookings: React.FC = () => {
     const splitTerm1 = doc.splitTextToSize(term1, pageWidth - (margin * 2));
     doc.text(splitTerm1, margin, y);
 
-    // Page 2
     doc.addPage();
     y = 25;
     
@@ -210,7 +211,6 @@ export const MyBookings: React.FC = () => {
         y += (splitTerm.length * 6) + 8;
     });
 
-    // Page 3
     if (y > 200) { doc.addPage(); y = 25; }
     
     const term11 = `11. Jurisdiction: All disputes shall be subject to the exclusive jurisdiction of the courts at Kolkata, and governed by the laws of India.`;
@@ -228,7 +228,6 @@ export const MyBookings: React.FC = () => {
     
     y += (splitDec.length * 6) + 30;
     
-    // Digital Signature Area
     doc.setFillColor(245, 245, 245);
     doc.rect(margin, y - 5, pageWidth - (margin * 2), 60, 'F');
     
