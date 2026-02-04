@@ -54,65 +54,75 @@ export const Header: React.FC = () => {
 
             <Link to="/" className="flex items-center gap-3 group">
               <div className="flex flex-col leading-none">
-                <span className="font-heading text-2xl md:text-3xl text-white tracking-tighter group-hover:text-brand-yellow transition-colors uppercase">
+                <span className="font-heading text-xl md:text-3xl text-white tracking-tighter group-hover:text-brand-yellow transition-colors uppercase">
                   RYDE<span className="text-brand-orange">IT</span>
                 </span>
-                <span className="text-[9px] font-bold tracking-[0.2em] text-brand-teal uppercase">Premium Rentals</span>
+                <span className="text-[7px] md:text-[9px] font-bold tracking-[0.2em] text-brand-teal uppercase">Premium Rentals</span>
               </div>
             </Link>
           </div>
 
-          <nav className="hidden md:flex items-center space-x-6 lg:space-x-10">
-            {menuItems.map(item => (
-                <NavLink key={item.to} to={item.to}>{item.label}</NavLink>
-            ))}
-            
-            {isAdmin && (
-               <Link 
-                to="/admin"
-                className={`text-brand-teal font-black text-[11px] tracking-widest hover:text-white transition-all uppercase border px-4 py-1.5 rounded-full animate-pulse shadow-[0_0_15px_rgba(0,194,199,0.2)] ${location.pathname.startsWith('/admin') ? 'border-brand-yellow text-brand-yellow' : 'border-brand-teal/30'}`}
-               >
-                 Admin Panel
-               </Link>
-            )}
-
+          <div className="flex items-center gap-4">
+            {/* Mobile Book Now Button - Visible only on mobile/tablet */}
             <Link 
                 to="/book"
-                className="bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2.5 px-6 rounded-full hover:bg-brand-yellow hover:text-brand-black transition-all shadow-lg hidden lg:block"
+                className="md:hidden bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2 px-4 rounded-full shadow-lg active:scale-95 transition-all"
             >
-                BOOK NOW
+                BOOK
             </Link>
 
-            <div className="flex items-center gap-4 ml-4 pl-4 border-l border-white/10">
-              {!user ? (
-                <Link
-                  to="/login"
-                  className="bg-brand-teal text-brand-black font-heading text-[10px] tracking-widest py-2 px-6 rounded-full hover:bg-brand-yellow transition-all shadow-lg"
-                >
-                  SIGN IN / UP
-                </Link>
-              ) : (
-                <div className="flex items-center gap-4">
-                  <Link 
-                    to="/my-bookings" 
-                    className="flex items-center gap-2 bg-brand-teal/10 border border-brand-teal/30 px-5 py-2.5 rounded-full hover:bg-brand-teal/20 transition-all group"
-                  >
-                    <div className="w-6 h-6 rounded-full bg-brand-teal/20 flex items-center justify-center text-brand-teal group-hover:bg-brand-teal group-hover:text-white transition-all">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                    </div>
-                    <span className="text-[10px] text-brand-teal font-black uppercase tracking-widest">Dashboard</span>
-                  </Link>
-                  <button 
-                    onClick={() => supabase.auth.signOut()}
-                    className="text-white/40 hover:text-red-500 transition-colors"
-                    title="Sign Out"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                  </button>
-                </div>
+            <nav className="hidden md:flex items-center space-x-6 lg:space-x-10">
+              {menuItems.map(item => (
+                  <NavLink key={item.to} to={item.to}>{item.label}</NavLink>
+              ))}
+              
+              {isAdmin && (
+                 <Link 
+                  to="/admin"
+                  className={`text-brand-teal font-black text-[11px] tracking-widest hover:text-white transition-all uppercase border px-4 py-1.5 rounded-full animate-pulse shadow-[0_0_15px_rgba(0,194,199,0.2)] ${location.pathname.startsWith('/admin') ? 'border-brand-yellow text-brand-yellow' : 'border-brand-teal/30'}`}
+                 >
+                   Admin
+                 </Link>
               )}
-            </div>
-          </nav>
+
+              <Link 
+                  to="/book"
+                  className="bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2.5 px-6 rounded-full hover:bg-brand-yellow hover:text-brand-black transition-all shadow-lg"
+              >
+                  BOOK NOW
+              </Link>
+
+              <div className="flex items-center gap-4 ml-4 pl-4 border-l border-white/10">
+                {!user ? (
+                  <Link
+                    to="/login"
+                    className="bg-brand-teal text-brand-black font-heading text-[10px] tracking-widest py-2 px-6 rounded-full hover:bg-brand-yellow transition-all shadow-lg"
+                  >
+                    SIGN IN
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <Link 
+                      to="/my-bookings" 
+                      className="flex items-center gap-2 bg-brand-teal/10 border border-brand-teal/30 px-5 py-2.5 rounded-full hover:bg-brand-teal/20 transition-all group"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-brand-teal/20 flex items-center justify-center text-brand-teal group-hover:bg-brand-teal group-hover:text-white transition-all">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      </div>
+                      <span className="hidden lg:inline text-[10px] text-brand-teal font-black uppercase tracking-widest">Dashboard</span>
+                    </Link>
+                    <button 
+                      onClick={() => supabase.auth.signOut()}
+                      className="text-white/40 hover:text-red-500 transition-colors"
+                      title="Sign Out"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </nav>
+          </div>
         </div>
       </header>
       
@@ -136,6 +146,8 @@ export const Header: React.FC = () => {
                     <Link key={item.to} to={item.to} className="text-xl text-white font-bold uppercase tracking-widest">{item.label}</Link>
                 ))}
                 {isAdmin && <Link to="/admin" className="text-xl text-brand-teal font-bold uppercase tracking-widest">Admin Panel</Link>}
+                {user && <Link to="/my-bookings" className="text-xl text-brand-teal font-bold uppercase tracking-widest">My Dashboard</Link>}
+                {!user && <Link to="/login" className="text-xl text-brand-teal font-bold uppercase tracking-widest">Sign In</Link>}
             </nav>
         </div>
       </div>
