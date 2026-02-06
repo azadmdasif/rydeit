@@ -11,7 +11,7 @@ export const DELIVERY_PICKUP_FEE = 199;
 
 export const BIKES: Bike[] = [
   // Scooters
-  { id: 15, name: 'Suzuki Burgman', description: 'Powerful, premium 125cc scooter', imageUrl: '/images/suzuki-burgman.jpg', color: 'yellow', category: 'Scooter', dailyRate: 700, status: 'Available' },
+  { id: 15, name: 'Suzuki Burgman', description: 'Powerful, premium 125cc scooter', imageUrl: '/images/suziki-burgman.jpg', color: 'yellow', category: 'Scooter', dailyRate: 700, status: 'Available' },
   { id: 16, name: 'Honda Activa 125', description: 'India’s most-sold 125cc scooter', imageUrl: '/images/honda-activa-125.jpg', color: 'black', category: 'Scooter', dailyRate: 700, status: 'Available' },
   { id: 17, name: 'TVS Jupiter 125', description: 'Comfortable, full-features family scooter', imageUrl: '/images/tvs-jupiter-125.jpg', color: 'orange', category: 'Scooter', dailyRate: 700, status: 'Available' },
   { id: 18, name: 'Honda Dio 125', description: 'Sporty 125cc youth scooter', imageUrl: '/images/honda-dio-125.jpg', color: 'teal', category: 'Scooter', dailyRate: 700, status: 'Available' },
