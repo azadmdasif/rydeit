@@ -115,67 +115,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     return initialData;
   });
 
-  useEffect(() => {
-    const urlBikeId = searchParams.get('bikeId');
-    if (urlBikeId && urlBikeId !== formData.bikeId) {
-      setFormData(prev => ({ ...prev, bikeId: urlBikeId }));
-      setStep('details');
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Sync Profile with Form Data
-  useEffect(() => {
-    const syncProfile = async () => {
-      if (!user) return;
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-      if (formData.name || formData.whatsapp || formData.email) {
-        const updates: any = { id: user.id };
-        let needsSync = false;
-        if (!profile?.full_name && formData.name) { updates.full_name = formData.name; needsSync = true; }
-        if (!profile?.whatsapp && formData.whatsapp) { updates.whatsapp = formData.whatsapp; needsSync = true; }
-        if (!profile?.email && (formData.email || user.email)) { updates.email = formData.email || user.email; needsSync = true; }
-        if (needsSync) await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
-      }
-      if (profile && (!formData.name || !formData.whatsapp)) {
-        setFormData(prev => ({
-          ...prev,
-          name: prev.name || profile.full_name || '',
-          whatsapp: prev.whatsapp || profile.whatsapp || '',
-          email: prev.email || profile.email || user.email || ''
-        }));
-      }
-    };
-    syncProfile();
-  }, [user]);
-
-  useEffect(() => {
-    localStorage.setItem('rydeit_draft', JSON.stringify(formData));
-    localStorage.setItem('rydeit_pending_id', bookingId);
-    localStorage.setItem('rydeit_current_step', step);
-  }, [formData, bookingId, step]);
-
-  useEffect(() => {
-    if (user && step === 'payment') {
-      const linkBookingAndRedirect = async () => {
-        const { error } = await supabase.from('bookings').update({ user_id: user.id }).eq('readable_id', bookingId);
-        if (!error) {
-          localStorage.removeItem('rydeit_draft');
-          localStorage.removeItem('rydeit_pending_id');
-          localStorage.removeItem('rydeit_current_step');
-          showToast("Ride linked to your profile!", "success");
-          navigate('/my-bookings');
-        }
-      };
-      linkBookingAndRedirect();
-    }
-  }, [user, step, bookingId, navigate]);
-
   const bike = useMemo(() => bikes.find(b => b.id.toString() === formData.bikeId), [formData.bikeId, bikes]);
 
   const charges = useMemo(() => {
@@ -261,16 +200,84 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     };
   }, [formData, bike, applyDiscount]);
 
-  const handleBikeSelection = (id: string) => {
-    const selectedBike = bikes.find(b => b.id.toString() === id);
-    if (selectedBike?.status === 'Booked') {
-        showToast("Machine is currently unavailable", "warning");
-        return;
-    }
-    setFormData(prev => ({ ...prev, bikeId: id }));
-    setStep('details');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const sendWhatsAppConfirmation = () => {
+    if (!bike || !charges) return;
+    
+    const message = `*NEW BOOKING REQUEST FROM RYDEIT*%0A%0A` +
+      `*Booking ID:* ${bookingId}%0A` +
+      `*Machine:* ${bike.name}%0A` +
+      `*Rider Name:* ${formData.name}%0A` +
+      `*WhatsApp:* ${formData.whatsapp}%0A%0A` +
+      `*Pickup:* ${formData.fromDate} @ ${formData.fromTime}%0A` +
+      `*Return:* ${formData.toDate} @ ${formData.toTime}%0A%0A` +
+      `*Total Rent:* ₹${charges.finalPayable}%0A` +
+      `*Advance to Pay:* ₹${charges.advance}%0A%0A` +
+      `_I have submitted my request on the portal. Please confirm the availability of my machine._`;
+
+    const whatsappUrl = `https://wa.me/917686022245?text=${message}`;
+    window.open(whatsappUrl, '_blank');
   };
+
+  useEffect(() => {
+    const urlBikeId = searchParams.get('bikeId');
+    if (urlBikeId && urlBikeId !== formData.bikeId) {
+      setFormData(prev => ({ ...prev, bikeId: urlBikeId }));
+      setStep('details');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Sync Profile with Form Data
+  useEffect(() => {
+    const syncProfile = async () => {
+      if (!user) return;
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      if (formData.name || formData.whatsapp || formData.email) {
+        const updates: any = { id: user.id };
+        let needsSync = false;
+        if (!profile?.full_name && formData.name) { updates.full_name = formData.name; needsSync = true; }
+        if (!profile?.whatsapp && formData.whatsapp) { updates.whatsapp = formData.whatsapp; needsSync = true; }
+        if (!profile?.email && (formData.email || user.email)) { updates.email = formData.email || user.email; needsSync = true; }
+        if (needsSync) await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
+      }
+      if (profile && (!formData.name || !formData.whatsapp)) {
+        setFormData(prev => ({
+          ...prev,
+          name: prev.name || profile.full_name || '',
+          whatsapp: prev.whatsapp || profile.whatsapp || '',
+          email: prev.email || profile.email || user.email || ''
+        }));
+      }
+    };
+    syncProfile();
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem('rydeit_draft', JSON.stringify(formData));
+    localStorage.setItem('rydeit_pending_id', bookingId);
+    localStorage.setItem('rydeit_current_step', step);
+  }, [formData, bookingId, step]);
+
+  useEffect(() => {
+    if (user && step === 'payment') {
+      const linkBookingAndRedirect = async () => {
+        const { error } = await supabase.from('bookings').update({ user_id: user.id }).eq('readable_id', bookingId);
+        if (!error) {
+          localStorage.removeItem('rydeit_draft');
+          localStorage.removeItem('rydeit_pending_id');
+          localStorage.removeItem('rydeit_current_step');
+          showToast("Ride linked to your profile!", "success");
+          navigate('/my-bookings');
+        }
+      };
+      linkBookingAndRedirect();
+    }
+  }, [user, step, bookingId, navigate]);
 
   const isDetailsStepValid = () => {
     const basicInfo = formData.name && formData.whatsapp && formData.email;
@@ -280,14 +287,11 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
   };
 
   const handleStepClick = (newStep: BookingStep) => {
-    // Selection is always accessible
     if (newStep === 'selection') {
       setStep(newStep);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-
-    // Details only accessible if bike is selected
     if (newStep === 'details') {
       if (!formData.bikeId) {
         showToast("Please select a machine first", "info");
@@ -297,13 +301,8 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-
-    // Payment step restriction:
-    // Only allow if they are already on payment (moving back/forth) or have submitted successfully.
-    // Manual jump to Step 3 is blocked if they haven't submitted the form yet.
     if (newStep === 'payment') {
-      if (step === 'payment') return; // already here
-
+      if (step === 'payment') return;
       if (!hasSubmittedDetails) {
           if (!isDetailsStepValid()) {
             showToast("Please fill in your identity and journey context first.", "warning");
@@ -312,7 +311,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
           }
           return;
       }
-      
       setStep(newStep);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -338,28 +336,30 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleBikeSelection = (id: string) => {
+    setFormData(prev => ({ ...prev, bikeId: id }));
+    setStep('details');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!acceptedTerms) {
       showToast("Please accept T&C", 'warning');
       return;
     }
-
     const pickupT = formData.fromTime;
     const dropT = formData.toTime;
     if (pickupT < "06:00" || pickupT > "22:00" || dropT < "06:00" || dropT > "22:00") {
       showToast("We only operate between 06:00 AM and 10:00 PM.", "warning");
       return;
     }
-
     const start = new Date(`${formData.fromDate}T${formData.fromTime}`);
     const end = new Date(`${formData.toDate}T${formData.toTime}`);
     if (end <= start) {
       showToast("Drop cannot be before pickup", 'error');
       return;
     }
-    
     if ((formData.pickupMethod === 'home' || formData.dropMethod === 'home') && !formData.address.trim()) {
       showToast("Please enter your delivery/pickup address.", 'warning');
       return;
@@ -389,6 +389,10 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       if (error) throw error;
 
       setHasSubmittedDetails(true);
+      
+      // TRIGGER WHATSAPP REDIRECT AUTOMATICALLY
+      sendWhatsAppConfirmation();
+
       setStep('payment');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
@@ -636,7 +640,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
               {!user ? (
                 <div className="space-y-10">
                   <div className="w-20 h-20 bg-brand-orange/20 rounded-full flex items-center justify-center mx-auto text-brand-orange">
-                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2-0 00-2-2H6a2 2 0 00-2 2v6a2 2-0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2-0 00-2-2H6a2 2-0 00-2 2v6a2 2-0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-3xl font-heading text-white uppercase tracking-tighter">Draft Reserved</h3>
@@ -649,10 +653,21 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                     </p>
                   </div>
 
-                  <div className="bg-brand-black/60 p-8 rounded-[2.5rem] border-2 border-brand-orange/30 shadow-2xl">
-                    <p className="text-brand-orange font-bold text-xs uppercase mb-8 tracking-widest">Sign in to claim this order & pay</p>
-                    <Auth onSuccess={() => {}} />
+                  <div className="flex flex-col gap-4">
+                    <button 
+                      onClick={sendWhatsAppConfirmation}
+                      className="w-full py-4 bg-[#25D366] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] transition-transform"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 448 512"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 221.9-99.6 221.9-222 0-59.3-25.2-115-67.1-157zm-157 .9c48.4 0 93.2 18.7 127.3 52.8 34.1 34.1 52.8 78.9 52.8 127.3s-18.7 93.2-52.8 127.3c-34.1 34.1-78.9 52.8-127.3 52.8h-.1c-34.9 0-68.9-9.8-97.3-27.9l-11.5-6.8-71.3 18.6 19-69.8-7.5-11.8C34 317.6 24 286.5 24 252.3c0-110.3 89.7-200 200-200z"/></svg>
+                      RE-SEND DETAILS VIA WHATSAPP
+                    </button>
+                    
+                    <div className="bg-brand-black/60 p-8 rounded-[2.5rem] border-2 border-brand-orange/30 shadow-2xl">
+                      <p className="text-brand-orange font-bold text-xs uppercase mb-8 tracking-widest">Sign in to claim this order & pay</p>
+                      <Auth onSuccess={() => {}} />
+                    </div>
                   </div>
+
                   <div className="pt-4">
                     <button 
                       onClick={handleBookNewRide} 
@@ -665,8 +680,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
               ) : (
                 <div className="space-y-8 py-20 flex flex-col items-center">
                    <div className="w-20 h-20 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>
-                   <h3 className="text-3xl font-heading text-white uppercase tracking-tighter">Syncing Order...</h3>
-                   <p className="text-white/60 text-xs tracking-widest uppercase">Attaching your rider profile</p>
+                   <p className="text-white/40 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">Redirecting to Dashboard</p>
                 </div>
               )}
             </div>
