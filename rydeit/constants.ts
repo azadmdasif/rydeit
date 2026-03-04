@@ -8,20 +8,21 @@ export const HANDLING_CHARGE = 100;
 export const EARLY_LATE_FEE = 99; 
 export const OUTSTATION_DAILY_SURCHARGE = 99;
 export const DELIVERY_PICKUP_FEE = 199;
+export const GOOGLE_MAPS_REVIEW_LINK = 'https://g.page/r/your-business-id/review';
 
 export const BIKES: Bike[] = [
   // Scooters
-  { id: 15, name: 'Suzuki Burgman', description: 'Powerful, premium 125cc scooter', imageUrl: '/images/suziki-burgman.jpg', color: 'yellow', category: 'Scooter', dailyRate: 700, status: 'Available' },
+  { id: 15, name: 'Suzuki Access 125', description: 'Powerful, premium 125cc scooter', imageUrl: '/images/suzuki-access-125.jpg', color: 'yellow', category: 'Scooter', dailyRate: 700, status: 'Available' },
   { id: 16, name: 'Honda Activa 125', description: 'India’s most-sold 125cc scooter', imageUrl: '/images/honda-activa-125.jpg', color: 'black', category: 'Scooter', dailyRate: 700, status: 'Available' },
   { id: 17, name: 'TVS Jupiter 125', description: 'Comfortable, full-features family scooter', imageUrl: '/images/tvs-jupiter-125.jpg', color: 'orange', category: 'Scooter', dailyRate: 700, status: 'Available' },
   { id: 18, name: 'Honda Dio 125', description: 'Sporty 125cc youth scooter', imageUrl: '/images/honda-dio-125.jpg', color: 'teal', category: 'Scooter', dailyRate: 700, status: 'Available' },
   { id: 19, name: 'Ather 450X', description: 'Tech-packed premium electric scooter', imageUrl: '/images/ather-450x.jpg', color: 'teal', category: 'Scooter', dailyRate: 900, status: 'Available' },
   
   // Bikes
-  { id: 1, name: 'Hero Xtreme 125r', description: 'Sport-commuter staple', imageUrl: '/images/hero-xtreme-125r.jpg', color: 'black', category: 'Bikes', dailyRate: 700, status: 'Available' },
-  { id: 3, name: 'Honda Shine 125', description: 'Smooth 125cc refined engine', imageUrl: '/images/honda-shine-125.jpg', color: 'orange', category: 'Bikes', dailyRate: 700, status: 'Available' },
-  { id: 5, name: 'Bajaj Pulsar 150', description: 'Sport-commuter staple', imageUrl: '/images/bajaj-pulsar-150.jpg', color: 'black', category: 'Bikes', dailyRate: 700, status: 'Available' },
-  { id: 6, name: 'TVS Apache RTR 160 4V', description: 'Sharp handling streetfighter', imageUrl: '/images/tvs-apache-rtr-160.jpg', color: 'orange', category: 'Bikes', dailyRate: 900, status: 'Available' },
+  { id: 1, name: 'Hero Splendor Plus', description: 'Reliable 97cc commuter (~70 kmpl)', imageUrl: '/images/hero-splendor-plus.jpg', color: 'black', category: 'Bikes', dailyRate: 700, status: 'Available' },
+  { id: 3, name: 'Honda Shine 125', description: 'Smooth 125cc refined engine', imageUrl: '/images/honda-shine-125.jpg', color: 'orange', category: 'Bikes', dailyRate: 800, status: 'Available' },
+  { id: 5, name: 'Bajaj Pulsar 150', description: 'Sport-commuter staple', imageUrl: '/images/bajaj-pulsar-150.jpg', color: 'black', category: 'Bikes', dailyRate: 900, status: 'Available' },
+  { id: 6, name: 'TVS Apache RTR 160 4V', description: 'Sharp handling streetfighter', imageUrl: '/images/tvs-apache-rtr-160.jpg', color: 'orange', category: 'Bikes', dailyRate: 1000, status: 'Available' },
 
   // Royal Enfield
   { id: 8, name: 'RE Hunter 350', description: 'Compact urban cruiser (349cc)', imageUrl: '/images/re-hunter-350.jpg', color: 'teal', category: 'Royal Enfield', dailyRate: 1500, status: 'Available' },

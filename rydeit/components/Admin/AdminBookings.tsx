@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabase';
 import { useToast } from '../../App';
-import { BIKES } from '../../constants';
+import { BIKES, GOOGLE_MAPS_REVIEW_LINK } from '../../constants';
 import { Modal } from '../Modal';
 
 interface AdminBookingsProps {
@@ -27,6 +27,20 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
   
   const [adjustment, setAdjustment] = useState({ amount: 0, reason: '', type: 'fee' });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualBooking, setManualBooking] = useState({
+    bike_id: BIKES[0].id,
+    customer_name: '',
+    customer_phone: '',
+    pickup_date: new Date().toISOString().split('T')[0],
+    pickup_time: '10:00',
+    return_date: new Date().toISOString().split('T')[0],
+    return_time: '20:00',
+    total_rent: 0,
+    aadhaar_number: '',
+    dl_number: ''
+  });
+  const [extension, setExtension] = useState({ days: 1, amount: 0 });
 
   useEffect(() => {
     fetchBookings();
@@ -97,11 +111,76 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     if (error) showToast(error.message, 'error');
     else {
       showToast(`Status updated: ${status}`, 'success');
+      
+      // If completed, send WhatsApp message with review link
+      if (status === 'completed' && selectedBooking) {
+        const message = `Hi ${selectedBooking.customer_name}, thank you for riding with Rydeit! We hope you had a great experience. We'd love to hear your feedback. Please leave us a review on Google Maps: ${GOOGLE_MAPS_REVIEW_LINK}`;
+        const whatsappUrl = `https://wa.me/${selectedBooking.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+
       fetchBookings();
       if (selectedBooking?.id === id) {
           const { data } = await supabase.from('bookings').select('*').eq('id', id).single();
           setSelectedBooking(data);
       }
+    }
+  };
+
+  const handleManualBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const readableId = `RD-M${Math.floor(100000 + Math.random() * 900000)}`;
+    
+    const { error } = await supabase.from('bookings').insert({
+      ...manualBooking,
+      readable_id: readableId,
+      status: 'booking_confirmed', // Admins create confirmed rides by default
+      advance_amount: manualBooking.total_rent,
+      payment_method: 'cash'
+    });
+
+    if (error) {
+      showToast(error.message, 'error');
+    } else {
+      showToast('Manual ride created successfully!', 'success');
+      setShowManualModal(false);
+      fetchBookings();
+      setManualBooking({
+        bike_id: BIKES[0].id,
+        customer_name: '',
+        customer_phone: '',
+        pickup_date: new Date().toISOString().split('T')[0],
+        pickup_time: '10:00',
+        return_date: new Date().toISOString().split('T')[0],
+        return_time: '20:00',
+        total_rent: 0,
+        aadhaar_number: '',
+        dl_number: ''
+      });
+    }
+    setLoading(false);
+  };
+
+  const handleExtendRide = async () => {
+    if (!selectedBooking) return;
+    
+    const currentReturn = new Date(`${selectedBooking.return_date}T${selectedBooking.return_time}`);
+    const newReturn = new Date(currentReturn.getTime() + (extension.days * 24 * 60 * 60 * 1000));
+    
+    const { error } = await supabase.from('bookings').update({
+      return_date: newReturn.toISOString().split('T')[0],
+      total_rent: selectedBooking.total_rent + extension.amount,
+      admin_notes: `${selectedBooking.admin_notes || ''}\nExtended by ${extension.days} days for ₹${extension.amount} on ${new Date().toLocaleString()}`
+    }).eq('id', selectedBooking.id);
+
+    if (error) showToast(error.message, 'error');
+    else {
+      showToast('Ride extended successfully!', 'success');
+      fetchBookings();
+      const { data } = await supabase.from('bookings').select('*').eq('id', selectedBooking.id).single();
+      setSelectedBooking(data);
+      setExtension({ days: 1, amount: 0 });
     }
   };
 
@@ -163,9 +242,17 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
           <h2 className="text-4xl font-heading text-white uppercase tracking-tighter">Ride Ledger</h2>
           <p className="text-brand-teal text-[9px] font-black uppercase tracking-[0.4em] mt-2">Operational Log</p>
         </div>
-        
-        <div className="flex flex-wrap gap-2 p-1 bg-brand-gray-dark border border-white/5 rounded-2xl">
-          {['all', 'pending', 'running', 'overdue', 'completed'].map(f => (
+
+        <div className="flex gap-4">
+          <button 
+            onClick={() => setShowManualModal(true)}
+            className="px-6 py-3 bg-brand-teal text-brand-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-brand-teal/20"
+          >
+            + Create Manual Ride
+          </button>
+          
+          <div className="flex flex-wrap gap-2 p-1 bg-brand-gray-dark border border-white/5 rounded-2xl">
+            {['all', 'pending', 'running', 'overdue', 'completed'].map(f => (
             <button 
                 key={f} 
                 onClick={() => setStatusFilter(f)} 
@@ -176,6 +263,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
           ))}
         </div>
       </div>
+    </div>
 
       {/* Time Based Filters */}
       <div className="flex flex-col md:flex-row gap-6 items-center bg-brand-gray-dark/40 p-6 rounded-[2.5rem] border border-white/5 shadow-xl">
@@ -399,6 +487,43 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
               </div>
             </div>
 
+            {/* EXTEND RIDE SECTION */}
+            {selectedBooking.status === 'ongoing' && (
+              <div className="bg-brand-black/40 p-10 rounded-[3rem] border border-brand-teal/20 space-y-8">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-brand-teal font-heading text-sm uppercase tracking-widest">Extend Ride</h4>
+                  <div className="text-[10px] text-white/40 font-black uppercase tracking-widest">Current Return: {selectedBooking.return_date}</div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Extra Days</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={extension.days} 
+                      onChange={(e) => setExtension(p => ({...p, days: parseInt(e.target.value)}))} 
+                      className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Extra Rent (₹)</label>
+                    <input 
+                      type="number" 
+                      value={extension.amount} 
+                      onChange={(e) => setExtension(p => ({...p, amount: parseFloat(e.target.value)}))} 
+                      className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal" 
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={handleExtendRide}
+                  className="w-full py-4 bg-brand-teal text-brand-black font-black uppercase text-[10px] rounded-xl hover:bg-brand-teal/80 transition-all"
+                >
+                  Confirm Extension
+                </button>
+              </div>
+            )}
+
             <div className="bg-brand-black/40 p-10 rounded-[3rem] border border-white/5 space-y-10">
                 <div className="flex justify-between items-center">
                   <h4 className="text-brand-yellow font-heading text-sm uppercase tracking-widest">Custom Adjustments</h4>
@@ -422,6 +547,115 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 <button onClick={handleAdjustment} className="w-full py-5 bg-brand-yellow text-brand-black font-black uppercase text-[11px] rounded-2xl shadow-xl hover:scale-[1.01] transition-all">Apply Financial Settlement</button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* MANUAL BOOKING MODAL */}
+      {showManualModal && (
+        <Modal isOpen={showManualModal} onClose={() => setShowManualModal(false)} title="CREATE MANUAL RIDE">
+          <form onSubmit={handleManualBooking} className="space-y-8 py-6 px-2 max-h-[75vh] overflow-y-auto no-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Select Vehicle</label>
+                <select 
+                  value={manualBooking.bike_id}
+                  onChange={(e) => setManualBooking(p => ({...p, bike_id: parseInt(e.target.value)}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                >
+                  {BIKES.map(b => (
+                    <option key={b.id} value={b.id}>{b.name} (₹{b.dailyRate}/day)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Total Rent (₹)</label>
+                <input 
+                  type="number" 
+                  value={manualBooking.total_rent}
+                  onChange={(e) => setManualBooking(p => ({...p, total_rent: parseFloat(e.target.value)}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Customer Name</label>
+                <input 
+                  type="text" 
+                  value={manualBooking.customer_name}
+                  onChange={(e) => setManualBooking(p => ({...p, customer_name: e.target.value}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Customer Phone</label>
+                <input 
+                  type="tel" 
+                  value={manualBooking.customer_phone}
+                  onChange={(e) => setManualBooking(p => ({...p, customer_phone: e.target.value}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Pickup Date</label>
+                <input 
+                  type="date" 
+                  value={manualBooking.pickup_date}
+                  onChange={(e) => setManualBooking(p => ({...p, pickup_date: e.target.value}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Return Date</label>
+                <input 
+                  type="date" 
+                  value={manualBooking.return_date}
+                  onChange={(e) => setManualBooking(p => ({...p, return_date: e.target.value}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Aadhaar Number</label>
+                <input 
+                  type="text" 
+                  value={manualBooking.aadhaar_number}
+                  onChange={(e) => setManualBooking(p => ({...p, aadhaar_number: e.target.value}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Driving License</label>
+                <input 
+                  type="text" 
+                  value={manualBooking.dl_number}
+                  onChange={(e) => setManualBooking(p => ({...p, dl_number: e.target.value}))}
+                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
+                  required
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              className="w-full py-5 bg-brand-teal text-brand-black font-black uppercase text-[11px] rounded-2xl shadow-xl hover:scale-[1.01] transition-all"
+            >
+              Initialize Ride Record
+            </button>
+          </form>
         </Modal>
       )}
     </div>
