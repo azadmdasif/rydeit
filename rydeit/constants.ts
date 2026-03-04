@@ -8,6 +8,7 @@ export const HANDLING_CHARGE = 100;
 export const EARLY_LATE_FEE = 99; 
 export const OUTSTATION_DAILY_SURCHARGE = 99;
 export const DELIVERY_PICKUP_FEE = 199;
+export const GOOGLE_MAPS_REVIEW_LINK = 'https://g.page/r/your-business-id/review';
 
 export const BIKES: Bike[] = [
   // Scooters
@@ -32,6 +33,7 @@ export const BIKES: Bike[] = [
   { id: 10, name: 'Yamaha R15 V4', description: 'Supersport mini-bike, track DNA', imageUrl: '/images/yamaha-r15-v4.jpg', color: 'teal', category: 'Sports', dailyRate: 1800, status: 'Available' },
   { id: 11, name: 'KTM Duke 390', description: 'High-performance naked streetfighter', imageUrl: '/images/ktm-duke-390.jpg', color: 'orange', category: 'Sports', dailyRate: 2200, status: 'Available' },
 ];
+
 
 export const ADDITIONAL_CHARGES: AdditionalCharge[] = [
     { name: 'Refundable Security Deposit', cost: SECURITY_DEPOSIT_AMOUNT, description: 'Payable at pickup', highlight: true },
