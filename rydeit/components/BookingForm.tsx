@@ -7,7 +7,8 @@ import {
   SECURITY_DEPOSIT_AMOUNT, 
   EARLY_LATE_FEE, 
   OUTSTATION_DAILY_SURCHARGE, 
-  DELIVERY_PICKUP_FEE 
+  DELIVERY_PICKUP_FEE,
+  WEB3FORMS_ACCESS_KEY
 } from '../constants';
 import { supabase } from '../supabase';
 import { Auth } from './Auth';
@@ -387,6 +388,40 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
 
       const { error } = await supabase.from('bookings').upsert(payload, { onConflict: 'readable_id' });
       if (error) throw error;
+
+      // SEND TO WEB3FORMS FOR EMAIL NOTIFICATION
+      try {
+        const bike = bikes.find(b => b.id === parseInt(formData.bikeId));
+        await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            access_key: WEB3FORMS_ACCESS_KEY,
+            subject: `New Booking Request: ${bookingId} - ${formData.name}`,
+            from_name: "Rydeit Booking System",
+            booking_id: bookingId,
+            customer_name: formData.name,
+            customer_phone: formData.whatsapp,
+            customer_email: formData.email,
+            bike_name: bike?.name || 'Unknown',
+            pickup: `${formData.fromDate} @ ${formData.fromTime}`,
+            return: `${formData.toDate} @ ${formData.toTime}`,
+            total_rent: `₹${charges?.finalPayable}`,
+            advance_to_pay: `₹${charges?.advance}`,
+            security_deposit: `₹${charges?.security}`,
+            travel_zone: formData.outstation ? 'OUTSTATION' : 'LOCAL',
+            pickup_method: formData.pickupMethod,
+            drop_method: formData.dropMethod,
+            delivery_address: formData.address || 'N/A'
+          })
+        });
+      } catch (e) {
+        console.error("Web3Forms error:", e);
+        // Don't block the user if email fails
+      }
 
       setHasSubmittedDetails(true);
       
