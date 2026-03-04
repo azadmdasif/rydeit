@@ -8,7 +8,7 @@ export const HANDLING_CHARGE = 100;
 export const EARLY_LATE_FEE = 99; 
 export const OUTSTATION_DAILY_SURCHARGE = 99;
 export const DELIVERY_PICKUP_FEE = 199;
-export const GOOGLE_MAPS_REVIEW_LINK = 'https://g.page/r/your-business-id/review';
+export const GOOGLE_MAPS_REVIEW_LINK = 'https://g.page/r/CTu6seBNVsLqEBM/review';
 
 export const BIKES: Bike[] = [
   // Scooters
