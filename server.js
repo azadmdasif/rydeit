@@ -1,4 +1,3 @@
-
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,7 +12,7 @@ const port = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Handle Single Page Application (SPA) routing
-// This ensures that refreshes on sub-routes (like /book) work correctly
+// This ensures that refreshes on sub-routes (like /book, /bikes, /admin) work correctly
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
