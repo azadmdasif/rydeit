@@ -37,6 +37,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
   const [paymentForm, setPaymentForm] = useState({
     advancePaid: 500,
     agreedRent: 0,
+    depositAmount: 1000,
     paymentMethod: 'upi',
     note: ''
   });
@@ -46,19 +47,40 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
   const [cancelReason, setCancelReason] = useState('');
   const [cancelRefundNote, setCancelRefundNote] = useState('');
 
+  // Identity documents update modal for ongoing/confirmed bookings
+  const [docModalOpen, setDocModalOpen] = useState(false);
+  const [docForm, setDocForm] = useState({
+    aadhaar_number: '',
+    dl_number: '',
+    aadhaar_file: null as File | null,
+    dl_file: null as File | null,
+    saving: false
+  });
+
   const [manualBooking, setManualBooking] = useState({
-    bike_id: BIKES[0].id,
+    bike_id: BIKES[0]?.id || 15,
     customer_name: '',
     customer_phone: '',
+    customer_email: '',
     pickup_date: new Date().toISOString().split('T')[0],
     pickup_time: '10:00',
     return_date: new Date().toISOString().split('T')[0],
     return_time: '20:00',
-    total_rent: 0,
+    standard_rent: 700,
+    agreed_rent: 700,
+    deposit_amount: 1000, // Deposit Received Amount
+    advance_amount: 500,  // Advance / Rent Received Amount
+    payment_method: 'upi' as 'upi' | 'cash' | 'card' | 'bank_transfer',
+    payment_note: '',
+    ride_status: 'verifying_payment' as 'verifying_payment' | 'booking_confirmed' | 'ongoing',
+    is_outstation: false,
+    start_odometer: 0,
+    admin_notes: '',
     aadhaar_number: '',
     dl_number: '',
     aadhaar_image: null as File | null,
     dl_image: null as File | null,
+    handover_image: null as File | null,
     pickup_method: 'garage' as 'garage' | 'home',
     drop_method: 'garage' as 'garage' | 'home',
     delivery_address: '',
@@ -157,8 +179,99 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     }
   };
 
+  // Helper to calculate standard tariff based on machine and dates
+  const calculateStandardRent = (bikeId: number, pickDate: string, pickTime: string, retDate: string, retTime: string) => {
+    const bike = BIKES.find(b => b.id === bikeId);
+    const dailyRate = bike?.dailyRate || 700;
+    if (!pickDate || !retDate) return dailyRate;
+    const start = new Date(`${pickDate}T${pickTime || '10:00'}`);
+    const end = new Date(`${retDate}T${retTime || '20:00'}`);
+    const diffMs = end.getTime() - start.getTime();
+    const diffHours = Math.max(1, diffMs / (1000 * 60 * 60));
+    const days = Math.max(1, Math.ceil(diffHours / 24));
+    return days * dailyRate;
+  };
+
+  const getDurationText = (pickDate: string, pickTime: string, retDate: string, retTime: string) => {
+    if (!pickDate || !retDate) return '1 Day';
+    const start = new Date(`${pickDate}T${pickTime || '10:00'}`);
+    const end = new Date(`${retDate}T${retTime || '20:00'}`);
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) return 'Same Day';
+    const totalHours = Math.round(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const remHours = totalHours % 24;
+    if (days === 0) return `${totalHours} Hours`;
+    if (remHours === 0) return `${days} Day${days > 1 ? 's' : ''}`;
+    return `${days} Day${days > 1 ? 's' : ''} ${remHours} Hr${remHours > 1 ? 's' : ''}`;
+  };
+
+  const handleManualBikeOrDateChange = (updates: Partial<typeof manualBooking>) => {
+    setManualBooking(prev => {
+      const next = { ...prev, ...updates };
+      const newStandard = calculateStandardRent(next.bike_id, next.pickup_date, next.pickup_time, next.return_date, next.return_time);
+      const wasUsingStandard = prev.agreed_rent === prev.standard_rent || prev.agreed_rent === 0;
+      
+      const bike = BIKES.find(b => b.id === next.bike_id);
+      const bikeOdo = bike?.odometer_reading || 0;
+
+      return {
+        ...next,
+        standard_rent: newStandard,
+        agreed_rent: wasUsingStandard ? newStandard : next.agreed_rent,
+        start_odometer: next.start_odometer === 0 ? bikeOdo : next.start_odometer
+      };
+    });
+  };
+
+  const handleOpenManualModal = () => {
+    const defaultBike = BIKES[0] || { id: 15, dailyRate: 700, odometer_reading: 10000 };
+    const today = new Date().toISOString().split('T')[0];
+    const stdRent = defaultBike.dailyRate || 700;
+    setManualBooking({
+      bike_id: defaultBike.id,
+      customer_name: '',
+      customer_phone: '',
+      customer_email: '',
+      pickup_date: today,
+      pickup_time: '10:00',
+      return_date: today,
+      return_time: '20:00',
+      standard_rent: stdRent,
+      agreed_rent: stdRent,
+      deposit_amount: 1000,
+      advance_amount: 500,
+      payment_method: 'upi',
+      payment_note: '',
+      ride_status: 'verifying_payment',
+      is_outstation: false,
+      start_odometer: defaultBike.odometer_reading || 0,
+      admin_notes: '',
+      aadhaar_number: '',
+      dl_number: '',
+      aadhaar_image: null,
+      dl_image: null,
+      handover_image: null,
+      pickup_method: 'garage',
+      drop_method: 'garage',
+      delivery_address: '',
+      return_pickup_address: '',
+      same_address_for_drop: true
+    });
+    setShowManualModal(true);
+  };
+
   const handleManualBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!manualBooking.customer_name.trim()) {
+      showToast('Customer name is required', 'warning');
+      return;
+    }
+    if (!manualBooking.customer_phone.trim()) {
+      showToast('Customer phone is required', 'warning');
+      return;
+    }
+
     setLoading(true);
     const readableId = `RD-M${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -179,7 +292,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     });
 
     if (conflict) {
-      showToast(`Conflict: Bike already has an advance-paid reservation (${conflict.readable_id}: ${conflict.pickup_date} ${conflict.pickup_time} - ${conflict.return_date})`, 'error');
+      showToast(`Conflict: Bike already has an active reservation (${conflict.readable_id}: ${conflict.pickup_date} ${conflict.pickup_time} - ${conflict.return_date})`, 'error');
       setLoading(false);
       return;
     }
@@ -187,27 +300,54 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     try {
       let aadhaar_url = '';
       let dl_url = '';
+      let customer_photo_url = '';
 
-      // Upload Aadhaar if present
+      // Upload Aadhaar if present (optional)
       if (manualBooking.aadhaar_image) {
-        const fileExt = manualBooking.aadhaar_image.name.split('.').pop();
-        const fileName = `aadhaar_${readableId}_${Date.now()}.${fileExt}`;
-        const filePath = `manual-docs/${fileName}`;
-        const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, manualBooking.aadhaar_image);
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
-        aadhaar_url = publicUrl;
+        try {
+          const fileExt = manualBooking.aadhaar_image.name.split('.').pop();
+          const fileName = `aadhaar_${readableId}_${Date.now()}.${fileExt}`;
+          const filePath = `manual-docs/${fileName}`;
+          const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, manualBooking.aadhaar_image);
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+            aadhaar_url = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('Aadhaar upload skipped/failed:', uploadErr);
+        }
       }
 
-      // Upload DL if present
+      // Upload DL if present (optional)
       if (manualBooking.dl_image) {
-        const fileExt = manualBooking.dl_image.name.split('.').pop();
-        const fileName = `dl_${readableId}_${Date.now()}.${fileExt}`;
-        const filePath = `manual-docs/${fileName}`;
-        const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, manualBooking.dl_image);
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
-        dl_url = publicUrl;
+        try {
+          const fileExt = manualBooking.dl_image.name.split('.').pop();
+          const fileName = `dl_${readableId}_${Date.now()}.${fileExt}`;
+          const filePath = `manual-docs/${fileName}`;
+          const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, manualBooking.dl_image);
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+            dl_url = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('DL upload skipped/failed:', uploadErr);
+        }
+      }
+
+      // Upload Handover Photo if present (optional)
+      if (manualBooking.handover_image) {
+        try {
+          const fileExt = manualBooking.handover_image.name.split('.').pop();
+          const fileName = `handover_${readableId}_${Date.now()}.${fileExt}`;
+          const filePath = `handover-photos/${fileName}`;
+          const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, manualBooking.handover_image);
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+            customer_photo_url = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('Handover photo upload skipped/failed:', uploadErr);
+        }
       }
 
       let combinedAddress = '';
@@ -223,56 +363,127 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
         combinedAddress = `Return Pickup: ${manualBooking.return_pickup_address.trim()}`;
       }
 
-      const { error } = await supabase.from('bookings').insert({
+      const diff = Number(manualBooking.agreed_rent) - Number(manualBooking.standard_rent);
+      let adjustmentAmount = 0;
+      let adjustmentReason = '';
+
+      if (diff < 0) {
+        adjustmentAmount = diff;
+        adjustmentReason = `Negotiated discount: agreed rent ₹${manualBooking.agreed_rent} (₹${Math.abs(diff)} discount on standard ₹${manualBooking.standard_rent})`;
+      } else if (diff > 0) {
+        adjustmentAmount = diff;
+        adjustmentReason = `Premium charge: agreed rent ₹${manualBooking.agreed_rent} (₹${diff} premium over standard ₹${manualBooking.standard_rent})`;
+      }
+
+      const combinedNotes = [
+        manualBooking.admin_notes.trim(),
+        manualBooking.payment_note ? `Payment: ${manualBooking.payment_note.trim()}` : ''
+      ].filter(Boolean).join(' | ');
+
+      const bookingPayload: any = {
         bike_id: manualBooking.bike_id,
-        customer_name: manualBooking.customer_name,
-        customer_phone: manualBooking.customer_phone,
+        customer_name: manualBooking.customer_name.trim(),
+        customer_phone: manualBooking.customer_phone.trim(),
+        customer_email: manualBooking.customer_email.trim() || null,
         pickup_date: manualBooking.pickup_date,
         pickup_time: manualBooking.pickup_time,
         return_date: manualBooking.return_date,
         return_time: manualBooking.return_time,
-        total_rent: manualBooking.total_rent,
-        aadhaar_number: manualBooking.aadhaar_number,
-        dl_number: manualBooking.dl_number,
-        aadhaar_url: aadhaar_url,
-        dl_url: dl_url,
+        total_rent: Number(manualBooking.standard_rent),
+        adjustment_amount: adjustmentAmount,
+        adjustment_reason: adjustmentReason || null,
+        security_deposit: Number(manualBooking.deposit_amount) || 0,
+        advance_amount: Number(manualBooking.advance_amount) || 0,
+        payment_method: manualBooking.payment_method,
+        status: manualBooking.ride_status || 'verifying_payment',
         readable_id: readableId,
-        status: 'booking_confirmed',
-        advance_amount: manualBooking.total_rent,
-        payment_method: 'cash',
+        is_outstation: manualBooking.is_outstation || false,
         needs_delivery: manualBooking.pickup_method === 'home',
         needs_return_pickup: manualBooking.drop_method === 'home',
-        address: combinedAddress
-      });
+        address: combinedAddress || null,
+        aadhaar_number: manualBooking.aadhaar_number.trim() || null,
+        dl_number: manualBooking.dl_number.trim() || null,
+        aadhaar_url: aadhaar_url || null,
+        dl_url: dl_url || null,
+        customer_photo_url: customer_photo_url || null,
+        start_odometer: Number(manualBooking.start_odometer) || null,
+        admin_notes: combinedNotes || 'Manual walk-in / direct booking'
+      };
 
+      const { error } = await supabase.from('bookings').insert(bookingPayload);
       if (error) throw error;
 
-      showToast('Manual ride created successfully!', 'success');
+      showToast(`Manual ride request ${readableId} submitted! It is now in the ledger ready for operation.`, 'success');
       setShowManualModal(false);
       fetchBookings();
-      setManualBooking({
-        bike_id: BIKES[0].id,
-        customer_name: '',
-        customer_phone: '',
-        pickup_date: new Date().toISOString().split('T')[0],
-        pickup_time: '10:00',
-        return_date: new Date().toISOString().split('T')[0],
-        return_time: '20:00',
-        total_rent: 0,
-        aadhaar_number: '',
-        dl_number: '',
-        aadhaar_image: null,
-        dl_image: null,
-        pickup_method: 'garage',
-        drop_method: 'garage',
-        delivery_address: '',
-        return_pickup_address: '',
-        same_address_for_drop: true
-      });
     } catch (error: any) {
       showToast(error.message, 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenDocModal = () => {
+    if (!selectedBooking) return;
+    setDocForm({
+      aadhaar_number: selectedBooking.aadhaar_number || '',
+      dl_number: selectedBooking.dl_number || '',
+      aadhaar_file: null,
+      dl_file: null,
+      saving: false
+    });
+    setDocModalOpen(true);
+  };
+
+  const handleSaveDocumentsForSelectedBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking) return;
+    setDocForm(p => ({ ...p, saving: true }));
+
+    try {
+      let aadhaar_url = selectedBooking.aadhaar_url;
+      let dl_url = selectedBooking.dl_url;
+
+      if (docForm.aadhaar_file) {
+        const fileExt = docForm.aadhaar_file.name.split('.').pop();
+        const fileName = `aadhaar_${selectedBooking.readable_id}_${Date.now()}.${fileExt}`;
+        const filePath = `manual-docs/${fileName}`;
+        const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, docForm.aadhaar_file);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+          aadhaar_url = publicUrl;
+        }
+      }
+
+      if (docForm.dl_file) {
+        const fileExt = docForm.dl_file.name.split('.').pop();
+        const fileName = `dl_${selectedBooking.readable_id}_${Date.now()}.${fileExt}`;
+        const filePath = `manual-docs/${fileName}`;
+        const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, docForm.dl_file);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+          dl_url = publicUrl;
+        }
+      }
+
+      const updates: any = {};
+      if (docForm.aadhaar_number.trim()) updates.aadhaar_number = docForm.aadhaar_number.trim();
+      if (docForm.dl_number.trim()) updates.dl_number = docForm.dl_number.trim();
+      if (aadhaar_url) updates.aadhaar_url = aadhaar_url;
+      if (dl_url) updates.dl_url = dl_url;
+
+      const { error } = await supabase.from('bookings').update(updates).eq('id', selectedBooking.id);
+      if (error) throw error;
+
+      showToast('Identity documents updated successfully!', 'success');
+      setDocModalOpen(false);
+      fetchBookings();
+      const { data } = await supabase.from('bookings').select('*').eq('id', selectedBooking.id).single();
+      setSelectedBooking(data);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update documents', 'error');
+    } finally {
+      setDocForm(p => ({ ...p, saving: false }));
     }
   };
 
@@ -351,6 +562,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     setPaymentForm({
       advancePaid: booking.advance_amount !== undefined && booking.advance_amount !== null ? Number(booking.advance_amount) : 500,
       agreedRent: currentNet > 0 ? currentNet : baseRent,
+      depositAmount: booking.security_deposit !== undefined && booking.security_deposit !== null ? Number(booking.security_deposit) : 1000,
       paymentMethod: booking.payment_method || 'upi',
       note: booking.adjustment_reason || ''
     });
@@ -364,6 +576,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     const baseRent = Number(selectedBooking.total_rent) || 0;
     const agreedRent = Number(paymentForm.agreedRent);
     const advancePaid = Number(paymentForm.advancePaid);
+    const depositAmount = Number(paymentForm.depositAmount) || 0;
 
     if (isNaN(agreedRent) || agreedRent <= 0) {
       showToast("Please enter a valid agreed rent amount", "warning");
@@ -399,6 +612,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
       const updates: any = {
         status: 'booking_confirmed',
         advance_amount: advancePaid,
+        security_deposit: depositAmount,
         payment_method: paymentForm.paymentMethod,
         adjustment_amount: adjustmentAmount,
         adjustment_reason: adjustmentReason
@@ -408,7 +622,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
       if (error) throw error;
 
       const tagText = diff < 0 ? ` (Discount: ₹${Math.abs(diff)})` : diff > 0 ? ` (Premium: ₹${diff})` : '';
-      showToast(`Payment confirmed! Advance: ₹${advancePaid}, Agreed Rent: ₹${agreedRent}${tagText}`, 'success');
+      showToast(`Payment confirmed! Advance: ₹${advancePaid}, Agreed Rent: ₹${agreedRent}, Deposit: ₹${depositAmount}${tagText}`, 'success');
 
       setShowConfirmPaymentModal(false);
       fetchBookings();
@@ -481,10 +695,10 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
 
         <div className="flex gap-4">
           <button 
-            onClick={() => setShowManualModal(true)}
-            className="px-6 py-3 bg-brand-teal text-brand-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-brand-teal/20"
+            onClick={handleOpenManualModal}
+            className="px-6 py-3 bg-brand-teal text-brand-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-brand-teal/20 cursor-pointer"
           >
-            + Create Manual Ride
+            + Submit Manual Request
           </button>
           
           <div className="flex flex-wrap gap-2 p-1 bg-brand-gray-dark border border-white/5 rounded-2xl">
@@ -658,6 +872,11 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                             Adv: ₹{booking.advance_amount} ✓
                           </div>
                         )}
+                        {booking.security_deposit !== undefined && booking.security_deposit !== null && Number(booking.security_deposit) > 0 && (
+                          <div className="text-[9px] font-bold text-brand-yellow/90 mt-0.5">
+                            Deposit: ₹{booking.security_deposit} 🔒
+                          </div>
+                        )}
                       </td>
                       <td className="px-10 py-8 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -814,37 +1033,95 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
             )}
 
             {/* IDENTITY DOCUMENTS SECTION */}
-            {(selectedBooking.aadhaar_url || selectedBooking.dl_url) && (
-              <div className="bg-brand-black/40 p-10 rounded-[3rem] border border-white/5 space-y-8">
-                <h4 className="text-brand-teal font-heading text-sm uppercase tracking-widest">Identity Documents</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {selectedBooking.aadhaar_url && (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Aadhaar Card</span>
+            <div className="bg-brand-black/40 p-10 rounded-[3rem] border border-white/5 space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h4 className="text-brand-teal font-heading text-sm uppercase tracking-widest">
+                    Identity Documents (Aadhaar & DL)
+                  </h4>
+                  <p className="text-[9px] text-white/40 uppercase mt-0.5">
+                    Can be collected during booking or later during physical machine handover
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenDocModal}
+                  className="px-4 py-2 bg-brand-teal/10 hover:bg-brand-teal hover:text-black text-brand-teal border border-brand-teal/20 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>{selectedBooking.aadhaar_number || selectedBooking.dl_number ? 'Update Documents' : 'Collect / Upload Documents'}</span>
+                </button>
+              </div>
+
+              {(selectedBooking.aadhaar_url || selectedBooking.dl_url || selectedBooking.aadhaar_number || selectedBooking.dl_number) ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Aadhaar Card</span>
+                      {selectedBooking.aadhaar_url ? (
                         <a href={selectedBooking.aadhaar_url} target="_blank" rel="noreferrer" className="text-[8px] font-black text-brand-teal uppercase hover:underline">View Full</a>
-                      </div>
+                      ) : (
+                        <span className="text-[8px] font-bold text-brand-yellow uppercase">Photo Pending</span>
+                      )}
+                    </div>
+                    {selectedBooking.aadhaar_url ? (
                       <div className="aspect-video bg-brand-black rounded-2xl overflow-hidden border border-white/5">
                         <img src={selectedBooking.aadhaar_url} className="w-full h-full object-cover" alt="Aadhaar" />
                       </div>
-                      <div className="text-[10px] text-white/60 font-bold">No: {selectedBooking.aadhaar_number}</div>
-                    </div>
-                  )}
-                  {selectedBooking.dl_url && (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Driving License</span>
-                        <a href={selectedBooking.dl_url} target="_blank" rel="noreferrer" className="text-[8px] font-black text-brand-teal uppercase hover:underline">View Full</a>
+                    ) : (
+                      <div className="p-4 bg-brand-black/60 rounded-2xl border border-white/5 text-center text-white/30 text-xs">
+                        No Aadhaar image uploaded yet
                       </div>
+                    )}
+                    <div className="text-[10px] text-white/70 font-mono font-bold">
+                      No: {selectedBooking.aadhaar_number || 'Not provided'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Driving License</span>
+                      {selectedBooking.dl_url ? (
+                        <a href={selectedBooking.dl_url} target="_blank" rel="noreferrer" className="text-[8px] font-black text-brand-teal uppercase hover:underline">View Full</a>
+                      ) : (
+                        <span className="text-[8px] font-bold text-brand-yellow uppercase">Photo Pending</span>
+                      )}
+                    </div>
+                    {selectedBooking.dl_url ? (
                       <div className="aspect-video bg-brand-black rounded-2xl overflow-hidden border border-white/5">
                         <img src={selectedBooking.dl_url} className="w-full h-full object-cover" alt="DL" />
                       </div>
-                      <div className="text-[10px] text-white/60 font-bold">No: {selectedBooking.dl_number}</div>
+                    ) : (
+                      <div className="p-4 bg-brand-black/60 rounded-2xl border border-white/5 text-center text-white/30 text-xs">
+                        No DL image uploaded yet
+                      </div>
+                    )}
+                    <div className="text-[10px] text-white/70 font-mono font-bold">
+                      No: {selectedBooking.dl_number || 'Not provided'}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="p-6 bg-brand-black/60 rounded-2xl border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">📋</span>
+                    <div>
+                      <p className="text-xs font-bold text-white">Identity Documents Pending</p>
+                      <p className="text-[10px] text-white/40 mt-0.5">Rider's Aadhaar card and driving license can be collected now or when the vehicle is handed over.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenDocModal}
+                    className="px-4 py-2 bg-brand-teal text-black rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-brand-teal/90 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    Add Documents Now
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* PAYMENT PROOF SECTION */}
             {selectedBooking.payment_screenshot_url && (
@@ -1272,10 +1549,64 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
               );
             })()}
 
+            {/* Deposit Received Input */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center ml-1">
+                <label className="text-[9px] font-black text-white/60 uppercase tracking-widest">
+                  4. Deposit Received Amount (₹)
+                </label>
+                <span className="text-[8px] text-brand-yellow uppercase font-bold">Refundable Security Deposit</span>
+              </div>
+              <input 
+                type="number" 
+                min="0"
+                value={paymentForm.depositAmount}
+                onChange={(e) => setPaymentForm(p => ({ ...p, depositAmount: parseFloat(e.target.value) || 0 }))}
+                className="w-full bg-brand-black border border-white/15 rounded-xl p-4 text-brand-yellow font-heading text-xl outline-none focus:border-brand-yellow"
+              />
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPaymentForm(p => ({ ...p, depositAmount: 0 }))}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[8px] font-bold text-white/60 uppercase cursor-pointer"
+                >
+                  ₹0 (Waived)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentForm(p => ({ ...p, depositAmount: 500 }))}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[8px] font-bold text-white/60 uppercase cursor-pointer"
+                >
+                  ₹500
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentForm(p => ({ ...p, depositAmount: 1000 }))}
+                  className="px-2.5 py-1 rounded-lg bg-brand-yellow/10 border border-brand-yellow/30 text-[8px] font-bold text-brand-yellow uppercase cursor-pointer"
+                >
+                  ₹1,000 (Std)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentForm(p => ({ ...p, depositAmount: 1500 }))}
+                  className="px-2.5 py-1 rounded-lg bg-brand-yellow/10 border border-brand-yellow/30 text-[8px] font-bold text-brand-yellow uppercase cursor-pointer"
+                >
+                  ₹1,500
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentForm(p => ({ ...p, depositAmount: 2000 }))}
+                  className="px-2.5 py-1 rounded-lg bg-brand-yellow/10 border border-brand-yellow/30 text-[8px] font-bold text-brand-yellow uppercase cursor-pointer"
+                >
+                  ₹2,000
+                </button>
+              </div>
+            </div>
+
             {/* Adjustment Reason/Note */}
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-white/60 uppercase tracking-widest ml-1">
-                4. Adjustment Note / Reason (Optional)
+                5. Adjustment Note / Reason (Optional)
               </label>
               <input 
                 type="text" 
@@ -1287,18 +1618,24 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
             </div>
 
             {/* Financial Settlement Breakdown */}
-            <div className="bg-brand-black/60 p-4 rounded-2xl border border-white/10 grid grid-cols-3 gap-4 text-center">
+            <div className="bg-brand-black/60 p-4 rounded-2xl border border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div>
                 <span className="text-[8px] font-black text-white/40 uppercase tracking-wider block">Agreed Rent</span>
                 <span className="text-base font-heading text-white">₹{paymentForm.agreedRent}</span>
               </div>
-              <div className="border-x border-white/10">
+              <div className="sm:border-l border-white/10">
+                <span className="text-[8px] font-black text-brand-yellow uppercase tracking-wider block">Deposit Recv.</span>
+                <span className="text-base font-heading text-brand-yellow">₹{paymentForm.depositAmount}</span>
+              </div>
+              <div className="sm:border-l border-white/10">
                 <span className="text-[8px] font-black text-green-400 uppercase tracking-wider block">Advance Paid</span>
                 <span className="text-base font-heading text-green-400">₹{paymentForm.advancePaid}</span>
               </div>
-              <div>
-                <span className="text-[8px] font-black text-brand-yellow uppercase tracking-wider block">Due at Handover</span>
-                <span className="text-base font-heading text-brand-yellow">₹{Math.max(0, paymentForm.agreedRent - paymentForm.advancePaid)}</span>
+              <div className="sm:border-l border-white/10">
+                <span className="text-[8px] font-black text-brand-teal uppercase tracking-wider block">Due at Handover</span>
+                <span className="text-base font-heading text-brand-teal">
+                  ₹{Math.max(0, (paymentForm.agreedRent + paymentForm.depositAmount) - paymentForm.advancePaid)}
+                </span>
               </div>
             </div>
 
@@ -1411,152 +1748,495 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
         </Modal>
       )}
 
-      {/* MANUAL BOOKING MODAL */}
-      {showManualModal && (
-        <Modal isOpen={showManualModal} onClose={() => setShowManualModal(false)} title="CREATE MANUAL RIDE" maxWidth="3xl">
-          <form onSubmit={handleManualBooking} className="space-y-6 py-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Select Vehicle</label>
-                <select 
-                  value={manualBooking.bike_id}
-                  onChange={(e) => setManualBooking(p => ({...p, bike_id: parseInt(e.target.value)}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                >
-                  {BIKES.map(b => (
-                    <option key={b.id} value={b.id}>{b.name} (₹{b.dailyRate}/day)</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Total Rent (₹)</label>
-                <input 
-                  type="number" 
-                  value={manualBooking.total_rent}
-                  onChange={(e) => setManualBooking(p => ({...p, total_rent: parseFloat(e.target.value)}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                />
-              </div>
+      {/* IDENTITY DOCUMENTS UPLOAD / UPDATE MODAL FOR ACTIVE/CONFIRMED BOOKINGS */}
+      {docModalOpen && selectedBooking && (
+        <Modal 
+          isOpen={docModalOpen} 
+          onClose={() => setDocModalOpen(false)} 
+          title={`COLLECT / UPDATE IDENTITY DOCUMENTS: ${selectedBooking.readable_id}`} 
+          maxWidth="xl"
+        >
+          <form onSubmit={handleSaveDocumentsForSelectedBooking} className="space-y-6 py-2">
+            <div className="bg-brand-black/60 p-4 rounded-2xl border border-white/10 text-xs text-white/80 space-y-1">
+              <p className="font-bold text-white flex items-center gap-2">
+                <span className="text-brand-teal">✓</span> Rider: {selectedBooking.customer_name} ({selectedBooking.customer_phone})
+              </p>
+              <p className="text-[11px] text-white/50">
+                You can enter Aadhaar and Driving License numbers, and upload official card photos below.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Customer Name</label>
-                <input 
-                  type="text" 
-                  value={manualBooking.customer_name}
-                  onChange={(e) => setManualBooking(p => ({...p, customer_name: e.target.value}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Customer Phone</label>
-                <input 
-                  type="tel" 
-                  value={manualBooking.customer_phone}
-                  onChange={(e) => setManualBooking(p => ({...p, customer_phone: e.target.value}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Pickup Date</label>
-                <input 
-                  type="date" 
-                  value={manualBooking.pickup_date}
-                  onChange={(e) => setManualBooking(p => ({...p, pickup_date: e.target.value}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Return Date</label>
-                <input 
-                  type="date" 
-                  value={manualBooking.return_date}
-                  onChange={(e) => setManualBooking(p => ({...p, return_date: e.target.value}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Aadhaar Number</label>
-                <input 
-                  type="text" 
-                  value={manualBooking.aadhaar_number}
-                  onChange={(e) => setManualBooking(p => ({...p, aadhaar_number: e.target.value}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                />
-                <div className="mt-2">
-                  <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all">
-                    <svg className="w-4 h-4 text-brand-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">
-                      {manualBooking.aadhaar_image ? manualBooking.aadhaar_image.name : 'Click Aadhaar Image'}
-                    </span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      capture="environment"
-                      className="hidden" 
-                      onChange={(e) => e.target.files?.[0] && setManualBooking(p => ({...p, aadhaar_image: e.target.files![0]}))} 
-                    />
-                  </label>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-white/40 uppercase tracking-widest ml-2">Driving License</label>
-                <input 
-                  type="text" 
-                  value={manualBooking.dl_number}
-                  onChange={(e) => setManualBooking(p => ({...p, dl_number: e.target.value}))}
-                  className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white outline-none focus:border-brand-teal"
-                  required
-                />
-                <div className="mt-2">
-                  <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all">
-                    <svg className="w-4 h-4 text-brand-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">
-                      {manualBooking.dl_image ? manualBooking.dl_image.name : 'Click DL Image'}
-                    </span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      capture="environment"
-                      className="hidden" 
-                      onChange={(e) => e.target.files?.[0] && setManualBooking(p => ({...p, dl_image: e.target.files![0]}))} 
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Logistics & Address Selection */}
-            <div className="bg-brand-black/60 p-6 rounded-2xl border border-white/5 space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black text-brand-teal uppercase tracking-widest">
-                  Logistics & Addresses
+                <label className="text-[9px] font-black text-white/60 uppercase tracking-widest">
+                  Aadhaar Card Number
                 </label>
-                <span className="text-[8px] text-brand-orange uppercase font-bold">Delivery can be different from pickup</span>
+                <input 
+                  type="text"
+                  placeholder="e.g. 1234 5678 9012"
+                  value={docForm.aadhaar_number}
+                  onChange={(e) => setDocForm(p => ({ ...p, aadhaar_number: e.target.value }))}
+                  className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-xs text-white font-mono outline-none focus:border-brand-teal"
+                />
+                <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all">
+                  <svg className="w-4 h-4 text-brand-teal shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  </svg>
+                  <span className="text-[9px] font-bold text-white/60 truncate">
+                    {docForm.aadhaar_file ? docForm.aadhaar_file.name : (selectedBooking.aadhaar_url ? 'Replace Aadhaar Image' : 'Upload Aadhaar Image')}
+                  </span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => e.target.files?.[0] && setDocForm(p => ({ ...p, aadhaar_file: e.target.files![0] }))} 
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/60 uppercase tracking-widest">
+                  Driving License Number
+                </label>
+                <input 
+                  type="text"
+                  placeholder="e.g. WB02 20210001234"
+                  value={docForm.dl_number}
+                  onChange={(e) => setDocForm(p => ({ ...p, dl_number: e.target.value }))}
+                  className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-xs text-white font-mono outline-none focus:border-brand-teal"
+                />
+                <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all">
+                  <svg className="w-4 h-4 text-brand-teal shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  </svg>
+                  <span className="text-[9px] font-bold text-white/60 truncate">
+                    {docForm.dl_file ? docForm.dl_file.name : (selectedBooking.dl_url ? 'Replace DL Image' : 'Upload DL Image')}
+                  </span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => e.target.files?.[0] && setDocForm(p => ({ ...p, dl_file: e.target.files![0] }))} 
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-2">
+              <button
+                type="button"
+                onClick={() => setDocModalOpen(false)}
+                className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-black uppercase rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={docForm.saving}
+                className="flex-1 py-3.5 bg-brand-teal hover:bg-brand-teal/90 text-brand-black font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-brand-teal/20 cursor-pointer disabled:opacity-50"
+              >
+                {docForm.saving ? 'Saving Documents...' : 'Save Documents'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* SUBMIT MANUAL REQUEST MODAL (IDENTICAL TO ONLINE BOOKING PAGE) */}
+      {showManualModal && (
+        <Modal 
+          isOpen={showManualModal} 
+          onClose={() => setShowManualModal(false)} 
+          title="SUBMIT MANUAL REQUEST" 
+          maxWidth="4xl"
+        >
+          <form onSubmit={handleManualBooking} className="space-y-6 py-2">
+            
+            {/* Notice matching online booking workflow */}
+            <div className="bg-brand-black/60 p-4 rounded-2xl border border-white/10 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📋</span>
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider">
+                    Submit Ride Request (Online Booking Details)
+                  </p>
+                  <p className="text-[10px] text-white/50">
+                    Captures identical details as the website booking form and logs it into the ledger. You can thereafter confirm payment, set agreed rent, and operate the ride identically to online requests.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 1. CUSTOMER INFORMATION */}
+            <div className="bg-brand-black/50 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-black text-brand-teal uppercase tracking-widest flex items-center gap-1.5">
+                  <span>👤</span> 1. Customer Information
+                </h4>
+                <span className="text-[9px] text-white/40 uppercase">Walk-in / Phone Rider</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Rider Full Name *</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Rahul Sharma"
+                    value={manualBooking.customer_name}
+                    onChange={(e) => setManualBooking(p => ({ ...p, customer_name: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal font-bold"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Mobile Phone *</label>
+                  <input 
+                    type="tel" 
+                    placeholder="e.g. +91 98765 43210"
+                    value={manualBooking.customer_phone}
+                    onChange={(e) => setManualBooking(p => ({ ...p, customer_phone: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal font-mono font-bold"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/40 uppercase">Email (Optional)</label>
+                  <input 
+                    type="email" 
+                    placeholder="customer@gmail.com"
+                    value={manualBooking.customer_email}
+                    onChange={(e) => setManualBooking(p => ({ ...p, customer_email: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 2. VEHICLE & RENTAL SCHEDULE */}
+            <div className="bg-brand-black/50 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <h4 className="text-[10px] font-black text-brand-teal uppercase tracking-widest flex items-center gap-1.5">
+                  <span>🏍️</span> 2. Vehicle & Rental Schedule
+                </h4>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-[9px] font-bold text-brand-teal uppercase">
+                    Duration: {getDurationText(manualBooking.pickup_date, manualBooking.pickup_time, manualBooking.return_date, manualBooking.return_time)}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/70 uppercase">
+                    Standard Tariff: ₹{manualBooking.standard_rent}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Select Machine</label>
+                  <select 
+                    value={manualBooking.bike_id}
+                    onChange={(e) => handleManualBikeOrDateChange({ bike_id: parseInt(e.target.value) })}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-brand-teal"
+                    required
+                  >
+                    {BIKES.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.category}) — ₹{b.dailyRate}/day {b.rc_number ? `• ${b.rc_number}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Trip Scope (City or Outstation)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, is_outstation: false }))}
+                      className={`py-2 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
+                        !manualBooking.is_outstation ? 'bg-brand-teal text-black shadow' : 'bg-white/5 text-white/50 border border-white/10'
+                      }`}
+                    >
+                      🏙️ City / Local Riding
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, is_outstation: true }))}
+                      className={`py-2 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
+                        manualBooking.is_outstation ? 'bg-brand-orange text-white shadow' : 'bg-white/5 text-white/50 border border-white/10'
+                      }`}
+                    >
+                      🛣️ Outstation / Highway
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Pickup Date & Time</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input 
+                      type="date" 
+                      value={manualBooking.pickup_date}
+                      onChange={(e) => handleManualBikeOrDateChange({ pickup_date: e.target.value })}
+                      className="bg-brand-black border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-brand-teal cursor-pointer"
+                      required
+                    />
+                    <input 
+                      type="time" 
+                      value={manualBooking.pickup_time}
+                      onChange={(e) => handleManualBikeOrDateChange({ pickup_time: e.target.value })}
+                      className="bg-brand-black border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-brand-teal cursor-pointer"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Return Date & Time</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input 
+                      type="date" 
+                      value={manualBooking.return_date}
+                      onChange={(e) => handleManualBikeOrDateChange({ return_date: e.target.value })}
+                      className="bg-brand-black border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-brand-teal cursor-pointer"
+                      required
+                    />
+                    <input 
+                      type="time" 
+                      value={manualBooking.return_time}
+                      onChange={(e) => handleManualBikeOrDateChange({ return_time: e.target.value })}
+                      className="bg-brand-black border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-brand-teal cursor-pointer"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. AGREED RENT, DEPOSIT & FINANCIAL TERMS (CRITICAL) */}
+            <div className="bg-brand-black/60 p-6 rounded-2xl border-2 border-brand-yellow/30 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <h4 className="text-[10px] font-black text-brand-yellow uppercase tracking-widest flex items-center gap-1.5">
+                  <span>💰</span> 3. Agreed Rent, Deposit & Payment Terms
+                </h4>
+                <span className="text-[8px] text-white/50 uppercase">Same terms as online ride operations</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Agreed Rent */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-bold text-white/70 uppercase">Finally Agreed Rent (₹) *</label>
+                    <span className="text-[8px] text-white/40 uppercase">Std: ₹{manualBooking.standard_rent}</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    min="1"
+                    value={manualBooking.agreed_rent}
+                    onChange={(e) => setManualBooking(p => ({ ...p, agreed_rent: parseFloat(e.target.value) || 0 }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-base font-heading font-bold text-brand-yellow outline-none focus:border-brand-yellow"
+                    required
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, agreed_rent: p.standard_rent }))}
+                      className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[8px] font-bold text-white/60 uppercase cursor-pointer"
+                    >
+                      Std (₹{manualBooking.standard_rent})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, agreed_rent: Math.max(100, p.standard_rent - 100) }))}
+                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                    >
+                      -₹100
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, agreed_rent: Math.max(100, p.standard_rent - 200) }))}
+                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                    >
+                      -₹200
+                    </button>
+                  </div>
+                </div>
+
+                {/* Deposit Received Amount */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-bold text-white/70 uppercase">Deposit Received Amount (₹)</label>
+                    <span className="text-[8px] text-brand-teal uppercase">Refundable</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={manualBooking.deposit_amount}
+                    onChange={(e) => setManualBooking(p => ({ ...p, deposit_amount: parseFloat(e.target.value) || 0 }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-base font-heading font-bold text-brand-teal outline-none focus:border-brand-teal"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, deposit_amount: 0 }))}
+                      className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[8px] font-bold text-white/60 uppercase cursor-pointer"
+                    >
+                      ₹0 (Waived)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, deposit_amount: 1000 }))}
+                      className="px-2 py-0.5 rounded bg-brand-teal/10 border border-brand-teal/20 text-[8px] font-bold text-brand-teal uppercase cursor-pointer"
+                    >
+                      ₹1,000 (Std)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, deposit_amount: 1500 }))}
+                      className="px-2 py-0.5 rounded bg-brand-teal/10 border border-brand-teal/20 text-[8px] font-bold text-brand-teal uppercase cursor-pointer"
+                    >
+                      ₹1,500
+                    </button>
+                  </div>
+                </div>
+
+                {/* Advance / Rent Received Amount */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-bold text-white/70 uppercase">Advance Received Amount (₹)</label>
+                    <span className="text-[8px] text-green-400 uppercase">Paid Now</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={manualBooking.advance_amount}
+                    onChange={(e) => setManualBooking(p => ({ ...p, advance_amount: parseFloat(e.target.value) || 0 }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-base font-heading font-bold text-green-400 outline-none focus:border-green-400"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, advance_amount: 500 }))}
+                      className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[8px] font-bold text-white/60 uppercase cursor-pointer"
+                    >
+                      ₹500 Min
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, advance_amount: p.agreed_rent }))}
+                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                    >
+                      Full Rent (₹{manualBooking.agreed_rent})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, advance_amount: p.agreed_rent + p.deposit_amount }))}
+                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                    >
+                      Rent + Deposit
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Method & Transaction Note */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-white/5">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Payment Method</label>
+                  <select 
+                    value={manualBooking.payment_method}
+                    onChange={(e) => setManualBooking(p => ({ ...p, payment_method: e.target.value as any }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-2.5 text-xs text-white font-bold outline-none focus:border-brand-teal"
+                  >
+                    <option value="upi">UPI (GPay / PhonePe / QR)</option>
+                    <option value="cash">Cash Received at Garage</option>
+                    <option value="card">Debit / Credit Card POS</option>
+                    <option value="bank_transfer">Bank Transfer / IMPS</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Payment / Transaction Note</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. UPI Ref #12345 / Cash received by manager..."
+                    value={manualBooking.payment_note}
+                    onChange={(e) => setManualBooking(p => ({ ...p, payment_note: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-brand-teal"
+                  />
+                </div>
+              </div>
+
+              {/* Live Discount/Premium Tag Status */}
+              {(() => {
+                const diff = Number(manualBooking.agreed_rent) - Number(manualBooking.standard_rent);
+                if (diff < 0) {
+                  return (
+                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center gap-2.5 text-xs">
+                      <span className="px-2 py-0.5 rounded bg-green-500 text-black text-[9px] font-black uppercase">
+                        Discount Tag -₹{Math.abs(diff)}
+                      </span>
+                      <span className="text-white/80 text-[11px]">
+                        Agreed rent is ₹{Math.abs(diff)} below standard tariff. Automatically logged in accounting ledger.
+                      </span>
+                    </div>
+                  );
+                }
+                if (diff > 0) {
+                  return (
+                    <div className="p-3 bg-brand-orange/10 border border-brand-orange/30 rounded-xl flex items-center gap-2.5 text-xs">
+                      <span className="px-2 py-0.5 rounded bg-brand-orange text-white text-[9px] font-black uppercase">
+                        Premium Tag +₹{diff}
+                      </span>
+                      <span className="text-white/80 text-[11px]">
+                        Agreed rent is ₹{diff} higher than standard tariff.
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Financial 4-way settlement breakdown */}
+              <div className="bg-brand-black p-4 rounded-xl border border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div>
+                  <span className="text-[8px] font-black text-white/40 uppercase tracking-wider block">Agreed Rent</span>
+                  <span className="text-base font-heading text-white">₹{manualBooking.agreed_rent}</span>
+                </div>
+                <div className="sm:border-l border-white/10">
+                  <span className="text-[8px] font-black text-brand-teal uppercase tracking-wider block">Deposit Recv.</span>
+                  <span className="text-base font-heading text-brand-teal">₹{manualBooking.deposit_amount}</span>
+                </div>
+                <div className="sm:border-l border-white/10">
+                  <span className="text-[8px] font-black text-green-400 uppercase tracking-wider block">Advance Recv.</span>
+                  <span className="text-base font-heading text-green-400">₹{manualBooking.advance_amount}</span>
+                </div>
+                <div className="sm:border-l border-white/10">
+                  <span className="text-[8px] font-black text-brand-yellow uppercase tracking-wider block">Balance on Handover</span>
+                  <span className="text-base font-heading text-brand-yellow">
+                    ₹{Math.max(0, (Number(manualBooking.agreed_rent) + Number(manualBooking.deposit_amount)) - Number(manualBooking.advance_amount))}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. LOGISTICS & HANDOVER ADDRESSES */}
+            <div className="bg-brand-black/50 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-black text-brand-teal uppercase tracking-widest flex items-center gap-1.5">
+                  <span>📍</span> 4. Logistics & Handover Locations
+                </h4>
+                <span className="text-[8px] text-white/40 uppercase">Garage or Home Delivery</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-bold text-white/50 uppercase">Pickup Handover</label>
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Pickup Handover</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, pickup_method: 'garage' }))}
-                      className={`py-2.5 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
+                      className={`py-2 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
                         manualBooking.pickup_method === 'garage'
                           ? 'bg-brand-teal text-black shadow'
                           : 'bg-white/5 text-white/50 border border-white/10'
@@ -1567,7 +2247,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, pickup_method: 'home' }))}
-                      className={`py-2.5 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
+                      className={`py-2 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
                         manualBooking.pickup_method === 'home'
                           ? 'bg-brand-teal text-black shadow'
                           : 'bg-white/5 text-white/50 border border-white/10'
@@ -1579,12 +2259,12 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-bold text-white/50 uppercase">Return Drop</label>
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Return Drop</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, drop_method: 'garage' }))}
-                      className={`py-2.5 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
+                      className={`py-2 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
                         manualBooking.drop_method === 'garage'
                           ? 'bg-brand-yellow text-black shadow'
                           : 'bg-white/5 text-white/50 border border-white/10'
@@ -1595,7 +2275,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, drop_method: 'home' }))}
-                      className={`py-2.5 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
+                      className={`py-2 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer ${
                         manualBooking.drop_method === 'home'
                           ? 'bg-brand-yellow text-black shadow'
                           : 'bg-white/5 text-white/50 border border-white/10'
@@ -1608,7 +2288,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
               </div>
 
               {manualBooking.pickup_method === 'home' && manualBooking.drop_method === 'home' ? (
-                <div className="space-y-4 pt-3 border-t border-white/5 animate-fade-in">
+                <div className="space-y-3 pt-3 border-t border-white/5 animate-fade-in">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-brand-teal uppercase">
                       🚚 1. Delivery Address (Start of Ride)
@@ -1650,7 +2330,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                   {!manualBooking.same_address_for_drop && (
                     <div className="space-y-1 animate-fade-in">
                       <label className="text-[9px] font-black text-brand-yellow uppercase">
-                        🏁 2. Different Return Pickup Address (End of Ride)
+                        🏁 2. Return Pickup Address (End of Ride)
                       </label>
                       <input
                         type="text"
@@ -1676,7 +2356,6 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                     className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal"
                     required
                   />
-                  <p className="text-[8px] text-white/30 uppercase font-bold">Rider will drop off at Rydeit Garage</p>
                 </div>
               ) : manualBooking.drop_method === 'home' ? (
                 <div className="space-y-1 pt-3 border-t border-white/5 animate-fade-in">
@@ -1685,23 +2364,180 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                   </label>
                   <input
                     type="text"
-                    placeholder="Address in Kolkata where Rydeit collects machine..."
+                    placeholder="Collection address in Kolkata..."
                     value={manualBooking.return_pickup_address}
                     onChange={(e) => setManualBooking(p => ({ ...p, return_pickup_address: e.target.value }))}
                     className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-yellow"
                     required
                   />
-                  <p className="text-[8px] text-white/30 uppercase font-bold">Rider collects from Rydeit Garage</p>
                 </div>
               ) : null}
             </div>
 
-            <button 
-              type="submit"
-              className="w-full py-5 bg-brand-teal text-brand-black font-black uppercase text-[11px] rounded-2xl shadow-xl hover:scale-[1.01] transition-all cursor-pointer"
-            >
-              Initialize Ride Record
-            </button>
+            {/* 5. IDENTITY DOCUMENTS (CAN BE TAKEN LATER - COMPLETELY OPTIONAL) */}
+            <div className="bg-brand-black/50 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <h4 className="text-[10px] font-black text-brand-teal uppercase tracking-widest flex items-center gap-1.5">
+                  <span>📄</span> 5. Identity Documents (Optional — Can Be Taken Later)
+                </h4>
+                <span className="text-[8px] text-green-400 uppercase font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">
+                  ✓ Aadhaar & DL can be collected during vehicle handover
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Aadhaar Card Number (Optional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="12-digit Aadhaar (or enter later)"
+                    value={manualBooking.aadhaar_number}
+                    onChange={(e) => setManualBooking(p => ({ ...p, aadhaar_number: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs font-mono text-white outline-none focus:border-brand-teal"
+                  />
+                  <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all">
+                    <svg className="w-4 h-4 text-brand-teal shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    </svg>
+                    <span className="text-[8px] font-black text-white/50 uppercase tracking-widest truncate">
+                      {manualBooking.aadhaar_image ? manualBooking.aadhaar_image.name : 'Upload Aadhaar Photo (Optional)'}
+                    </span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => e.target.files?.[0] && setManualBooking(p => ({ ...p, aadhaar_image: e.target.files![0] }))} 
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Driving License Number (Optional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="DL Number (or enter later)"
+                    value={manualBooking.dl_number}
+                    onChange={(e) => setManualBooking(p => ({ ...p, dl_number: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs font-mono text-white outline-none focus:border-brand-teal"
+                  />
+                  <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all">
+                    <svg className="w-4 h-4 text-brand-teal shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    </svg>
+                    <span className="text-[8px] font-black text-white/50 uppercase tracking-widest truncate">
+                      {manualBooking.dl_image ? manualBooking.dl_image.name : 'Upload DL Photo (Optional)'}
+                    </span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => e.target.files?.[0] && setManualBooking(p => ({ ...p, dl_image: e.target.files![0] }))} 
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* 6. RIDE STATUS & IMMEDIATE DISPATCH */}
+            <div className="bg-brand-black/50 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-black text-brand-teal uppercase tracking-widest flex items-center gap-1.5">
+                  <span>⚡</span> 6. Ride Status & Operational Execution
+                </h4>
+                <span className="text-[8px] text-white/40 uppercase">Immediate Handover or Reservation</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Operational Status</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, ride_status: 'booking_confirmed' }))}
+                      className={`py-3 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer text-center ${
+                        manualBooking.ride_status === 'booking_confirmed'
+                          ? 'bg-green-500 text-black shadow-lg shadow-green-500/20'
+                          : 'bg-white/5 text-white/50 border border-white/10'
+                      }`}
+                    >
+                      ✓ Confirmed (Ready)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualBooking(p => ({ ...p, ride_status: 'ongoing' }))}
+                      className={`py-3 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer text-center ${
+                        manualBooking.ride_status === 'ongoing'
+                          ? 'bg-brand-teal text-black shadow-lg shadow-brand-teal/20'
+                          : 'bg-white/5 text-white/50 border border-white/10'
+                      }`}
+                    >
+                      🚀 Start Ride Now
+                    </button>
+                  </div>
+                  <p className="text-[8px] text-white/30 uppercase mt-1">
+                    {manualBooking.ride_status === 'ongoing' ? 'Sets machine to On Trip immediately' : 'Reserves machine slot on schedule'}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Starting Odometer (KM)</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 12500"
+                    value={manualBooking.start_odometer || ''}
+                    onChange={(e) => setManualBooking(p => ({ ...p, start_odometer: parseFloat(e.target.value) || 0 }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs font-mono font-bold text-white outline-none focus:border-brand-teal"
+                  />
+                  <p className="text-[8px] text-white/30 uppercase">Pre-filled from vehicle odometer</p>
+                </div>
+              </div>
+
+              {/* Handover inspection notes & photo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Handover Notes / Inspection</label>
+                  <textarea 
+                    placeholder="e.g. 2 Helmets provided, scratch on silencer, 80% fuel..."
+                    value={manualBooking.admin_notes}
+                    onChange={(e) => setManualBooking(p => ({ ...p, admin_notes: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-2.5 text-xs text-white resize-none h-16 outline-none focus:border-brand-teal"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Customer Handover Photo (Optional)</label>
+                  <label className="flex flex-col items-center justify-center cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all h-16">
+                    <span className="text-[9px] font-bold text-white/60 truncate">
+                      {manualBooking.handover_image ? manualBooking.handover_image.name : 'Click to take/upload rider photo'}
+                    </span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => e.target.files?.[0] && setManualBooking(p => ({ ...p, handover_image: e.target.files![0] }))} 
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* ACTION BUTTONS */}
+            <div className="flex gap-4 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowManualModal(false)}
+                className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-black uppercase rounded-2xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit"
+                className="flex-[2] py-4 bg-brand-teal hover:bg-brand-teal/90 text-brand-black font-black uppercase text-[11px] tracking-wider rounded-2xl shadow-xl hover:scale-[1.01] transition-all cursor-pointer shadow-brand-teal/20"
+              >
+                Submit Manual Request
+              </button>
+            </div>
           </form>
         </Modal>
       )}
