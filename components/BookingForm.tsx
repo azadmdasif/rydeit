@@ -1,0 +1,1024 @@
+
+import React, { useState, useMemo, useEffect } from 'react';
+import * as ReactRouterDOM from 'react-router-dom';
+import { useToast } from '../App';
+import type { Bike, AdditionalCharge, BookingDetails, LegalContent, BikeCategory } from '../types';
+import { 
+  SECURITY_DEPOSIT_AMOUNT, 
+  EARLY_LATE_FEE, 
+  OUTSTATION_DAILY_SURCHARGE, 
+  DELIVERY_PICKUP_FEE,
+  WEB3FORMS_ACCESS_KEY
+} from '../constants';
+import { supabase } from '../supabase';
+import { Auth } from './Auth';
+import { TERMS_AND_CONDITIONS } from '../legal';
+
+const { useSearchParams, useNavigate } = ReactRouterDOM;
+
+interface BookingFormProps {
+  bikes: Bike[];
+  additionalCharges: AdditionalCharge[];
+  onShowPolicy: (policy: LegalContent) => void;
+}
+
+type BookingStep = 'selection' | 'details' | 'payment';
+
+const StepIndicator: React.FC<{ currentStep: BookingStep, onStepClick: (step: BookingStep) => void }> = ({ currentStep, onStepClick }) => {
+  const steps: { key: BookingStep; label: string }[] = [
+    { key: 'selection', label: 'Machine' },
+    { key: 'details', label: 'Details' },
+    { key: 'payment', label: 'Payment' },
+  ];
+
+  return (
+    <div className="flex justify-between items-center mb-10 max-w-xl mx-auto px-4">
+      {steps.map((s, idx) => {
+        const stepIdx = steps.findIndex(st => st.key === currentStep);
+        const isCompleted = steps.findIndex(st => st.key === s.key) < stepIdx;
+        const isActive = s.key === currentStep;
+
+        return (
+          <React.Fragment key={s.key}>
+            <button 
+              type="button"
+              onClick={() => onStepClick(s.key)}
+              className="flex flex-col items-center group transition-transform active:scale-95 cursor-pointer"
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${isActive ? 'bg-brand-orange text-white shadow-[0_0_20px_rgba(255,95,31,0.6)] scale-110' : isCompleted ? 'bg-brand-teal text-brand-black' : 'bg-brand-gray-dark text-white/40 border border-white/20 group-hover:border-white/60'}`}>
+                {isCompleted ? '✓' : idx + 1}
+              </div>
+              <span className={`text-[10px] uppercase font-black mt-2 tracking-widest transition-colors ${isActive ? 'text-brand-orange' : 'text-white/60 group-hover:text-white/80'}`}>{s.label}</span>
+            </button>
+            {idx < steps.length - 1 && (
+              <div className={`flex-grow h-[2px] mx-2 -mt-4 transition-colors duration-500 ${isCompleted ? 'bg-brand-teal' : 'bg-brand-gray-dark'}`} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
+const inputStyle = () => `bg-brand-black/40 border border-white/10 rounded-xl p-4 text-white w-full focus:outline-none focus:border-brand-orange transition-all placeholder:text-white/40 font-sans text-sm`;
+
+const SectionHeader: React.FC<{ number: string, title: string; subtitle?: string }> = ({ number, title, subtitle }) => (
+  <div className="mb-6">
+    <h4 className="text-brand-yellow font-heading text-lg tracking-widest uppercase flex items-center gap-3">
+        <span className="text-brand-orange">{number}.</span> {title}
+    </h4>
+    {subtitle && <p className="text-[10px] text-white/70 uppercase font-black tracking-widest mt-1 ml-9">{subtitle}</p>}
+  </div>
+);
+
+export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy }) => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  
+  const [step, setStep] = useState<BookingStep>(() => {
+    const urlBikeId = searchParams.get('bikeId');
+    if (urlBikeId) return 'details';
+    return (localStorage.getItem('rydeit_current_step') as BookingStep) || 'selection';
+  });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bookingId, setBookingId] = useState(() => localStorage.getItem('rydeit_pending_id') || `RD-${Math.floor(100000 + Math.random() * 900000)}`);
+  const [user, setUser] = useState<any>(null);
+  const [applyDiscount, setApplyDiscount] = useState(true);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [hasSubmittedDetails, setHasSubmittedDetails] = useState(false);
+
+  const [formData, setFormData] = useState<BookingDetails>(() => {
+    const saved = localStorage.getItem('rydeit_draft');
+    const urlBikeId = searchParams.get('bikeId');
+    
+    let initialData = saved ? JSON.parse(saved) : {
+      bikeId: '',
+      fromDate: new Date().toISOString().split('T')[0],
+      fromTime: '10:00',
+      toDate: new Date().toISOString().split('T')[0],
+      toTime: '20:00',
+      delivery: false,
+      homePickup: false,
+      outstation: false,
+      address: '',
+      deliveryAddress: '',
+      pickupAddress: '',
+      sameAddressForDrop: true,
+      earlyPickup: false,
+      name: '',
+      phone: '',
+      email: '',
+      whatsapp: '',
+      pickupMethod: 'garage',
+      dropMethod: 'garage'
+    };
+
+    if (initialData.deliveryAddress === undefined) initialData.deliveryAddress = initialData.address || '';
+    if (initialData.pickupAddress === undefined) initialData.pickupAddress = initialData.address || '';
+    if (initialData.sameAddressForDrop === undefined) initialData.sameAddressForDrop = true;
+
+    if (urlBikeId) initialData.bikeId = urlBikeId;
+    return initialData;
+  });
+
+  // Active advance-paid bookings for double-booking prevention
+  const [reservedSlots, setReservedSlots] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchReservedSlots = async () => {
+      try {
+        const { data } = await supabase
+          .from('bookings')
+          .select('id, readable_id, bike_id, pickup_date, pickup_time, return_date, return_time, status, advance_amount')
+          .in('status', ['booking_confirmed', 'verifying_payment', 'ongoing']);
+        if (data) setReservedSlots(data);
+      } catch (err) {
+        console.error('Failed to load reserved slots:', err);
+      }
+    };
+    fetchReservedSlots();
+  }, []);
+
+  const conflictingBooking = useMemo(() => {
+    if (!formData.bikeId || !formData.fromDate || !formData.fromTime || !formData.toDate || !formData.toTime) {
+      return null;
+    }
+    const reqStart = new Date(`${formData.fromDate}T${formData.fromTime}`).getTime();
+    const reqEnd = new Date(`${formData.toDate}T${formData.toTime}`).getTime();
+    if (isNaN(reqStart) || isNaN(reqEnd) || reqEnd <= reqStart) return null;
+
+    const targetBikeId = parseInt(formData.bikeId);
+    return reservedSlots.find(b => {
+      if (b.bike_id !== targetBikeId) return false;
+      const exStart = new Date(`${b.pickup_date}T${b.pickup_time || '10:00'}`).getTime();
+      const exEnd = new Date(`${b.return_date}T${b.return_time || '20:00'}`).getTime();
+      if (isNaN(exStart) || isNaN(exEnd)) return false;
+      // Overlapping slot condition: reqStart < exEnd && reqEnd > exStart
+      return reqStart < exEnd && reqEnd > exStart;
+    }) || null;
+  }, [formData.bikeId, formData.fromDate, formData.fromTime, formData.toDate, formData.toTime, reservedSlots]);
+
+  const isBikeReservedForSelectedDates = (bikeId: number) => {
+    if (!formData.fromDate || !formData.toDate) return false;
+    const reqStart = new Date(`${formData.fromDate}T${formData.fromTime || '10:00'}`).getTime();
+    const reqEnd = new Date(`${formData.toDate}T${formData.toTime || '20:00'}`).getTime();
+    if (isNaN(reqStart) || isNaN(reqEnd) || reqEnd <= reqStart) return false;
+
+    return reservedSlots.some(b => {
+      if (b.bike_id !== bikeId) return false;
+      const exStart = new Date(`${b.pickup_date}T${b.pickup_time || '10:00'}`).getTime();
+      const exEnd = new Date(`${b.return_date}T${b.return_time || '20:00'}`).getTime();
+      return reqStart < exEnd && reqEnd > exStart;
+    });
+  };
+
+  const bike = useMemo(() => bikes.find(b => b.id.toString() === formData.bikeId), [formData.bikeId, bikes]);
+
+  const charges = useMemo(() => {
+    if (!bike) return null;
+
+    const start = new Date(`${formData.fromDate}T${formData.fromTime}`);
+    const end = new Date(`${formData.toDate}T${formData.toTime}`);
+    const rEff = bike.dailyRate + (formData.outstation ? OUTSTATION_DAILY_SURCHARGE : 0);
+
+    const dayDiff = Math.max(0, Math.round((new Date(formData.toDate).getTime() - new Date(formData.fromDate).getTime()) / (1000 * 3600 * 24)));
+    const referencePrice = rEff * (dayDiff + 1);
+
+    const totalHours = (end.getTime() - start.getTime()) / (1000 * 3600);
+    let basePrice = 0;
+
+    if (totalHours <= 6) {
+      basePrice = 0.8 * rEff;
+    } else if (totalHours <= 12) {
+      basePrice = rEff;
+    } else if (totalHours <= 24) {
+      basePrice = (formData.fromDate === formData.toDate) ? rEff : 1.4 * rEff;
+    } else {
+      basePrice = 1.4 * rEff;
+      const extraStart = new Date(start.getTime() + 24 * 3600 * 1000);
+      const extraEnd = end;
+      let temp = new Date(extraStart);
+      while (temp < extraEnd) {
+        const h = temp.getHours();
+        let blockPrice = 0;
+        let blockDuration = 0;
+        let blockEnd = new Date(temp);
+        if (h >= 8 && h < 14) { blockPrice = 0.4 * rEff; blockDuration = 6; blockEnd.setHours(14,0,0,0); }
+        else if (h >= 14 && h < 20) { blockPrice = 0.4 * rEff; blockDuration = 6; blockEnd.setHours(20,0,0,0); }
+        else { blockPrice = 0.2 * rEff; blockDuration = 12; if (h >= 20) { blockEnd.setDate(blockEnd.getDate() + 1); blockEnd.setHours(8,0,0,0); } else { blockEnd.setHours(8,0,0,0); } }
+        const actualEnd = extraEnd < blockEnd ? extraEnd : blockEnd;
+        const usedHours = (actualEnd.getTime() - temp.getTime()) / (1000 * 3600);
+        if (usedHours < blockDuration) { basePrice += (usedHours < (blockDuration / 2)) ? (blockPrice * 0.5) : blockPrice; }
+        else { basePrice += blockPrice; }
+        temp = blockEnd;
+      }
+    }
+
+    const startH = start.getHours();
+    const startM = start.getMinutes();
+    const endH = end.getHours();
+    const endM = end.getMinutes();
+
+    const isEarlyPickup = startH < 8;
+    const isLatePickup = startH > 20 || (startH === 20 && startM > 0);
+    const isEarlyDrop = endH < 8;
+    const isLateDrop = endH > 20 || (endH === 20 && endM > 0);
+
+    const earlyLatePickupFee = (isEarlyPickup || isLatePickup) ? EARLY_LATE_FEE : 0;
+    const earlyLateDropFee = (isEarlyDrop || isLateDrop) ? EARLY_LATE_FEE : 0;
+
+    const deliveryFee = formData.pickupMethod === 'home' ? DELIVERY_PICKUP_FEE : 0;
+    const homePickupFee = formData.dropMethod === 'home' ? DELIVERY_PICKUP_FEE : 0;
+
+    const discountAmount = referencePrice - basePrice;
+    const discountPercent = Math.round((discountAmount / referencePrice) * 100);
+    const hasDiscount = discountAmount > 0;
+
+    const finalRent = applyDiscount && hasDiscount ? basePrice : referencePrice;
+    const finalPayable = Math.floor(finalRent + earlyLatePickupFee + earlyLateDropFee + deliveryFee + homePickupFee);
+
+    return {
+      referencePrice,
+      basePrice: Math.floor(basePrice),
+      discountAmount: Math.floor(discountAmount),
+      discountPercent,
+      hasDiscount,
+      earlyLatePickupFee,
+      earlyLateDropFee,
+      isEarlyPickup,
+      isLatePickup,
+      isEarlyDrop,
+      isLateDrop,
+      deliveryFee,
+      homePickupFee,
+      finalPayable,
+      advance: Math.floor(finalPayable * 0.4),
+      security: SECURITY_DEPOSIT_AMOUNT
+    };
+  }, [formData, bike, applyDiscount]);
+
+  const sendWhatsAppConfirmation = () => {
+    if (!bike || !charges) return;
+
+    const deliveryAddr = formData.pickupMethod === 'home' ? (formData.deliveryAddress || formData.address || '').trim() : '';
+    const pickupAddr = formData.dropMethod === 'home' 
+      ? (formData.sameAddressForDrop && formData.pickupMethod === 'home' ? deliveryAddr : (formData.pickupAddress || formData.address || '').trim())
+      : '';
+
+    let logisticsText = '';
+    if (deliveryAddr && pickupAddr) {
+      if (deliveryAddr === pickupAddr) {
+        logisticsText = `%0A*Delivery & Return Address:* ${encodeURIComponent(deliveryAddr)}%0A`;
+      } else {
+        logisticsText = `%0A*Delivery Address (Start):* ${encodeURIComponent(deliveryAddr)}%0A*Return Pickup Address (End):* ${encodeURIComponent(pickupAddr)}%0A`;
+      }
+    } else if (deliveryAddr) {
+      logisticsText = `%0A*Delivery Address:* ${encodeURIComponent(deliveryAddr)} (Return at Garage)%0A`;
+    } else if (pickupAddr) {
+      logisticsText = `%0A*Pickup at Garage, Return Collection Address:* ${encodeURIComponent(pickupAddr)}%0A`;
+    }
+    
+    const message = `*NEW BOOKING REQUEST FROM RYDEIT*%0A%0A` +
+      `*Booking ID:* ${bookingId}%0A` +
+      `*Machine:* ${bike.name}%0A` +
+      `*Rider Name:* ${formData.name}%0A` +
+      `*WhatsApp:* ${formData.whatsapp}%0A%0A` +
+      `*Pickup:* ${formData.fromDate} @ ${formData.fromTime}%0A` +
+      `*Return:* ${formData.toDate} @ ${formData.toTime}%0A` +
+      logisticsText +
+      `*Total Rent:* ₹${charges.finalPayable}%0A` +
+      `*Advance to Pay:* ₹${charges.advance}%0A%0A` +
+      `_I have submitted my request on the portal. Please confirm the availability of my machine._`;
+
+    const whatsappUrl = `https://wa.me/917686022245?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  useEffect(() => {
+    const urlBikeId = searchParams.get('bikeId');
+    if (urlBikeId && urlBikeId !== formData.bikeId) {
+      setFormData(prev => ({ ...prev, bikeId: urlBikeId }));
+      setStep('details');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Sync Profile with Form Data
+  useEffect(() => {
+    const syncProfile = async () => {
+      if (!user) return;
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      if (formData.name || formData.whatsapp || formData.email) {
+        const updates: any = { id: user.id };
+        let needsSync = false;
+        if (!profile?.full_name && formData.name) { updates.full_name = formData.name; needsSync = true; }
+        if (!profile?.whatsapp && formData.whatsapp) { updates.whatsapp = formData.whatsapp; needsSync = true; }
+        if (!profile?.email && (formData.email || user.email)) { updates.email = formData.email || user.email; needsSync = true; }
+        if (needsSync) await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
+      }
+      if (profile && (!formData.name || !formData.whatsapp)) {
+        setFormData(prev => ({
+          ...prev,
+          name: prev.name || profile.full_name || '',
+          whatsapp: prev.whatsapp || profile.whatsapp || '',
+          email: prev.email || profile.email || user.email || ''
+        }));
+      }
+    };
+    syncProfile();
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem('rydeit_draft', JSON.stringify(formData));
+    localStorage.setItem('rydeit_pending_id', bookingId);
+    localStorage.setItem('rydeit_current_step', step);
+  }, [formData, bookingId, step]);
+
+  useEffect(() => {
+    if (user && step === 'payment') {
+      const linkBookingAndRedirect = async () => {
+        const { error } = await supabase.from('bookings').update({ user_id: user.id }).eq('readable_id', bookingId);
+        if (!error) {
+          localStorage.removeItem('rydeit_draft');
+          localStorage.removeItem('rydeit_pending_id');
+          localStorage.removeItem('rydeit_current_step');
+          showToast("Ride linked to your profile!", "success");
+          navigate('/my-bookings');
+        }
+      };
+      linkBookingAndRedirect();
+    }
+  }, [user, step, bookingId, navigate]);
+
+  const isDetailsStepValid = () => {
+    const basicInfo = formData.name && formData.whatsapp && formData.email;
+    if (!basicInfo) return false;
+
+    if (formData.pickupMethod === 'home') {
+      const del = (formData.deliveryAddress || formData.address || '').trim();
+      if (!del) return false;
+    }
+
+    if (formData.dropMethod === 'home') {
+      if (formData.pickupMethod === 'home' && formData.sameAddressForDrop) {
+        const del = (formData.deliveryAddress || formData.address || '').trim();
+        if (!del) return false;
+      } else {
+        const pick = (formData.pickupAddress || (formData.pickupMethod !== 'home' ? formData.address : '') || '').trim();
+        if (!pick) return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleStepClick = (newStep: BookingStep) => {
+    if (newStep === 'selection') {
+      setStep(newStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (newStep === 'details') {
+      if (!formData.bikeId) {
+        showToast("Please select a machine first", "info");
+        return;
+      }
+      setStep(newStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (newStep === 'payment') {
+      if (step === 'payment') return;
+      if (!hasSubmittedDetails) {
+          if (!isDetailsStepValid()) {
+            showToast("Please fill in your identity and journey context first.", "warning");
+          } else {
+            showToast("Click 'Submit Request' at the bottom to proceed to payment.", "info");
+          }
+          return;
+      }
+      setStep(newStep);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handlePreviousStep = () => {
+    if (step === 'details') setStep('selection');
+    if (step === 'payment') setStep('details');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBookNewRide = () => {
+    setStep('selection');
+    setHasSubmittedDetails(false);
+    setFormData(prev => ({ 
+      ...prev, 
+      bikeId: '',
+      pickupMethod: 'garage',
+      dropMethod: 'garage',
+      outstation: false 
+    }));
+    navigate('/book', { replace: true });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBikeSelection = (id: string) => {
+    setFormData(prev => ({ ...prev, bikeId: id }));
+    setStep('details');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!acceptedTerms) {
+      showToast("Please accept T&C", 'warning');
+      return;
+    }
+    const pickupT = formData.fromTime;
+    const dropT = formData.toTime;
+    if (pickupT < "06:00" || pickupT > "22:00" || dropT < "06:00" || dropT > "22:00") {
+      showToast("We only operate between 06:00 AM and 10:00 PM.", "warning");
+      return;
+    }
+    const start = new Date(`${formData.fromDate}T${formData.fromTime}`);
+    const end = new Date(`${formData.toDate}T${formData.toTime}`);
+    if (end <= start) {
+      showToast("Drop cannot be before pickup", 'error');
+      return;
+    }
+
+    const deliveryAddr = formData.pickupMethod === 'home' ? (formData.deliveryAddress || formData.address || '').trim() : '';
+    const pickupAddr = formData.dropMethod === 'home' 
+      ? (formData.sameAddressForDrop && formData.pickupMethod === 'home' ? deliveryAddr : (formData.pickupAddress || (formData.pickupMethod !== 'home' ? formData.address : '') || '').trim())
+      : '';
+
+    if (formData.pickupMethod === 'home' && !deliveryAddr) {
+      showToast("Please enter your delivery address.", 'warning');
+      return;
+    }
+    if (formData.dropMethod === 'home' && !pickupAddr) {
+      showToast("Please enter your return pickup address.", 'warning');
+      return;
+    }
+
+    let combinedAddress = '';
+    if (deliveryAddr && pickupAddr) {
+      if (deliveryAddr === pickupAddr) {
+        combinedAddress = `Delivery & Return: ${deliveryAddr}`;
+      } else {
+        combinedAddress = `Delivery: ${deliveryAddr} | Return Pickup: ${pickupAddr}`;
+      }
+    } else if (deliveryAddr) {
+      combinedAddress = `Delivery: ${deliveryAddr}`;
+    } else if (pickupAddr) {
+      combinedAddress = `Return Pickup: ${pickupAddr}`;
+    }
+
+    // Check for slot collision with advance-paid bookings
+    const reqStart = start.getTime();
+    const reqEnd = end.getTime();
+
+    const { data: conflicts } = await supabase
+      .from('bookings')
+      .select('id, readable_id, pickup_date, pickup_time, return_date, return_time')
+      .eq('bike_id', parseInt(formData.bikeId))
+      .in('status', ['booking_confirmed', 'verifying_payment', 'ongoing']);
+
+    const hasConflict = conflicts?.some(b => {
+      const bStart = new Date(`${b.pickup_date}T${b.pickup_time || '10:00'}`).getTime();
+      const bEnd = new Date(`${b.return_date}T${b.return_time || '20:00'}`).getTime();
+      return reqStart < bEnd && reqEnd > bStart;
+    });
+
+    if (hasConflict) {
+      showToast("This machine already has a confirmed reservation with advance payment for this time slot. Please choose another slot or machine.", 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        readable_id: bookingId,
+        user_id: user?.id || null, 
+        bike_id: parseInt(formData.bikeId),
+        customer_name: formData.name,
+        customer_phone: formData.whatsapp,
+        customer_email: formData.email,
+        pickup_date: formData.fromDate,
+        pickup_time: formData.fromTime,
+        return_date: formData.toDate,
+        return_time: formData.toTime,
+        total_rent: charges?.finalPayable,
+        advance_amount: charges?.advance,
+        security_deposit: charges?.security,
+        needs_delivery: formData.pickupMethod === 'home',
+        needs_return_pickup: formData.dropMethod === 'home',
+        address: combinedAddress,
+        status: 'pending_payment'
+      };
+
+      const { error } = await supabase.from('bookings').upsert(payload, { onConflict: 'readable_id' });
+      if (error) throw error;
+
+      // SEND TO WEB3FORMS FOR EMAIL NOTIFICATION
+      try {
+        const bike = bikes.find(b => b.id === parseInt(formData.bikeId));
+        await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            access_key: WEB3FORMS_ACCESS_KEY,
+            subject: `New Booking Request: ${bookingId} - ${formData.name}`,
+            from_name: "Rydeit Booking System",
+            booking_id: bookingId,
+            customer_name: formData.name,
+            customer_phone: formData.whatsapp,
+            customer_email: formData.email,
+            bike_name: bike?.name || 'Unknown',
+            pickup: `${formData.fromDate} @ ${formData.fromTime}`,
+            return: `${formData.toDate} @ ${formData.toTime}`,
+            total_rent: `₹${charges?.finalPayable}`,
+            advance_to_pay: `₹${charges?.advance}`,
+            security_deposit: `₹${charges?.security}`,
+            travel_zone: formData.outstation ? 'OUTSTATION' : 'LOCAL',
+            pickup_method: formData.pickupMethod,
+            drop_method: formData.dropMethod,
+            delivery_address: deliveryAddr || 'Garage Self-Pickup (6C, Mohammadan Burial Ground Lane)',
+            return_pickup_address: pickupAddr || 'Garage Self-Drop (6C, Mohammadan Burial Ground Lane)',
+            address_summary: combinedAddress || 'Garage Self Pickup & Drop'
+          })
+        });
+      } catch (e) {
+        console.error("Web3Forms error:", e);
+        // Don't block the user if email fails
+      }
+
+      setHasSubmittedDetails(true);
+      
+      // TRIGGER WHATSAPP REDIRECT AUTOMATICALLY
+      sendWhatsAppConfirmation();
+
+      setStep('payment');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const scrollToCategory = (cat: string) => {
+    const el = document.getElementById(`booking-cat-${cat}`);
+    if (el) {
+      const offset = 100;
+      const bodyRect = document.body.getBoundingClientRect().top;
+      const elementRect = el.getBoundingClientRect().top;
+      const elementPosition = elementRect - bodyRect;
+      const offsetPosition = elementPosition - offset;
+      window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+    }
+  };
+
+  const categories: BikeCategory[] = ['Scooter', 'Bikes', 'Royal Enfield', 'Sports'];
+
+  return (
+    <section className="py-16 bg-brand-black min-h-screen">
+      <div className="container mx-auto px-4 max-w-6xl">
+        <StepIndicator currentStep={step} onStepClick={handleStepClick} />
+
+        <div className="bg-brand-gray-dark/40 rounded-[3.5rem] shadow-2xl overflow-hidden border border-white/5">
+          {step === 'selection' && (
+            <div className="p-8 lg:p-12 animate-fade-in">
+              <div className="flex flex-wrap justify-center gap-3 mb-12 sticky top-4 z-20 py-4 bg-brand-gray-dark/80 backdrop-blur-md rounded-full px-6 border border-white/10 shadow-xl">
+                {categories.map(cat => (
+                  <button 
+                    key={cat}
+                    onClick={() => scrollToCategory(cat)}
+                    className="px-6 py-2 rounded-full bg-brand-black border border-brand-teal/20 text-brand-teal text-[10px] font-black uppercase tracking-widest hover:bg-brand-teal hover:text-brand-black transition-all"
+                  >
+                    {cat === 'Scooter' ? 'Scooty' : cat === 'Royal Enfield' ? 'Enfield' : cat}
+                  </button>
+                ))}
+              </div>
+
+              {categories.map(cat => {
+                const catBikes = bikes.filter(b => b.category === cat);
+                if (catBikes.length === 0) return null;
+                return (
+                  <div key={cat} id={`booking-cat-${cat}`} className="mb-16 scroll-mt-24">
+                    <h3 className="text-xl font-heading text-brand-teal mb-8 uppercase tracking-widest border-l-4 border-brand-orange pl-4">{cat}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {catBikes.map(b => {
+                        const isAdvanceBooked = isBikeReservedForSelectedDates(b.id);
+                        const isBooked = b.status === 'Booked' || isAdvanceBooked;
+                        return (
+                          <div key={b.id} className={`bg-brand-black/60 p-6 rounded-[2.5rem] border transition-all group ${isBooked ? 'border-brand-orange/20 opacity-60' : 'border-white/5 hover:border-brand-teal'}`}>
+                            <div className="relative">
+                                <img src={b.imageUrl} className={`w-full h-32 object-cover rounded-2xl mb-4 transition-transform ${!isBooked && 'group-hover:scale-110'}`} alt="" />
+                                {isAdvanceBooked ? (
+                                  <div className="absolute top-2 right-2 bg-red-500 text-white text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest shadow">
+                                    Reserved (Paid)
+                                  </div>
+                                ) : b.status === 'Booked' ? (
+                                  <div className="absolute top-2 right-2 bg-brand-orange text-white text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
+                                    Booked
+                                  </div>
+                                ) : null}
+                            </div>
+                            <h4 className="text-white font-bold text-xs uppercase tracking-tight">{b.name}</h4>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-brand-teal font-heading text-lg">₹{b.dailyRate}</p>
+                                <span className="text-[8px] text-white/60 uppercase font-black tracking-widest">/ day</span>
+                            </div>
+                            <button 
+                                onClick={() => handleBikeSelection(b.id.toString())} 
+                                disabled={isBooked}
+                                className={`w-full py-3 font-black rounded-xl uppercase tracking-widest text-[10px] mt-4 transition-all ${isBooked ? 'bg-brand-gray-dark text-white/20 cursor-not-allowed' : 'bg-brand-teal/10 text-brand-teal hover:bg-brand-teal hover:text-black'}`}
+                            >
+                                {isAdvanceBooked ? 'Reserved (Paid)' : isBooked ? 'Unavailable' : 'Select Machine'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {step === 'details' && (
+            <div className="p-8 lg:p-16 animate-fade-in relative">
+              <form onSubmit={handleSubmitRequest} className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                <div className="lg:col-span-8 space-y-10">
+                  <div className="bg-brand-black/20 p-8 md:p-10 rounded-[2.5rem] border border-white/5 space-y-6">
+                    <SectionHeader number="1" title="Identity" subtitle="Who is riding?" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">Legal Name</label>
+                            <input type="text" placeholder="John Doe" value={formData.name} onChange={(e) => setFormData(p => ({...p, name: e.target.value}))} className={inputStyle()} required />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">WhatsApp Number</label>
+                            <input type="tel" placeholder="10 Digit Mobile" value={formData.whatsapp} onChange={(e) => setFormData(p => ({...p, whatsapp: e.target.value}))} className={inputStyle()} required />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">Email Address</label>
+                        <input type="email" placeholder="ride@adventure.com" value={formData.email} onChange={(e) => setFormData(p => ({...p, email: e.target.value}))} className={inputStyle()} required />
+                    </div>
+                  </div>
+
+                  <div className="bg-brand-black/20 p-8 md:p-10 rounded-[2.5rem] border border-white/5 space-y-8">
+                    <SectionHeader number="2" title="Journey Context" subtitle="Where are you headed?" />
+                    
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2">Travel Zone Selection</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button type="button" onClick={() => setFormData(p => ({...p, outstation: false}))} className={`py-5 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${!formData.outstation ? 'bg-brand-teal text-brand-black shadow-lg shadow-brand-teal/20' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>I will travel within Kolkata</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, outstation: true}))} className={`py-5 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.outstation ? 'bg-brand-teal text-brand-black shadow-lg shadow-brand-teal/20' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>I will travel outside city (+₹99/day)</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2 flex items-center justify-between">
+                              Pickup Schedule
+                              {charges?.isEarlyPickup && <span className="text-brand-orange animate-pulse font-bold">Early Pickup (+₹99)</span>}
+                              {charges?.isLatePickup && <span className="text-brand-orange animate-pulse font-bold">Late Pickup (+₹99)</span>}
+                            </label>
+                            <input type="date" value={formData.fromDate} onChange={(e) => setFormData(p => ({...p, fromDate: e.target.value}))} className={inputStyle()} required />
+                            <input type="time" min="06:00" max="22:00" value={formData.fromTime} onChange={(e) => setFormData(p => ({...p, fromTime: e.target.value}))} className={inputStyle()} required />
+                        </div>
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-white uppercase tracking-[0.2em] ml-2 flex items-center justify-between">
+                              Drop Schedule
+                              {charges?.isEarlyDrop && <span className="text-brand-orange animate-pulse font-bold">Early Drop (+₹99)</span>}
+                              {charges?.isLateDrop && <span className="text-brand-orange animate-pulse font-bold">Late Drop (+₹99)</span>}
+                            </label>
+                            <input type="date" value={formData.toDate} onChange={(e) => setFormData(p => ({...p, toDate: e.target.value}))} className={inputStyle()} required />
+                            <input type="time" min="06:00" max="22:00" value={formData.toTime} onChange={(e) => setFormData(p => ({...p, toTime: e.target.value}))} className={inputStyle()} required />
+                        </div>
+                    </div>
+
+                    {/* Conflict Warning if slot is already reserved with advance paid */}
+                    {conflictingBooking && (
+                      <div className="bg-red-500/15 border-2 border-red-500/60 rounded-2xl p-5 text-white animate-fade-in space-y-2">
+                        <div className="flex items-center gap-3">
+                          <span className="w-3 h-3 rounded-full bg-red-500 animate-ping shrink-0"></span>
+                          <h5 className="font-heading text-sm text-red-400 uppercase tracking-widest">
+                            Machine Reserved for Selected Slot
+                          </h5>
+                        </div>
+                        <p className="text-xs text-white/90 leading-relaxed">
+                          <strong>{bike?.name}</strong> already has an advance-paid confirmed reservation ({conflictingBooking.readable_id}) from <span className="text-brand-yellow font-bold">{conflictingBooking.pickup_date} @ {conflictingBooking.pickup_time}</span> to <span className="text-brand-yellow font-bold">{conflictingBooking.return_date} @ {conflictingBooking.return_time}</span>.
+                        </p>
+                        <p className="text-[10px] text-white/60 uppercase tracking-wider font-bold">
+                          To maintain guaranteed vehicle readiness, further reservations are blocked for this slot. Please select alternative dates or <button type="button" onClick={() => setStep('selection')} className="text-brand-teal underline font-black cursor-pointer">choose another machine</button>.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-brand-black/20 p-8 md:p-10 rounded-[2.5rem] border border-white/5 space-y-8">
+                    <SectionHeader number="3" title="Pickup & Drop Method" subtitle="Logistics Management" />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-brand-yellow uppercase tracking-[0.2em] ml-2">How to get vehicle?</label>
+                            <button type="button" onClick={() => setFormData(p => ({...p, pickupMethod: 'garage'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.pickupMethod === 'garage' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Pickup from Garage (Free)</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, pickupMethod: 'home'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.pickupMethod === 'home' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Deliver to Address (+₹199)</button>
+                        </div>
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-brand-yellow uppercase tracking-[0.2em] ml-2">How to return vehicle?</label>
+                            <button type="button" onClick={() => setFormData(p => ({...p, dropMethod: 'garage'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.dropMethod === 'garage' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Drop at Garage (Free)</button>
+                            <button type="button" onClick={() => setFormData(p => ({...p, dropMethod: 'home'}))} className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${formData.dropMethod === 'home' ? 'bg-brand-teal text-brand-black shadow-lg' : 'bg-brand-black/40 text-white/70 border border-white/20'}`}>Pickup from my Address (+₹199)</button>
+                        </div>
+                    </div>
+
+                    {/* Address Inputs Based on Methods */}
+                    {formData.pickupMethod === 'home' && formData.dropMethod === 'home' ? (
+                      <div className="space-y-6 animate-fade-in bg-brand-black/40 p-6 rounded-3xl border border-white/5">
+                        {/* 1. Delivery Address */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between ml-2">
+                            <label className="text-[10px] font-black text-brand-teal uppercase tracking-[0.2em] flex items-center gap-2">
+                              <span>🚚</span> 1. Delivery Address (Start of Ride)
+                            </label>
+                            <span className="text-[8px] font-bold text-brand-teal/70 uppercase">Handover point</span>
+                          </div>
+                          <textarea 
+                            value={formData.deliveryAddress || ''} 
+                            onChange={(e) => setFormData(p => ({...p, deliveryAddress: e.target.value}))} 
+                            placeholder="Enter delivery address in Kolkata (Flat/House No., Building, Street, Landmark)..." 
+                            className={`${inputStyle()} h-24 resize-none`} 
+                            required 
+                          />
+                        </div>
+
+                        {/* Separate Address Toggle */}
+                        <div className="bg-brand-black/60 p-4 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] font-black text-white uppercase tracking-wider">
+                              Return Pickup Collection Point
+                            </p>
+                            <p className="text-[9px] text-white/50 mt-0.5">
+                              Can the return pickup address be different from the delivery address?
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 bg-brand-black p-1 rounded-xl border border-white/10 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setFormData(p => ({...p, sameAddressForDrop: true}))}
+                              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                formData.sameAddressForDrop
+                                  ? 'bg-brand-teal text-brand-black shadow-md'
+                                  : 'text-white/40 hover:text-white'
+                              }`}
+                            >
+                              Same Address
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(p => ({...p, sameAddressForDrop: false}))}
+                              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                !formData.sameAddressForDrop
+                                  ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
+                                  : 'text-white/40 hover:text-white'
+                              }`}
+                            >
+                              Different Address
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 2. Return Pickup Address (If Different) */}
+                        {!formData.sameAddressForDrop && (
+                          <div className="space-y-2 animate-fade-in pt-2 border-t border-white/5">
+                            <div className="flex items-center justify-between ml-2">
+                              <label className="text-[10px] font-black text-brand-yellow uppercase tracking-[0.2em] flex items-center gap-2">
+                                <span>🏁</span> 2. Return Pickup Address (End of Ride)
+                              </label>
+                              <span className="text-[8px] font-bold text-brand-yellow/80 uppercase">Different Collection Point</span>
+                            </div>
+                            <textarea 
+                              value={formData.pickupAddress || ''} 
+                              onChange={(e) => setFormData(p => ({...p, pickupAddress: e.target.value}))} 
+                              placeholder="Enter different return pickup address in Kolkata (e.g. Office, Hotel, Airport, Friend's house)..." 
+                              className={`${inputStyle()} h-24 resize-none`} 
+                              required 
+                            />
+                          </div>
+                        )}
+
+                        {formData.sameAddressForDrop && (
+                          <div className="text-[9px] font-bold text-brand-teal/80 bg-brand-teal/10 px-4 py-2.5 rounded-xl flex items-center gap-2 border border-brand-teal/20">
+                            <span>✓</span>
+                            <span>Vehicle will be collected from the same delivery address after ride completion.</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : formData.pickupMethod === 'home' ? (
+                      <div className="space-y-2 animate-fade-in bg-brand-black/40 p-6 rounded-3xl border border-white/5">
+                        <div className="flex items-center justify-between ml-2">
+                          <label className="text-[10px] font-black text-brand-teal uppercase tracking-[0.2em] flex items-center gap-2">
+                            <span>🚚</span> Delivery Address (Where to deliver machine)
+                          </label>
+                          <span className="text-[8px] font-bold text-brand-teal/70 uppercase">Trip Start</span>
+                        </div>
+                        <textarea 
+                          value={formData.deliveryAddress || ''} 
+                          onChange={(e) => setFormData(p => ({...p, deliveryAddress: e.target.value}))} 
+                          placeholder="Enter delivery address in Kolkata (Flat/House No., Street, Landmark)..." 
+                          className={`${inputStyle()} h-28 resize-none`} 
+                          required 
+                        />
+                        <p className="text-[9px] text-white/40 font-bold ml-2 pt-1">
+                          ✓ You will drop off the vehicle at Rydeit Garage (6C, Mohammadan Burial Ground Lane) at trip end.
+                        </p>
+                      </div>
+                    ) : formData.dropMethod === 'home' ? (
+                      <div className="space-y-2 animate-fade-in bg-brand-black/40 p-6 rounded-3xl border border-white/5">
+                        <div className="flex items-center justify-between ml-2">
+                          <label className="text-[10px] font-black text-brand-yellow uppercase tracking-[0.2em] flex items-center gap-2">
+                            <span>🏁</span> Return Pickup Address (Where to collect machine)
+                          </label>
+                          <span className="text-[8px] font-bold text-brand-yellow/80 uppercase">Trip End</span>
+                        </div>
+                        <textarea 
+                          value={formData.pickupAddress || ''} 
+                          onChange={(e) => setFormData(p => ({...p, pickupAddress: e.target.value}))} 
+                          placeholder="Enter collection address in Kolkata where our executive should collect the vehicle..." 
+                          className={`${inputStyle()} h-28 resize-none`} 
+                          required 
+                        />
+                        <p className="text-[9px] text-white/40 font-bold ml-2 pt-1">
+                          ✓ You will pick up the vehicle from Rydeit Garage (6C, Mohammadan Burial Ground Lane) at trip start.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-brand-black/40 p-5 rounded-2xl border border-white/5 flex items-center gap-3 text-white/60 text-[10px] animate-fade-in">
+                        <span className="text-xl">📍</span>
+                        <div>
+                          <p className="font-heading uppercase text-white tracking-wider text-xs">Self Pickup & Self Return: Rydeit Garage</p>
+                          <p className="text-white/50 text-[9px] mt-0.5">6C, Mohammadan Burial Ground Lane, Kolkata - 700023. Zero logistics fee!</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="lg:col-span-4">
+                  <div className="bg-brand-black p-10 rounded-[3rem] border-2 border-brand-teal/20 shadow-2xl h-fit sticky top-24 space-y-10">
+                    <div>
+                        <h4 className="font-heading text-xs text-brand-teal uppercase mb-1 tracking-[0.3em]">Fare Summary</h4>
+                        <div className="w-12 h-0.5 bg-brand-orange"></div>
+                    </div>
+
+                    <div className="space-y-5">
+                      <div className="flex justify-between items-center text-[11px] text-white/80 uppercase font-black">
+                        <span>Standard Fare</span>
+                        <span className="text-white">₹{charges?.referencePrice}</span>
+                      </div>
+                      
+                      {charges?.hasDiscount && applyDiscount && (
+                        <div className="flex justify-between items-center text-[11px] text-brand-yellow uppercase font-black">
+                          <span>Discount (RYDENOW)</span>
+                          <span>-₹{charges.discountAmount}</span>
+                        </div>
+                      )}
+                      
+                      {charges?.earlyLatePickupFee ? (
+                          <div className="flex justify-between items-center text-[9px] text-brand-orange uppercase font-black">
+                            <span>{charges.isEarlyPickup ? 'Early Pickup' : 'Late Pickup'} Fee</span>
+                            <span>+₹{charges.earlyLatePickupFee}</span>
+                          </div>
+                      ) : null}
+                      {charges?.earlyLateDropFee ? (
+                          <div className="flex justify-between items-center text-[9px] text-brand-orange uppercase font-black">
+                            <span>{charges.isEarlyDrop ? 'Early Drop' : 'Late Drop'} Fee</span>
+                            <span>+₹{charges.earlyLateDropFee}</span>
+                          </div>
+                      ) : null}
+
+                      {charges?.deliveryFee ? (
+                        <div className="flex justify-between items-center text-[9px] text-brand-teal uppercase font-black">
+                            <span>Delivery Fee</span>
+                            <span>+₹{charges.deliveryFee}</span>
+                        </div>
+                      ) : null}
+
+                      {charges?.homePickupFee ? (
+                        <div className="flex justify-between items-center text-[9px] text-brand-teal uppercase font-black">
+                            <span>Home Pickup Fee</span>
+                            <span>+₹{charges.homePickupFee}</span>
+                        </div>
+                      ) : null}
+
+                      <div className="pt-5 border-t border-white/10">
+                        <div className="flex justify-between items-end font-heading text-white">
+                            <span className="text-xs tracking-widest">Final Rent</span>
+                            <span className="text-4xl text-brand-yellow">₹{charges?.finalPayable}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-white/80 uppercase font-black mt-2">
+                            <span>Advance to Pay</span>
+                            <span className="text-brand-teal">₹{charges?.advance}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="flex items-start gap-4 group">
+                            <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} className="mt-1 w-4 h-4 rounded bg-brand-black border-white/20 text-brand-teal focus:ring-brand-teal cursor-pointer" id="tc-check" />
+                            <label htmlFor="tc-check" className="text-[10px] text-white/80 uppercase font-bold tracking-widest leading-relaxed cursor-pointer select-none">
+                                I accept all <button type="button" onClick={() => onShowPolicy(TERMS_AND_CONDITIONS)} className="text-brand-teal hover:underline font-black">rental terms</button> and city travel regulations.
+                            </label>
+                        </div>
+
+                        <div className="flex gap-4">
+                            <button type="button" onClick={handlePreviousStep} className="flex-1 bg-white/5 text-white/60 py-6 rounded-2xl font-heading tracking-widest border border-white/10 hover:bg-white/10 transition-all uppercase text-[10px]">Back</button>
+                            <button 
+                              type="submit" 
+                              disabled={isSubmitting || !!conflictingBooking} 
+                              className={`flex-[2] py-6 rounded-2xl font-heading tracking-widest transition-all shadow-xl uppercase text-[10px] ${
+                                conflictingBooking 
+                                  ? 'bg-red-500/20 text-red-400 border border-red-500/40 cursor-not-allowed'
+                                  : 'bg-brand-orange text-white hover:scale-[1.03] shadow-[0_0_25px_rgba(255,95,31,0.3)] disabled:opacity-50 cursor-pointer'
+                              }`}
+                            >
+                                {conflictingBooking ? 'SLOT RESERVED (ADVANCE PAID)' : isSubmitting ? 'PROCESSING...' : 'Submit Request'}
+                            </button>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {step === 'payment' && (
+            <div className="p-16 text-center animate-fade-in max-w-2xl mx-auto">
+              {!user ? (
+                <div className="space-y-10">
+                  <div className="w-20 h-20 bg-brand-orange/20 rounded-full flex items-center justify-center mx-auto text-brand-orange">
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2-0 00-2-2H6a2 2-0 00-2 2v6a2 2-0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-3xl font-heading text-white uppercase tracking-tighter">Draft Reserved</h3>
+                    <p className="text-white/60 font-sans text-[10px] tracking-widest uppercase">Reserved ID: {bookingId}</p>
+                  </div>
+
+                  <div className="bg-brand-orange/10 border border-brand-orange/20 p-8 rounded-3xl animate-pulse">
+                    <p className="text-white font-bold uppercase text-xs tracking-[0.2em] leading-relaxed">
+                      Action Required: Please pay the advance <span className="text-brand-yellow text-xl">₹{charges?.advance}</span> to confirm your slot.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <button 
+                      onClick={sendWhatsAppConfirmation}
+                      className="w-full py-4 bg-[#25D366] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] transition-transform"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 448 512"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 221.9-99.6 221.9-222 0-59.3-25.2-115-67.1-157zm-157 .9c48.4 0 93.2 18.7 127.3 52.8 34.1 34.1 52.8 78.9 52.8 127.3s-18.7 93.2-52.8 127.3c-34.1 34.1-78.9 52.8-127.3 52.8h-.1c-34.9 0-68.9-9.8-97.3-27.9l-11.5-6.8-71.3 18.6 19-69.8-7.5-11.8C34 317.6 24 286.5 24 252.3c0-110.3 89.7-200 200-200z"/></svg>
+                      RE-SEND DETAILS VIA WHATSAPP
+                    </button>
+                    
+                    <div className="bg-brand-black/60 p-8 rounded-[2.5rem] border-2 border-brand-orange/30 shadow-2xl">
+                      <p className="text-brand-orange font-bold text-xs uppercase mb-8 tracking-widest">Sign in to claim this order & pay</p>
+                      <Auth onSuccess={() => {}} />
+                    </div>
+                  </div>
+
+                  <div className="pt-4">
+                    <button 
+                      onClick={handleBookNewRide} 
+                      className="w-full py-5 bg-brand-gray-dark border-2 border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/5 hover:border-brand-teal transition-all shadow-xl rounded-2xl"
+                    >
+                      Book a New Ride
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-8 py-20 flex flex-col items-center">
+                   <div className="w-20 h-20 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>
+                   <p className="text-white/40 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">Redirecting to Dashboard</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};

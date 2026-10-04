@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rydeit - Bike & Scooter Rentals in Kolkata</title>
+    <meta name="description" content="Kolkata's most reliable bike and scooter rental service. Rentals starting at just ₹99/hr. Home delivery available." />
+    <meta property="og:title" content="Rydeit - Bike & Scooter Rentals in Kolkata" />
+    <meta property="og:description" content="Kolkata's most reliable bike and scooter rental service. Rentals starting at just ₹99/hr. Home delivery available." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Montserrat', 'sans-serif'],
+              heading: ['Black Ops One', 'sans-serif'],
+            },
+            colors: {
+              brand: {
+                orange: '#FF5F1F',
+                yellow: '#FFC700',
+                teal: '#00C2C7',
+                black: '#121212',
+                gray: {
+                  light: '#F5F5F5',
+                  dark: '#222222',
+                }
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="/index.css">
+  </head>
+  <body class="bg-brand-black text-brand-gray-light">
+    <div id="root" class="min-h-screen bg-brand-black"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
