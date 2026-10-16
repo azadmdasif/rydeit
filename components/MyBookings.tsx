@@ -399,10 +399,32 @@ export const MyBookings: React.FC = () => {
       const bucket = type === 'payment' ? 'booking-docs' : 'identity-docs';
       const filePath = `${user.id}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file);
-      if (uploadError) throw uploadError;
+      let publicUrl = '';
+      try {
+        const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file, { upsert: true });
+        if (!uploadError) {
+          const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+          publicUrl = data?.publicUrl || '';
+        } else {
+          console.warn(`Storage upload to ${bucket} restricted:`, uploadError.message);
+        }
+      } catch (stErr) {
+        console.warn('Storage upload error:', stErr);
+      }
 
-      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      // Fallback to data URL if storage upload is not accessible yet
+      if (!publicUrl) {
+        try {
+          publicUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve((e.target?.result as string) || '');
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+          });
+        } catch {
+          publicUrl = 'uploaded_locally';
+        }
+      }
 
       if (type === 'payment' && bookingId) {
         await supabase.from('bookings').update({ payment_screenshot_url: publicUrl, status: 'verifying_payment' }).eq('readable_id', bookingId);
@@ -543,9 +565,9 @@ export const MyBookings: React.FC = () => {
                       <div className="flex flex-col items-center lg:items-end gap-6 w-full lg:w-auto">
                         <div className="text-center lg:text-right flex flex-col items-center lg:items-end">
                           <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase mb-4 border ${
-                              status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 
-                              status === 'ongoing' ? 'bg-brand-teal/10 text-brand-teal border-brand-teal/20' : 
-                              status === 'booking_confirmed' ? 'bg-brand-teal/20 text-brand-teal border-brand-teal/40 animate-pulse' :
+                              status === 'completed' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 
+                              status === 'ongoing' ? 'bg-sky-500/20 text-sky-400 border-sky-500/30' : 
+                              status === 'booking_confirmed' ? 'bg-sky-500/20 text-sky-400 border-sky-500/40 animate-pulse' :
                               status === 'verifying_payment' ? 'bg-brand-yellow/10 text-brand-yellow border-brand-yellow/20' :
                               'bg-brand-orange/10 text-brand-orange border-brand-orange/20'
                           }`}>

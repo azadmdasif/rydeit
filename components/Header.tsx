@@ -32,6 +32,7 @@ export const Header: React.FC = () => {
   const menuItems = [
     { label: 'Home', to: '/' },
     { label: 'Fleet', to: '/bikes' },
+    { label: 'Calendar', to: '/availability' },
     { label: 'Rates', to: '/rates' },
     { label: 'About', to: '/about' },
     { label: 'Contact', to: '/contact' },
@@ -62,14 +63,44 @@ export const Header: React.FC = () => {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Mobile Book Now Button - Visible only on mobile/tablet */}
-            <Link 
-                to="/book"
-                className="md:hidden bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2 px-4 rounded-full shadow-lg active:scale-95 transition-all"
-            >
-                BOOK
-            </Link>
+          <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+            {/* Mobile Book Now Button - Hidden on checkout/book page */}
+            {location.pathname !== '/book' && (
+              <Link 
+                  to="/book"
+                  className="md:hidden bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2 px-3.5 rounded-full shadow-lg active:scale-95 transition-all hover:bg-brand-yellow hover:text-brand-black"
+              >
+                  BOOK
+              </Link>
+            )}
+
+            {/* Small Sign-In / Account Icon (Right of BOOK button on mobile) */}
+            <div className="md:hidden flex items-center">
+              {!user ? (
+                <Link
+                  to="/login"
+                  className="w-8 h-8 rounded-full bg-white/5 border border-white/10 hover:border-brand-teal/50 hover:bg-brand-teal/10 flex items-center justify-center text-white/80 hover:text-brand-teal transition-all active:scale-95"
+                  title="Sign In"
+                  aria-label="Sign In"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </Link>
+              ) : (
+                <Link
+                  to="/my-bookings"
+                  className="relative w-8 h-8 rounded-full bg-brand-teal/10 border border-brand-teal/30 hover:border-brand-teal flex items-center justify-center text-brand-teal transition-all active:scale-95"
+                  title="My Dashboard & Bookings"
+                  aria-label="My Account"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-brand-black"></span>
+                </Link>
+              )}
+            </div>
 
             <nav className="hidden md:flex items-center space-x-6 lg:space-x-10">
               {menuItems.map(item => (
@@ -79,18 +110,21 @@ export const Header: React.FC = () => {
               {isAdmin && (
                  <Link 
                   to="/admin"
-                  className={`text-brand-teal font-black text-[11px] tracking-widest hover:text-white transition-all uppercase border px-4 py-1.5 rounded-full animate-pulse shadow-[0_0_15px_rgba(0,194,199,0.2)] ${location.pathname.startsWith('/admin') ? 'border-brand-yellow text-brand-yellow' : 'border-brand-teal/30'}`}
+                  className={`text-brand-teal font-black text-[11px] tracking-widest hover:text-white transition-all uppercase border px-4 py-1.5 rounded-full shadow-[0_0_15px_rgba(0,194,199,0.2)] ${location.pathname.startsWith('/admin') ? 'border-brand-yellow text-brand-yellow' : 'border-brand-teal/30'}`}
                  >
                    Admin
                  </Link>
               )}
 
-              <Link 
-                  to="/book"
-                  className="bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2.5 px-6 rounded-full hover:bg-brand-yellow hover:text-brand-black transition-all shadow-lg"
-              >
-                  BOOK NOW
-              </Link>
+              {/* Desktop Book Now Button - Hidden on checkout/book page */}
+              {location.pathname !== '/book' && (
+                <Link 
+                    to="/book"
+                    className="bg-brand-orange text-white font-heading text-[10px] tracking-widest py-2.5 px-6 rounded-full hover:bg-brand-yellow hover:text-brand-black transition-all shadow-lg active:scale-[0.98]"
+                >
+                    BOOK NOW
+                </Link>
+              )}
 
               <div className="flex items-center gap-4 ml-4 pl-4 border-l border-white/10">
                 {!user ? (

@@ -175,7 +175,7 @@ export const AdminFleet: React.FC = () => {
           currentOdometer,
           maintenanceRecords: bikeMaint.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
           futureRides: bikeBookings.filter(b => 
-            ['booking_confirmed', 'verifying_payment'].includes(b.status) && 
+            ['booking_confirmed', 'ongoing'].includes(b.status) && 
             new Date(b.pickup_date) >= new Date(new Date().setHours(0, 0, 0, 0))
           )
         };
@@ -384,11 +384,11 @@ export const AdminFleet: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-24 px-4 sm:px-6">
-      {/* 1. Sleek Header Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-5">
+      {/* 1. Header Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-heading text-white tracking-tight">Fleet Inventory</h1>
-          <p className="text-white/40 text-xs mt-0.5">
+          <h1 className="text-2xl sm:text-3xl font-heading text-slate-100 tracking-wide">Fleet Inventory</h1>
+          <p className="text-slate-400 text-xs mt-0.5">
             Manage machines, rental rates, lifecycle metrics, and maintenance expenses
           </p>
         </div>
@@ -398,24 +398,24 @@ export const AdminFleet: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowSqlModal(true)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-wider transition-all flex items-center gap-1.5 cursor-pointer border ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer border ${
               dbStatus.exists 
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' 
-                : 'bg-brand-yellow/10 text-brand-yellow border-brand-yellow/30 hover:bg-brand-yellow/20'
+                ? 'bg-sky-950/60 text-sky-300 border-sky-800/60 hover:bg-sky-900/40' 
+                : 'bg-amber-950/60 text-amber-300 border-amber-800/60 hover:bg-amber-900/40'
             }`}
             title="Click to view or copy Supabase PostgreSQL schema"
           >
-            <span className={`w-2 h-2 rounded-full ${dbStatus.exists ? 'bg-emerald-400' : 'bg-brand-yellow animate-pulse'}`}></span>
-            <span>{dbStatus.exists ? 'Supabase Live' : 'Database SQL Setup'}</span>
+            <span className={`w-2 h-2 rounded-full ${dbStatus.exists ? 'bg-sky-400' : 'bg-amber-400 animate-pulse'}`}></span>
+            <span>{dbStatus.exists ? 'Database Synced' : 'Database SQL Setup'}</span>
           </button>
 
           {/* View Toggle */}
-          <div className="flex bg-black/40 border border-white/10 rounded-lg p-0.5">
+          <div className="flex bg-black border border-neutral-800 rounded-lg p-0.5">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                viewMode === 'grid' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white'
+                viewMode === 'grid' ? 'bg-neutral-800 text-white shadow-sm' : 'text-neutral-400 hover:text-white'
               }`}
               title="Cards Grid View"
             >
@@ -427,7 +427,7 @@ export const AdminFleet: React.FC = () => {
               type="button"
               onClick={() => setViewMode('table')}
               className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                viewMode === 'table' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white'
+                viewMode === 'table' ? 'bg-neutral-800 text-white shadow-sm' : 'text-neutral-400 hover:text-white'
               }`}
               title="Compact Table View"
             >
@@ -441,53 +441,53 @@ export const AdminFleet: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 rounded-lg bg-brand-teal hover:bg-brand-teal/90 text-brand-black text-xs font-bold transition-all shadow-md shadow-brand-teal/20 cursor-pointer flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
           >
             <span>+ Add Machine</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Clean Fleet Stats Row (4 Uncluttered Metric Tiles) */}
+      {/* 2. Fleet Stats Row (4 Clear Metric Tiles on Pitch Black) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-brand-gray-dark/40 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">Total Fleet</span>
+        <div className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Total Fleet</span>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-heading text-white">{fleetTotals.count}</span>
-            <span className="text-[10px] text-brand-teal font-medium">Vehicles</span>
+            <span className="text-2xl font-bold font-heading text-slate-100">{fleetTotals.count}</span>
+            <span className="text-xs text-sky-400 font-medium">Vehicles</span>
           </div>
         </div>
 
-        <div className="bg-brand-gray-dark/40 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">Active On Road</span>
+        <div className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Active On Road</span>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-heading text-emerald-400">{fleetTotals.running}</span>
-            <span className="text-[10px] text-white/40">Trips Ongoing</span>
+            <span className="text-2xl font-bold font-heading text-sky-400">{fleetTotals.running}</span>
+            <span className="text-xs text-neutral-400">Trips Ongoing</span>
           </div>
         </div>
 
-        <div className="bg-brand-gray-dark/40 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">Total Rent Till Date</span>
+        <div className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Total Revenue</span>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-heading text-brand-yellow">₹{fleetTotals.revenue.toLocaleString()}</span>
-            <span className="text-[10px] text-white/40">Booking Revenue</span>
+            <span className="text-2xl font-bold font-heading text-white">₹{fleetTotals.revenue.toLocaleString()}</span>
+            <span className="text-xs text-neutral-400">Gross Rent</span>
           </div>
         </div>
 
-        <div className="bg-brand-gray-dark/40 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">Maintenance Expenses</span>
+        <div className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+          <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Servicing Expenses</span>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-heading text-brand-orange">₹{fleetTotals.maintenance.toLocaleString()}</span>
-            <span className="text-[10px] text-white/40">Servicing Costs</span>
+            <span className="text-2xl font-bold font-heading text-orange-400">₹{fleetTotals.maintenance.toLocaleString()}</span>
+            <span className="text-xs text-slate-400">Maintenance</span>
           </div>
         </div>
       </div>
 
-      {/* 3. Streamlined Search & Filter Bar */}
-      <div className="bg-brand-gray-dark/30 p-3 sm:p-4 rounded-2xl border border-white/5 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      {/* 3. Search & Filter Bar */}
+      <div className="bg-[#151d2c] p-3 sm:p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between shadow-sm">
         {/* Search */}
         <div className="relative flex-1">
-          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input 
@@ -495,7 +495,7 @@ export const AdminFleet: React.FC = () => {
             placeholder="Search machine name or registration number..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-white/30 outline-none focus:border-brand-teal transition-all"
+            className="w-full bg-[#0f141f] border border-slate-700 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-orange-500 transition-all"
           />
           {searchTerm && (
             <button 
@@ -571,107 +571,84 @@ export const AdminFleet: React.FC = () => {
             return (
               <div 
                 key={bike.id} 
-                className="bg-brand-gray-dark/40 hover:bg-brand-gray-dark/60 rounded-2xl border border-white/5 hover:border-brand-teal/30 p-5 flex flex-col justify-between transition-all duration-200 shadow-md group"
+                className="bg-[#0a0a0a] hover:bg-neutral-900 rounded-2xl border border-neutral-800 hover:border-neutral-700 p-4 flex flex-col justify-between transition-all duration-200 shadow-sm group"
               >
                 <div>
                   {/* Card Header: Category & Status */}
-                  <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-teal bg-brand-teal/10 px-2 py-0.5 rounded-md border border-brand-teal/20">
+                      <span className="text-[10px] font-semibold uppercase text-neutral-300 bg-neutral-900 px-2 py-0.5 rounded-md border border-neutral-800">
                         {bike.category}
                       </span>
-                      <span className="text-[10px] font-mono font-bold text-white/70 bg-black/50 px-2 py-0.5 rounded-md border border-white/10">
+                      <span className="text-[10px] font-mono text-neutral-400">
                         {bike.rc_number || `WB-02-${1000 + bike.id}`}
                       </span>
                     </div>
 
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
                       isRunning 
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' 
                         : isWorkshop 
-                        ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/30' 
-                        : 'bg-brand-teal/10 text-brand-teal border-brand-teal/30'
+                        ? 'bg-neutral-900 text-neutral-400 border-neutral-800' 
+                        : 'bg-sky-500/10 text-sky-400 border-sky-500/30'
                     }`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${
-                        isRunning ? 'bg-emerald-400 animate-pulse' : isWorkshop ? 'bg-brand-orange' : 'bg-brand-teal'
+                        isRunning ? 'bg-orange-400' : isWorkshop ? 'bg-neutral-600' : 'bg-sky-400'
                       }`}></span>
                       {isRunning ? 'On Trip' : isWorkshop ? 'Workshop' : 'Ready'}
                     </span>
                   </div>
 
                   {/* Vehicle Image Container */}
-                  <div className="relative aspect-[16/10] bg-black/40 rounded-xl overflow-hidden border border-white/5 mb-4 flex items-center justify-center">
+                  <div className="relative aspect-[16/10] bg-black rounded-xl overflow-hidden border border-neutral-800 mb-3 flex items-center justify-center">
                     <img 
                       src={bike.imageUrl} 
                       alt={bike.name} 
-                      className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105" 
+                      className="w-full h-full object-contain p-2" 
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = '/images/ather-450x.jpg';
                       }}
                     />
-                    <div className="absolute top-2.5 right-2.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
-                      <span className="text-xs font-heading text-brand-yellow font-bold">₹{bike.dailyRate}</span>
-                      <span className="text-[9px] text-white/50 ml-1">/ day</span>
+                    <div className="absolute top-2 right-2 bg-black/80 px-2 py-0.5 rounded-lg border border-neutral-800">
+                      <span className="text-xs font-bold text-white">₹{bike.dailyRate}</span>
+                      <span className="text-[10px] text-neutral-400 ml-0.5">/d</span>
                     </div>
                   </div>
 
-                  {/* Title */}
-                  <div className="mb-3">
-                    <h3 className="text-base font-bold text-white tracking-tight line-clamp-1">
+                  {/* Title & Main Info */}
+                  <div className="mb-2">
+                    <h3 className="text-sm font-bold text-white tracking-tight truncate">
                       {bike.name}
                     </h3>
-                  </div>
-
-                  {/* Clean 2x2 Metric Grid */}
-                  <div className="grid grid-cols-2 gap-2 bg-black/40 p-3 rounded-xl border border-white/5 mb-4 text-xs">
-                    <div>
-                      <span className="text-[9px] uppercase tracking-wider text-white/40 block">Total Rent Till Date</span>
-                      <span className="text-white font-heading text-sm font-bold">₹{bike.revenue.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase tracking-wider text-white/40 block">Maintenance Expenses</span>
-                      <span className="text-brand-orange font-heading text-sm font-bold">₹{bike.maintCost.toLocaleString()}</span>
-                    </div>
-                    <div className="pt-1.5 border-t border-white/5">
-                      <span className="text-[9px] uppercase tracking-wider text-white/40 block">Odometer</span>
-                      <span className="text-white font-mono text-xs">{Math.round(bike.currentOdometer).toLocaleString()} km</span>
-                    </div>
-                    <div className="pt-1.5 border-t border-white/5">
-                      <span className="text-[9px] uppercase tracking-wider text-white/40 block">Purchase Date</span>
-                      <span className="text-white/80 font-mono text-xs">{bike.purchase_date || '2024-01-10'}</span>
-                    </div>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      {Math.round(bike.currentOdometer).toLocaleString()} km odometer · {bike.futureRides?.length || 0} upcoming rides
+                    </p>
                   </div>
                 </div>
 
                 {/* Card Actions */}
-                <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                <div className="flex items-center gap-2 pt-3 border-t border-neutral-800">
                   <button
                     type="button"
                     onClick={() => handleOpenEditModal(bike)}
-                    className="flex-1 py-2 px-3 rounded-xl bg-white/5 hover:bg-brand-teal hover:text-brand-black text-white/80 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-white/10"
+                    className="flex-1 py-1.5 px-3 rounded-xl bg-black hover:bg-neutral-800 text-neutral-200 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-neutral-800"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    <span>Edit</span>
+                    Edit
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleOpenMaintenanceModal(bike)}
-                    className="flex-1 py-2 px-3 rounded-xl bg-brand-orange/10 hover:bg-brand-orange hover:text-white text-brand-orange text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-brand-orange/20"
+                    className="py-1.5 px-3 rounded-xl bg-black hover:bg-neutral-800 text-neutral-300 text-xs font-semibold transition-all cursor-pointer border border-neutral-800"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    </svg>
-                    <span>Service</span>
+                    Service
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setDeletingBike(bike)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-red-500 hover:text-white text-white/40 hover:border-red-500/30 border border-white/5 transition-all cursor-pointer"
-                    title="Delete machine from website"
+                    className="p-1.5 rounded-xl bg-black hover:bg-rose-950/60 text-neutral-500 hover:text-rose-400 border border-neutral-800 transition-all cursor-pointer"
+                    title="Delete machine"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -745,13 +722,13 @@ export const AdminFleet: React.FC = () => {
                       <td className="py-3 px-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border ${
                           isRunning 
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                            ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' 
                             : isWorkshop 
                             ? 'bg-brand-orange/10 text-brand-orange border-brand-orange/30' 
-                            : 'bg-brand-teal/10 text-brand-teal border-brand-teal/30'
+                            : 'bg-white/10 text-slate-300 border-white/20'
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
-                            isRunning ? 'bg-emerald-400 animate-pulse' : isWorkshop ? 'bg-brand-orange' : 'bg-brand-teal'
+                            isRunning ? 'bg-sky-400 animate-pulse' : isWorkshop ? 'bg-brand-orange' : 'bg-white/60'
                           }`}></span>
                           {isRunning ? 'On Trip' : isWorkshop ? 'Workshop' : 'Ready'}
                         </span>
@@ -825,7 +802,7 @@ export const AdminFleet: React.FC = () => {
             </div>
 
             <div className="relative">
-              <pre className="bg-black/90 p-4 rounded-xl border border-white/10 text-[10px] font-mono text-emerald-400 overflow-x-auto max-h-72 leading-relaxed">
+              <pre className="bg-black/90 p-4 rounded-xl border border-white/10 text-[10px] font-mono text-sky-400 overflow-x-auto max-h-72 leading-relaxed">
                 {SUPABASE_FLEET_SQL}
               </pre>
               <button

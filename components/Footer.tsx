@@ -18,10 +18,22 @@ export const Footer: React.FC<FooterProps> = ({ onShowPolicy }) => {
           <p className="text-xs font-bold tracking-[0.5em] text-brand-teal uppercase">Ride The Wild. Live Free.</p>
         </div>
 
-        <div className="flex justify-center flex-wrap gap-6 md:gap-12 mb-10">
+        <div className="flex justify-center flex-wrap gap-6 md:gap-12 mb-8">
             <button onClick={() => onShowPolicy(PRIVACY_POLICY)} className="text-sm font-bold uppercase tracking-widest hover:text-brand-yellow transition-colors">Privacy Policy</button>
             <button onClick={() => onShowPolicy(REFUND_POLICY)} className="text-sm font-bold uppercase tracking-widest hover:text-brand-yellow transition-colors">Refund Policy</button>
             <button onClick={() => onShowPolicy(TERMS_AND_CONDITIONS)} className="text-sm font-bold uppercase tracking-widest hover:text-brand-yellow transition-colors">Terms & Conditions</button>
+        </div>
+
+        <div className="mb-8">
+          <a 
+            href="https://wa.me/917686022245"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-xs text-neutral-400 hover:text-white transition-colors duration-200"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>Need help? Chat with us on WhatsApp</span>
+          </a>
         </div>
 
         <div className="pt-10 border-t border-white/5 opacity-50 space-y-2">

@@ -10,7 +10,7 @@
     <meta property="og:description" content="Kolkata's most reliable bike and scooter rental service. Rentals starting at just ₹99/hr. Home delivery available." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -18,17 +18,16 @@
           extend: {
             fontFamily: {
               sans: ['Montserrat', 'sans-serif'],
-              heading: ['Black Ops One', 'sans-serif'],
+              heading: ['Montserrat', 'sans-serif'],
             },
             colors: {
               brand: {
                 orange: '#FF5F1F',
-                yellow: '#FFC700',
-                teal: '#00C2C7',
-                black: '#121212',
+                sky: '#38BDF8',
+                black: '#000000',
                 gray: {
                   light: '#F5F5F5',
-                  dark: '#222222',
+                  dark: '#0A0A0A',
                 }
               }
             }
@@ -38,8 +37,8 @@
     </script>
     <link rel="stylesheet" href="/index.css">
   </head>
-  <body class="bg-brand-black text-brand-gray-light">
-    <div id="root" class="min-h-screen bg-brand-black"></div>
+  <body class="bg-black text-slate-100 antialiased">
+    <div id="root" class="min-h-screen bg-black"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

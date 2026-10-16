@@ -4,7 +4,7 @@ import React from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Bike, BikeCategory } from '../types';
 
-const { useNavigate } = ReactRouterDOM;
+const { useNavigate, Link } = ReactRouterDOM;
 
 interface BikeCollectionProps {
   bikes: Bike[];
@@ -23,13 +23,13 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
     teal: 'border-brand-teal hover:shadow-brand-teal/30',
   };
 
-  const isBooked = bike.status === 'Booked';
+  const isMaintenance = bike.status === 'Maintenance';
 
   return (
     <div className={`bg-brand-gray-dark rounded-lg overflow-hidden border-b-4 ${colorClasses[bike.color]} transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl flex flex-col relative group`}>
       {/* Availability Badge */}
-      <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest z-10 shadow-lg ${!isBooked ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
-        {bike.status}
+      <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest z-10 shadow-lg ${!isMaintenance ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
+        {!isMaintenance ? 'Available' : 'Under Service'}
       </div>
       
       <div className="relative h-60 overflow-hidden">
@@ -38,7 +38,7 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
           alt={bike.name} 
           loading="lazy"
           decoding="async"
-          className={`w-full h-full object-cover transition-transform duration-500 ${!isBooked ? 'group-hover:scale-110' : 'grayscale opacity-60'}`} 
+          className={`w-full h-full object-cover transition-transform duration-500 ${!isMaintenance ? 'group-hover:scale-110' : 'grayscale opacity-60'}`} 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
            <span className="text-white text-xs font-bold uppercase tracking-widest">View Details</span>
@@ -53,13 +53,21 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
         </div>
         <p className="text-brand-gray-light font-sans text-xs flex-grow mb-6 opacity-70 leading-relaxed uppercase tracking-wider">{bike.description}</p>
         
-        <button 
-          onClick={() => onBook(bike.id)}
-          disabled={isBooked}
-          className={`mt-auto font-heading tracking-widest py-3 px-4 rounded-xl transition-all duration-300 w-full ${!isBooked ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-lg shadow-brand-orange/20' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
-        >
-          {!isBooked ? 'BOOK THIS BIKE' : 'CURRENTLY BOOKED'}
-        </button>
+        <div className="mt-auto space-y-2">
+          <button 
+            onClick={() => onBook(bike.id)}
+            disabled={isMaintenance}
+            className={`font-heading tracking-widest py-3 px-4 rounded-xl transition-all duration-300 w-full ${!isMaintenance ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-lg shadow-brand-orange/20 cursor-pointer' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
+          >
+            {!isMaintenance ? 'BOOK THIS BIKE' : 'UNDER SERVICE'}
+          </button>
+          <Link
+            to={`/availability?bikeId=${bike.id}`}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-brand-teal text-[10px] font-black uppercase tracking-wider transition-all"
+          >
+            <span>📅 View Free Slots & Calendar</span>
+          </Link>
+        </div>
       </div>
     </div>
   );

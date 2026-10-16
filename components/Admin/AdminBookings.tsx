@@ -283,7 +283,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
       .from('bookings')
       .select('id, readable_id, pickup_date, pickup_time, return_date, return_time')
       .eq('bike_id', manualBooking.bike_id)
-      .in('status', ['booking_confirmed', 'verifying_payment', 'ongoing']);
+      .in('status', ['booking_confirmed', 'ongoing']);
 
     const conflict = conflicts?.find(b => {
       const bStart = new Date(`${b.pickup_date}T${b.pickup_time || '10:00'}`).getTime();
@@ -685,58 +685,58 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
   };
 
   return (
-    <div className="animate-fade-in space-y-8 max-w-7xl mx-auto">
+    <div className="animate-fade-in space-y-6 max-w-7xl mx-auto">
       {/* Header & Main Filters */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-5 border-b border-slate-800/80 pb-6">
         <div>
-          <h2 className="text-4xl font-heading text-white uppercase tracking-tighter">Ride Ledger</h2>
-          <p className="text-brand-teal text-[9px] font-black uppercase tracking-[0.4em] mt-2">Operational Log</p>
+          <h2 className="text-3xl font-heading text-slate-100 tracking-wide">Rides & Bookings Ledger</h2>
+          <p className="text-xs font-medium text-slate-400 mt-1">Live database of bookings, dispatch status, payment verifications, and ride history</p>
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <button 
             onClick={handleOpenManualModal}
-            className="px-6 py-3 bg-brand-teal text-brand-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-brand-teal/20 cursor-pointer"
+            className="px-4 py-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer"
           >
-            + Submit Manual Request
+            + Create Booking
           </button>
           
-          <div className="flex flex-wrap gap-2 p-1 bg-brand-gray-dark border border-white/5 rounded-2xl">
+          <div className="flex flex-wrap gap-1 p-1 bg-[#0a0a0a] border border-neutral-800 rounded-xl">
             {['all', 'pending', 'confirmed', 'running', 'overdue', 'completed', 'cancelled'].map(f => (
-            <button 
+              <button 
                 key={f} 
                 onClick={() => setStatusFilter(f)} 
-                className={`px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                   statusFilter === f 
-                    ? (f === 'overdue' || f === 'cancelled' ? 'bg-red-500 text-white' : f === 'confirmed' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-brand-orange text-white') 
-                    : 'text-white/40 hover:text-white'
+                    ? (f === 'overdue' || f === 'cancelled' ? 'bg-rose-600 text-white' : f === 'confirmed' ? 'bg-sky-400 text-black font-bold shadow-sm' : 'bg-orange-600 text-white') 
+                    : 'text-neutral-400 hover:text-white'
                 }`}
-            >
-              {f === 'confirmed' ? 'Paid / Confirmed' : f}
-            </button>
-          ))}
+              >
+                {f === 'confirmed' ? 'Payment Confirmed' : f === 'running' ? 'Active Ride' : f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
 
       {/* Time Based Filters */}
-      <div className="flex flex-col md:flex-row gap-6 items-center bg-brand-gray-dark/40 p-6 rounded-[2.5rem] border border-white/5 shadow-xl">
-        <div className="flex flex-wrap gap-2 flex-grow">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 shadow-sm">
+        <div className="flex flex-wrap gap-2">
           {[
             { id: 'all_time', label: 'All Time' },
             { id: 'today', label: 'Today' },
             { id: 'yesterday', label: 'Yesterday' },
             { id: 'this_week', label: 'This Week' },
             { id: 'this_month', label: 'This Month' },
-            { id: 'custom', label: 'Custom' }
+            { id: 'custom', label: 'Custom Range' }
           ].map(range => (
             <button 
               key={range.id}
               onClick={() => setTimeRange(range.id as TimeRange)}
-              className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all border ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
                 timeRange === range.id 
-                ? 'bg-brand-teal text-brand-black border-brand-teal' 
-                : 'bg-brand-black/40 text-white/40 border-white/5 hover:border-white/20'
+                ? 'bg-neutral-800 text-white border-neutral-700 shadow-sm' 
+                : 'bg-black text-neutral-400 border-neutral-800 hover:border-neutral-700 hover:text-white'
               }`}
             >
               {range.label}
@@ -745,55 +745,55 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
         </div>
 
         {timeRange === 'custom' && (
-          <div className="flex items-center gap-4 animate-fade-in bg-brand-black/60 p-3 rounded-2xl border border-white/5">
-            <div className="flex flex-col px-3">
-              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">From</span>
+          <div className="flex items-center gap-3 bg-black p-2 rounded-xl border border-neutral-800">
+            <div className="flex items-center gap-2 px-2">
+              <span className="text-xs font-medium text-neutral-400">From</span>
               <input 
                 type="date" 
                 value={customRange.start} 
                 onChange={(e) => setCustomRange(p => ({...p, start: e.target.value}))}
-                className="bg-transparent text-[10px] font-bold text-white outline-none cursor-pointer" 
+                className="bg-transparent text-xs font-semibold text-slate-200 outline-none cursor-pointer" 
               />
             </div>
-            <div className="w-px h-6 bg-white/10"></div>
-            <div className="flex flex-col px-3">
-              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">To</span>
+            <div className="w-px h-5 bg-neutral-800"></div>
+            <div className="flex items-center gap-2 px-2">
+              <span className="text-xs font-medium text-neutral-400">To</span>
               <input 
                 type="date" 
                 value={customRange.end} 
                 onChange={(e) => setCustomRange(p => ({...p, end: e.target.value}))}
-                className="bg-transparent text-[10px] font-bold text-white outline-none cursor-pointer" 
+                className="bg-transparent text-xs font-semibold text-slate-200 outline-none cursor-pointer" 
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Bookings Table */}
-      <div className="bg-brand-gray-dark/40 rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
+      {/* Bookings Table - Pitch Black Background & Clean Borders */}
+      <div className="bg-black rounded-2xl border border-neutral-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-brand-black/60 text-[9px] font-black uppercase tracking-widest text-white/30">
+            <thead className="bg-[#0a0a0a] text-xs font-semibold uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
               <tr>
-                <th className="px-10 py-8">Rider & Vehicle</th>
-                <th className="px-10 py-8">Status</th>
-                <th className="px-10 py-8">Schedule</th>
-                <th className="px-10 py-8">Financials</th>
-                <th className="px-10 py-8 text-right">Actions</th>
+                <th className="px-6 py-4">Rider & Vehicle</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Schedule</th>
+                <th className="px-6 py-4">Financials</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-neutral-900">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center">
-                    <div className="w-10 h-10 border-2 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest">Querying Records...</p>
+                  <td colSpan={5} className="py-16 text-center">
+                    <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto mb-3"></div>
+                    <p className="text-xs font-medium text-neutral-400">Loading booking records...</p>
                   </td>
                 </tr>
               ) : bookings.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center">
-                    <p className="text-[10px] font-black text-white/10 uppercase tracking-[0.5em]">No Data in this Window</p>
+                  <td colSpan={5} className="py-16 text-center">
+                    <p className="text-xs font-medium text-neutral-500 uppercase tracking-widest">No Bookings Found in Selected Period</p>
                   </td>
                 </tr>
               ) : (
@@ -802,91 +802,57 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                   const isOverdue = booking.status === 'ongoing' && new Date(`${booking.return_date}T${booking.return_time}`) < new Date();
                   
                   return (
-                    <tr key={booking.id} className="hover:bg-brand-teal/[0.02] transition-colors group">
-                      <td className="px-10 py-8">
-                        <div className="flex items-center gap-6">
-                          <div className="text-center">
-                              <div className="text-brand-orange text-[9px] font-black uppercase mb-1">{booking.readable_id}</div>
-                              <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10">
-                                  <img src={bike?.imageUrl} className="w-full h-full object-cover" />
-                              </div>
+                    <tr key={booking.id} className="hover:bg-neutral-950 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <div className="text-center shrink-0">
+                            <div className="text-orange-400 text-xs font-bold uppercase mb-1">{booking.readable_id}</div>
+                            <div className="w-12 h-12 rounded-xl overflow-hidden border border-neutral-800 bg-[#0a0a0a]">
+                              <img src={bike?.imageUrl} className="w-full h-full object-cover" />
+                            </div>
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-white uppercase tracking-tight">{booking.customer_name}</div>
-                            <div className="text-[10px] text-brand-teal font-black uppercase tracking-widest mt-1">{bike?.name}</div>
+                            <div className="text-sm font-semibold text-slate-100">{booking.customer_name}</div>
+                            <div className="text-xs text-neutral-400 font-medium mt-0.5">{bike?.name}</div>
+                            <div className="text-xs text-neutral-300 mt-0.5">{booking.customer_phone}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-10 py-8">
-                        <span className={`inline-block px-4 py-2 rounded-xl text-[9px] font-black uppercase border tracking-widest ${
-                          booking.status === 'completed' ? 'border-green-500/30 text-green-500' :
-                          booking.status === 'ongoing' ? (isOverdue ? 'border-red-500/50 text-red-500 animate-pulse' : 'border-brand-teal/30 text-brand-teal') :
-                          booking.status === 'booking_confirmed' ? 'border-green-500/40 text-green-400 bg-green-500/10' :
-                          booking.status === 'cancelled' ? 'border-red-500/40 text-red-400 bg-red-500/10' :
-                          booking.status === 'verifying_payment' ? 'border-brand-yellow/30 text-brand-yellow' :
-                          'border-white/10 text-white/40'
+                      <td className="px-6 py-4">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide border ${
+                          booking.status === 'completed' ? 'border-sky-500/30 bg-sky-500/10 text-sky-400' :
+                          booking.status === 'ongoing' ? (isOverdue ? 'border-orange-500 bg-orange-950/80 text-orange-400' : 'border-neutral-700 bg-neutral-900 text-white') :
+                          booking.status === 'booking_confirmed' ? 'border-sky-500/30 bg-sky-500/10 text-sky-400' :
+                          booking.status === 'cancelled' ? 'border-neutral-800 bg-neutral-950 text-neutral-500' :
+                          booking.status === 'verifying_payment' ? 'border-orange-500/30 bg-orange-500/10 text-orange-400' :
+                          'border-neutral-800 bg-neutral-900 text-neutral-400'
                         }`}>
-                          {isOverdue ? 'OVERDUE' : booking.status === 'booking_confirmed' ? 'PAID / CONFIRMED' : booking.status.replace('_', ' ')}
+                          {isOverdue ? 'OVERDUE' : booking.status === 'booking_confirmed' ? 'PAYMENT CONFIRMED' : booking.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </td>
-                      <td className="px-10 py-8">
-                        <div className="text-[10px] text-white/60 font-bold uppercase">{booking.pickup_date} @ {booking.pickup_time}</div>
-                        <div className={`text-[10px] mt-1 uppercase font-bold ${isOverdue ? 'text-red-500' : 'text-white/30'}`}>Return {booking.return_date}</div>
-                        {booking.address && (
-                          <div className="mt-2">
-                            {booking.address.includes('|') ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-orange/15 border border-brand-orange/30 text-[8px] font-black text-brand-orange uppercase tracking-wider">
-                                🚚 Deliv ≠ 🏁 Return
-                              </span>
-                            ) : booking.address.startsWith('Delivery:') ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-teal/15 border border-brand-teal/30 text-[8px] font-black text-brand-teal uppercase tracking-wider">
-                                🚚 Delivery
-                              </span>
-                            ) : booking.address.startsWith('Return Pickup:') ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-yellow/15 border border-brand-yellow/30 text-[8px] font-black text-brand-yellow uppercase tracking-wider">
-                                🏁 Return Pickup
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[8px] font-black text-white/50 uppercase tracking-wider">
-                                📍 Address
-                              </span>
-                            )}
-                          </div>
-                        )}
+                      <td className="px-6 py-4">
+                        <div className="text-xs text-slate-200 font-semibold">{booking.pickup_date} @ {booking.pickup_time}</div>
+                        <div className={`text-xs mt-0.5 font-medium ${isOverdue ? 'text-orange-400 font-bold' : 'text-neutral-400'}`}>
+                          Return {booking.return_date} @ {booking.return_time}
+                        </div>
                       </td>
-                      <td className="px-10 py-8">
-                        <div className="text-sm font-heading text-white">₹{booking.total_rent + (booking.adjustment_amount || 0)}</div>
-                        {booking.adjustment_amount !== undefined && booking.adjustment_amount !== 0 && (
-                          <div className="mt-1">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                              booking.adjustment_amount < 0
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                : 'bg-brand-orange/20 text-brand-orange border border-brand-orange/30'
-                            }`}>
-                              {booking.adjustment_amount < 0 ? `🏷️ Discount -₹${Math.abs(booking.adjustment_amount)}` : `🏷️ Premium +₹${booking.adjustment_amount}`}
-                            </span>
-                          </div>
-                        )}
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-slate-100">₹{booking.total_rent + (booking.adjustment_amount || 0)}</div>
                         {booking.advance_amount !== undefined && booking.advance_amount !== null && booking.advance_amount > 0 && (
-                          <div className="text-[9px] font-bold text-green-400/80 mt-1">
+                          <div className="text-xs font-semibold text-sky-400 mt-0.5">
                             Adv: ₹{booking.advance_amount} ✓
                           </div>
                         )}
-                        {booking.security_deposit !== undefined && booking.security_deposit !== null && Number(booking.security_deposit) > 0 && (
-                          <div className="text-[9px] font-bold text-brand-yellow/90 mt-0.5">
-                            Deposit: ₹{booking.security_deposit} 🔒
-                          </div>
-                        )}
                       </td>
-                      <td className="px-10 py-8 text-right">
+                      <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => handleOpenConfirmPaymentModal(booking)}
-                            className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                               booking.status === 'booking_confirmed'
-                                ? 'bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500 hover:text-black'
-                                : 'bg-green-500 text-black hover:bg-green-400 font-black shadow-lg shadow-green-500/20'
+                                ? 'bg-neutral-900 text-neutral-200 border border-neutral-800 hover:bg-neutral-800'
+                                : 'bg-sky-400 hover:bg-sky-300 text-black font-bold shadow-sm'
                             }`}
                             title={booking.status === 'booking_confirmed' ? 'Edit advance & agreed rent' : 'Confirm payment & set rent'}
                           >
@@ -897,8 +863,8 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                             <button
                               type="button"
                               onClick={() => handleOpenCancelModal(booking)}
-                              className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 border border-red-500/30 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
-                              title={booking.status === 'booking_confirmed' ? 'Cancel confirmed booking (payment was confirmed)' : 'Cancel booking'}
+                              className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-rose-950/60 text-rose-300 border border-neutral-800 hover:border-rose-900 text-xs font-semibold transition-all cursor-pointer"
+                              title="Cancel booking"
                             >
                               Cancel
                             </button>
@@ -906,7 +872,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
 
                           <button 
                             onClick={() => setSelectedBooking(booking)} 
-                            className="text-[9px] font-black text-brand-teal uppercase tracking-widest border border-brand-teal/20 px-4 py-2 rounded-xl hover:bg-brand-teal hover:text-black transition-all shadow-lg cursor-pointer"
+                            className="text-xs font-semibold text-sky-400 border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 rounded-lg hover:bg-sky-400 hover:text-black transition-all cursor-pointer"
                           >
                             Operate
                           </button>
@@ -932,7 +898,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                   <div className="flex items-center gap-3 mb-2 justify-center md:justify-start">
                     <h4 className="text-brand-teal font-heading text-[10px] uppercase tracking-[0.3em]">Active Rider Identity</h4>
                     {selectedBooking.payment_method && (
-                      <span className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] ${selectedBooking.payment_method === 'cash' ? 'bg-green-500/20 text-green-500 border border-green-500/30' : 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30'}`}>
+                      <span className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] ${selectedBooking.payment_method === 'cash' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30'}`}>
                         {selectedBooking.payment_method} Received
                       </span>
                     )}
@@ -1144,7 +1110,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 <div className="flex items-center justify-between">
                   <h4 className="text-brand-yellow font-heading text-sm uppercase tracking-widest">Financial Operations</h4>
                   {selectedBooking.status === 'booking_confirmed' && (
-                    <span className="px-3 py-1 rounded-md text-[9px] font-black uppercase text-green-400 bg-green-500/10 border border-green-500/20">
+                    <span className="px-3 py-1 rounded-md text-[9px] font-black uppercase text-sky-400 bg-sky-500/10 border border-sky-500/20">
                       Payment Confirmed
                     </span>
                   )}
@@ -1160,10 +1126,10 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                     <button 
                       type="button"
                       onClick={() => handleOpenConfirmPaymentModal(selectedBooking)} 
-                      className={`py-4 px-3 text-white text-[9px] font-black uppercase rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer ${
+                      className={`py-4 px-3 text-black text-[9px] font-black uppercase rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer ${
                         selectedBooking.status === 'booking_confirmed' 
-                          ? 'bg-green-600 hover:bg-green-500 shadow-green-500/20' 
-                          : 'bg-green-500 hover:bg-green-600 shadow-green-500/20'
+                          ? 'bg-sky-400 hover:bg-sky-300 shadow-sky-500/20' 
+                          : 'bg-sky-400 hover:bg-sky-300 shadow-sky-500/20'
                       }`}
                     >
                       <span>{selectedBooking.status === 'booking_confirmed' ? '✓ Payment Confirmed' : 'Confirm Payment'}</span>
@@ -1286,7 +1252,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                     <div className="flex items-center gap-3">
                       <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
                         selectedBooking.adjustment_amount < 0
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
                           : 'bg-brand-orange/20 text-brand-orange border border-brand-orange/30'
                       }`}>
                         {selectedBooking.adjustment_amount < 0 ? '🏷️ Discount Tag' : '🏷️ Premium Tag'}
@@ -1394,7 +1360,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                   min="0"
                   value={paymentForm.advancePaid}
                   onChange={(e) => setPaymentForm(p => ({ ...p, advancePaid: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-brand-black border border-white/15 rounded-xl p-4 text-white font-heading text-lg outline-none focus:border-green-500"
+                  className="w-full bg-brand-black border border-white/15 rounded-xl p-4 text-white font-heading text-lg outline-none focus:border-sky-400"
                   required
                 />
                 <div className="flex gap-2 pt-1">
@@ -1415,7 +1381,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                   <button
                     type="button"
                     onClick={() => setPaymentForm(p => ({ ...p, advancePaid: paymentForm.agreedRent }))}
-                    className="px-2.5 py-1 rounded-lg bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[8px] font-bold text-sky-400 uppercase cursor-pointer"
                   >
                     Full Rent (₹{paymentForm.agreedRent})
                   </button>
@@ -1470,14 +1436,14 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 <button
                   type="button"
                   onClick={() => setPaymentForm(p => ({ ...p, agreedRent: Math.max(100, p.agreedRent - 100) }))}
-                  className="px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 text-[8px] font-bold uppercase cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[8px] font-bold uppercase cursor-pointer"
                 >
                   - ₹100
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentForm(p => ({ ...p, agreedRent: Math.max(100, p.agreedRent - 200) }))}
-                  className="px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 text-[8px] font-bold uppercase cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[8px] font-bold uppercase cursor-pointer"
                 >
                   - ₹200
                 </button>
@@ -1496,14 +1462,14 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
               const diff = Number(paymentForm.agreedRent) - Number(selectedBooking.total_rent);
               if (diff < 0) {
                 return (
-                  <div className="bg-green-500/10 border-2 border-green-500/40 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
+                  <div className="bg-sky-500/10 border border-sky-500/30 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
                     <span className="text-2xl shrink-0">🏷️</span>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded bg-green-500 text-black text-[9px] font-black uppercase">
+                        <span className="px-2 py-0.5 rounded bg-sky-400 text-black text-[9px] font-black uppercase">
                           Discount Tag
                         </span>
-                        <span className="text-green-400 font-bold text-sm">
+                        <span className="text-sky-400 font-bold text-sm">
                           -₹{Math.abs(diff)}
                         </span>
                       </div>
@@ -1628,12 +1594,12 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 <span className="text-base font-heading text-brand-yellow">₹{paymentForm.depositAmount}</span>
               </div>
               <div className="sm:border-l border-white/10">
-                <span className="text-[8px] font-black text-green-400 uppercase tracking-wider block">Advance Paid</span>
-                <span className="text-base font-heading text-green-400">₹{paymentForm.advancePaid}</span>
+                <span className="text-[8px] font-black text-sky-400 uppercase tracking-wider block">Advance Paid</span>
+                <span className="text-base font-heading text-sky-400">₹{paymentForm.advancePaid}</span>
               </div>
               <div className="sm:border-l border-white/10">
-                <span className="text-[8px] font-black text-brand-teal uppercase tracking-wider block">Due at Handover</span>
-                <span className="text-base font-heading text-brand-teal">
+                <span className="text-[8px] font-black text-sky-300 uppercase tracking-wider block">Due at Handover</span>
+                <span className="text-base font-heading text-sky-300">
                   ₹{Math.max(0, (paymentForm.agreedRent + paymentForm.depositAmount) - paymentForm.advancePaid)}
                 </span>
               </div>
@@ -1650,7 +1616,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
               </button>
               <button
                 type="submit"
-                className="flex-[2] py-4 bg-green-500 hover:bg-green-600 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-green-500/20 cursor-pointer"
+                className="flex-[2] py-4 bg-sky-400 hover:bg-sky-300 text-black font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-sky-500/20 cursor-pointer"
               >
                 Confirm Payment & Apply Rent Terms
               </button>
@@ -2048,14 +2014,14 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, agreed_rent: Math.max(100, p.standard_rent - 100) }))}
-                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                      className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[8px] font-bold text-sky-400 uppercase cursor-pointer"
                     >
                       -₹100
                     </button>
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, agreed_rent: Math.max(100, p.standard_rent - 200) }))}
-                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                      className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[8px] font-bold text-sky-400 uppercase cursor-pointer"
                     >
                       -₹200
                     </button>
@@ -2104,14 +2070,14 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <label className="text-[9px] font-bold text-white/70 uppercase">Advance Received Amount (₹)</label>
-                    <span className="text-[8px] text-green-400 uppercase">Paid Now</span>
+                    <span className="text-[8px] text-sky-400 uppercase">Paid Now</span>
                   </div>
                   <input 
                     type="number" 
                     min="0"
                     value={manualBooking.advance_amount}
                     onChange={(e) => setManualBooking(p => ({ ...p, advance_amount: parseFloat(e.target.value) || 0 }))}
-                    className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-base font-heading font-bold text-green-400 outline-none focus:border-green-400"
+                    className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-base font-heading font-bold text-sky-400 outline-none focus:border-sky-400"
                   />
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
                     <button
@@ -2124,14 +2090,14 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, advance_amount: p.agreed_rent }))}
-                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                      className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[8px] font-bold text-sky-400 uppercase cursor-pointer"
                     >
                       Full Rent (₹{manualBooking.agreed_rent})
                     </button>
                     <button
                       type="button"
                       onClick={() => setManualBooking(p => ({ ...p, advance_amount: p.agreed_rent + p.deposit_amount }))}
-                      className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                      className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[8px] font-bold text-sky-400 uppercase cursor-pointer"
                     >
                       Rent + Deposit
                     </button>
@@ -2172,8 +2138,8 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 const diff = Number(manualBooking.agreed_rent) - Number(manualBooking.standard_rent);
                 if (diff < 0) {
                   return (
-                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl flex items-center gap-2.5 text-xs">
-                      <span className="px-2 py-0.5 rounded bg-green-500 text-black text-[9px] font-black uppercase">
+                    <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-xl flex items-center gap-2.5 text-xs">
+                      <span className="px-2 py-0.5 rounded bg-sky-400 text-black text-[9px] font-black uppercase">
                         Discount Tag -₹{Math.abs(diff)}
                       </span>
                       <span className="text-white/80 text-[11px]">
@@ -2208,8 +2174,8 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                   <span className="text-base font-heading text-brand-teal">₹{manualBooking.deposit_amount}</span>
                 </div>
                 <div className="sm:border-l border-white/10">
-                  <span className="text-[8px] font-black text-green-400 uppercase tracking-wider block">Advance Recv.</span>
-                  <span className="text-base font-heading text-green-400">₹{manualBooking.advance_amount}</span>
+                  <span className="text-[8px] font-black text-sky-400 uppercase tracking-wider block">Advance Recv.</span>
+                  <span className="text-base font-heading text-sky-400">₹{manualBooking.advance_amount}</span>
                 </div>
                 <div className="sm:border-l border-white/10">
                   <span className="text-[8px] font-black text-brand-yellow uppercase tracking-wider block">Balance on Handover</span>
@@ -2380,7 +2346,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                 <h4 className="text-[10px] font-black text-brand-teal uppercase tracking-widest flex items-center gap-1.5">
                   <span>📄</span> 5. Identity Documents (Optional — Can Be Taken Later)
                 </h4>
-                <span className="text-[8px] text-green-400 uppercase font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">
+                <span className="text-[8px] text-sky-400 uppercase font-bold bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
                   ✓ Aadhaar & DL can be collected during vehicle handover
                 </span>
               </div>
@@ -2456,7 +2422,7 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
                       onClick={() => setManualBooking(p => ({ ...p, ride_status: 'booking_confirmed' }))}
                       className={`py-3 px-3 rounded-xl text-[9px] font-black uppercase transition-all cursor-pointer text-center ${
                         manualBooking.ride_status === 'booking_confirmed'
-                          ? 'bg-green-500 text-black shadow-lg shadow-green-500/20'
+                          ? 'bg-sky-400 text-black shadow-lg shadow-sky-500/20'
                           : 'bg-white/5 text-white/50 border border-white/10'
                       }`}
                     >

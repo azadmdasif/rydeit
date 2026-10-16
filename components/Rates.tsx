@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Bike, BikeCategory, AdditionalCharge } from '../types';
 
-const { useNavigate } = ReactRouterDOM;
+const { useNavigate, Link } = ReactRouterDOM;
 
 interface RatesProps {
   bikes: Bike[];
@@ -11,31 +11,41 @@ interface RatesProps {
 }
 
 const RateBikeCard: React.FC<{ bike: Bike, onBook: (id: number) => void }> = ({ bike, onBook }) => {
-  const isBooked = bike.status === 'Booked';
+  const isMaintenance = bike.status === 'Maintenance';
   
   return (
-    <div className="bg-brand-gray-dark rounded-2xl overflow-hidden border border-white/5 transition-all duration-300 hover:border-brand-teal/50 group relative">
-      <div className="relative h-48 overflow-hidden">
-        <img src={bike.imageUrl} alt={bike.name} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isBooked ? 'grayscale opacity-50' : ''}`} />
-        <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest z-10 ${!isBooked ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
-          {bike.status}
-        </div>
-      </div>
-      <div className="p-6 space-y-4">
-        <div className="flex justify-between items-start">
-          <h3 className="text-xl font-bold text-white uppercase tracking-tight">{bike.name}</h3>
-          <div className="text-right">
-            <p className="text-brand-yellow font-heading text-xl">₹{bike.dailyRate}</p>
-            <p className="text-[10px] text-brand-gray-light opacity-50 uppercase font-black tracking-widest">/ day</p>
+    <div className="bg-brand-gray-dark rounded-2xl overflow-hidden border border-white/5 transition-all duration-300 hover:border-brand-teal/50 group relative flex flex-col justify-between">
+      <div>
+        <div className="relative h-48 overflow-hidden">
+          <img src={bike.imageUrl} alt={bike.name} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isMaintenance ? 'grayscale opacity-50' : ''}`} />
+          <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest z-10 ${!isMaintenance ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
+            {!isMaintenance ? 'Available' : 'Under Service'}
           </div>
         </div>
+        <div className="p-6 pb-2 space-y-4">
+          <div className="flex justify-between items-start">
+            <h3 className="text-xl font-bold text-white uppercase tracking-tight">{bike.name}</h3>
+            <div className="text-right">
+              <p className="text-brand-yellow font-heading text-xl">₹{bike.dailyRate}</p>
+              <p className="text-[10px] text-brand-gray-light opacity-50 uppercase font-black tracking-widest">/ day</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="p-6 pt-0 space-y-2">
         <button 
           onClick={() => onBook(bike.id)}
-          disabled={isBooked}
-          className={`w-full font-heading tracking-widest py-3 rounded-xl transition-all ${!isBooked ? 'bg-brand-teal text-brand-black hover:bg-brand-yellow' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
+          disabled={isMaintenance}
+          className={`w-full font-heading tracking-widest py-3 rounded-xl transition-all ${!isMaintenance ? 'bg-brand-teal text-brand-black hover:bg-brand-yellow cursor-pointer' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
         >
-          {!isBooked ? 'BOOK NOW' : 'NOT AVAILABLE'}
+          {!isMaintenance ? 'BOOK NOW' : 'UNDER SERVICE'}
         </button>
+        <Link
+          to={`/availability?bikeId=${bike.id}`}
+          className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-brand-teal text-[10px] font-black uppercase tracking-wider transition-all"
+        >
+          <span>📅 View Free Slots & Calendar</span>
+        </Link>
       </div>
     </div>
   );
@@ -107,9 +117,9 @@ export const Rates: React.FC<RatesProps> = ({ bikes, additionalCharges }) => {
             <div className="mt-10 p-6 bg-brand-black/50 rounded-2xl border border-brand-teal/20 animate-fade-in">
               <div className="flex flex-col md:flex-row items-center gap-8">
                 <div className="relative">
-                  <img src={displayedBike.imageUrl} alt={displayedBike.name} className={`w-32 h-32 object-cover rounded-xl shadow-lg ${displayedBike.status === 'Booked' ? 'grayscale opacity-50' : ''}`} />
-                  <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ${displayedBike.status === 'Available' ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
-                    {displayedBike.status}
+                  <img src={displayedBike.imageUrl} alt={displayedBike.name} className={`w-32 h-32 object-cover rounded-xl shadow-lg ${displayedBike.status === 'Maintenance' ? 'grayscale opacity-50' : ''}`} />
+                  <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ${displayedBike.status !== 'Maintenance' ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
+                    {displayedBike.status !== 'Maintenance' ? 'Available' : 'Under Service'}
                   </div>
                 </div>
                 <div className="flex-grow text-center md:text-left">
@@ -118,10 +128,10 @@ export const Rates: React.FC<RatesProps> = ({ bikes, additionalCharges }) => {
                 </div>
                 <button 
                    onClick={() => handleBook(displayedBike.id)}
-                   disabled={displayedBike.status === 'Booked'}
-                   className={`px-10 py-4 font-heading tracking-widest rounded-full transition-all shadow-xl ${displayedBike.status === 'Available' ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-brand-orange/20' : 'bg-brand-gray-dark text-brand-gray-light opacity-30 cursor-not-allowed'}`}
+                   disabled={displayedBike.status === 'Maintenance'}
+                   className={`px-10 py-4 font-heading tracking-widest rounded-full transition-all shadow-xl ${displayedBike.status !== 'Maintenance' ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-brand-orange/20 cursor-pointer' : 'bg-brand-gray-dark text-brand-gray-light opacity-30 cursor-not-allowed'}`}
                 >
-                  {displayedBike.status === 'Available' ? 'BOOK THIS BIKE' : 'BOOKED OUT'}
+                  {displayedBike.status !== 'Maintenance' ? 'BOOK THIS BIKE' : 'UNDER SERVICE'}
                 </button>
               </div>
             </div>

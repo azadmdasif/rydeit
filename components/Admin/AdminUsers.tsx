@@ -184,7 +184,7 @@ export const AdminUsers: React.FC = () => {
                         <button onClick={() => toggleVerify(selectedUser.id, selectedUser.is_verified)} className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedUser.is_verified ? 'border-brand-teal/40 text-brand-teal hover:bg-brand-teal hover:text-black' : 'bg-brand-teal text-black border-brand-teal/20'}`}>
                             {selectedUser.is_verified ? 'Revoke Whitelist' : 'Whitelist User'}
                         </button>
-                        <button onClick={() => toggleBlock(selectedUser.id, selectedUser.is_blocked)} className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedUser.is_blocked ? 'bg-green-500 text-white border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-red-500 text-white border-red-500/20'}`}>
+                        <button onClick={() => toggleBlock(selectedUser.id, selectedUser.is_blocked)} className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedUser.is_blocked ? 'bg-sky-500 text-black border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.3)]' : 'bg-red-500 text-white border-red-500/20'}`}>
                             {selectedUser.is_blocked ? 'Unblock Rider' : 'Restrict Access'}
                         </button>
                     </div>
@@ -194,19 +194,19 @@ export const AdminUsers: React.FC = () => {
             {/* METRICS */}
             {userStats && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-brand-black/40 p-8 rounded-[2rem] border border-white/5 space-y-2 group hover:border-brand-teal/40 transition-all">
+                    <div className="bg-black p-8 rounded-[2rem] border border-neutral-800 space-y-2 group hover:border-sky-400/40 transition-all">
                         <p className="text-[9px] font-black text-white/30 uppercase tracking-widest">Lifetime Value (LTV)</p>
                         <p className="text-3xl font-heading text-white">₹{userStats.totalSpent.toLocaleString()}</p>
                     </div>
-                    <div className="bg-brand-black/40 p-8 rounded-[2rem] border border-white/5 space-y-2 group hover:border-brand-teal/40 transition-all">
+                    <div className="bg-black p-8 rounded-[2rem] border border-neutral-800 space-y-2 group hover:border-sky-400/40 transition-all">
                         <p className="text-[9px] font-black text-white/30 uppercase tracking-widest">Total Rides</p>
-                        <p className="text-3xl font-heading text-brand-teal">{userStats.rideCount}</p>
+                        <p className="text-3xl font-heading text-sky-400">{userStats.rideCount}</p>
                     </div>
-                    <div className="bg-brand-black/40 p-8 rounded-[2rem] border border-white/5 space-y-2 group hover:border-brand-teal/40 transition-all">
+                    <div className="bg-black p-8 rounded-[2rem] border border-neutral-800 space-y-2 group hover:border-sky-400/40 transition-all">
                         <p className="text-[9px] font-black text-white/30 uppercase tracking-widest">Penalties Triggered</p>
-                        <p className={`text-3xl font-heading ${userStats.penalties > 0 ? 'text-brand-orange' : 'text-green-500'}`}>{userStats.penalties}</p>
+                        <p className={`text-3xl font-heading ${userStats.penalties > 0 ? 'text-brand-orange' : 'text-sky-400'}`}>{userStats.penalties}</p>
                     </div>
-                    <div className="bg-brand-black/40 p-8 rounded-[2rem] border border-white/5 space-y-2 group hover:border-brand-teal/40 transition-all">
+                    <div className="bg-black p-8 rounded-[2rem] border border-neutral-800 space-y-2 group hover:border-sky-400/40 transition-all">
                         <p className="text-[9px] font-black text-white/30 uppercase tracking-widest">Last Activity</p>
                         <p className="text-sm font-bold text-white uppercase mt-2">{userStats.lastRide === 'Never' ? 'Never' : new Date(userStats.lastRide).toLocaleDateString()}</p>
                     </div>
@@ -214,9 +214,9 @@ export const AdminUsers: React.FC = () => {
             )}
 
             {/* INTERACTION LOG */}
-            <div className="bg-brand-gray-dark/40 p-8 md:p-10 rounded-[3rem] border border-white/5">
+            <div className="bg-[#0a0a0a] p-8 md:p-10 rounded-[3rem] border border-neutral-800">
                 <h4 className="text-white font-heading text-sm uppercase mb-8 tracking-[0.2em] flex items-center gap-4">
-                  <span className="w-8 h-[2px] bg-brand-teal"></span>
+                  <span className="w-8 h-[2px] bg-sky-400"></span>
                   Interaction History
                 </h4>
                 
@@ -246,8 +246,8 @@ export const AdminUsers: React.FC = () => {
                               </td>
                               <td className="py-4">
                                 <span className={`uppercase font-black text-[8px] ${
-                                  ride.status === 'completed' ? 'text-green-500' :
-                                  ride.status === 'ongoing' ? 'text-brand-teal' :
+                                  ride.status === 'completed' ? 'text-sky-400' :
+                                  ride.status === 'ongoing' ? 'text-sky-300' :
                                   'text-brand-orange'
                                 }`}>
                                   {ride.status.replace('_', ' ')}
@@ -256,7 +256,7 @@ export const AdminUsers: React.FC = () => {
                               <td className="py-4 text-right">
                                 <div className="text-white font-bold">₹{ride.total_rent + (ride.adjustment_amount || 0)}</div>
                                 {ride.adjustment_amount !== 0 && (
-                                  <div className={`text-[8px] font-black ${ride.adjustment_amount > 0 ? 'text-brand-orange' : 'text-green-500'}`}>
+                                  <div className={`text-[8px] font-black ${ride.adjustment_amount > 0 ? 'text-brand-orange' : 'text-sky-400'}`}>
                                     {ride.adjustment_amount > 0 ? '+' : ''}₹{ride.adjustment_amount} Adj
                                   </div>
                                 )}

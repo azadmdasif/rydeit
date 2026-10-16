@@ -253,12 +253,12 @@ export const PnLStatement: React.FC<PnLStatementProps> = ({
           <span className="text-[9px] text-white/40 font-bold block">Non-cash asset wear</span>
         </div>
 
-        <div className={`p-5 rounded-3xl border space-y-1 ${ebit >= 0 ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-red-950/20 border-red-500/30'}`}>
+        <div className={`p-5 rounded-3xl border space-y-1 ${ebit >= 0 ? 'bg-sky-950/20 border-sky-500/30' : 'bg-red-950/20 border-red-500/30'}`}>
           <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Net Operating Profit (EBIT)</span>
-          <p className={`text-2xl font-heading ${ebit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-2xl font-heading ${ebit >= 0 ? 'text-sky-400' : 'text-red-400'}`}>
             {ebit >= 0 ? '+' : ''}₹{ebit.toLocaleString('en-IN')}
           </p>
-          <span className={`text-[9px] font-bold block ${ebit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <span className={`text-[9px] font-bold block ${ebit >= 0 ? 'text-sky-400' : 'text-red-400'}`}>
             {netMarginPct.toFixed(1)}% Net Margin
           </span>
         </div>
@@ -436,13 +436,13 @@ export const PnLStatement: React.FC<PnLStatementProps> = ({
           </div>
 
           {/* Final Net Operating Profit EBIT Card */}
-          <div className={`p-6 rounded-3xl border text-white space-y-2 ${ebit >= 0 ? 'bg-gradient-to-r from-emerald-950/80 to-brand-gray-dark border-emerald-500/40' : 'bg-gradient-to-r from-red-950/80 to-brand-gray-dark border-red-500/40'}`}>
+          <div className={`p-6 rounded-3xl border text-white space-y-2 ${ebit >= 0 ? 'bg-gradient-to-r from-sky-950/80 to-neutral-900 border-sky-500/40' : 'bg-gradient-to-r from-red-950/80 to-neutral-900 border-red-500/40'}`}>
             <div className="flex justify-between items-center">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Bottom Line</span>
                 <h4 className="font-heading text-2xl text-white uppercase tracking-tight">Accrual Net Operating Profit (EBIT)</h4>
               </div>
-              <p className={`text-3xl font-heading font-bold ${ebit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <p className={`text-3xl font-heading font-bold ${ebit >= 0 ? 'text-sky-400' : 'text-red-400'}`}>
                 {ebit >= 0 ? '+' : ''}₹{ebit.toLocaleString('en-IN')}
               </p>
             </div>
@@ -457,7 +457,7 @@ export const PnLStatement: React.FC<PnLStatementProps> = ({
         <div className="space-y-4">
           <div className="bg-brand-gray-dark/60 rounded-3xl border border-white/5 p-5 space-y-4">
             <div className="flex items-center gap-2 pb-3 border-b border-white/5">
-              <Wallet className="w-4 h-4 text-brand-teal" />
+              <Wallet className="w-4 h-4 text-sky-400" />
               <h4 className="font-heading text-sm text-white uppercase tracking-wider">Cash Flow vs Accrual</h4>
             </div>
 
@@ -467,7 +467,7 @@ export const PnLStatement: React.FC<PnLStatementProps> = ({
 
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
-                <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400">Total Liquid Inflows</span>
+                <span className="text-[9px] font-black uppercase tracking-wider text-sky-400">Total Liquid Inflows</span>
                 <p className="text-lg font-mono font-bold text-white">₹{cashInflows.toLocaleString('en-IN')}</p>
                 <span className="text-[8px] text-white/30 block">Cash + Bank receipts</span>
               </div>

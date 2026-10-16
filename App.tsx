@@ -14,6 +14,7 @@ import { BikeCollection } from './components/BikeCollection';
 import { Rates } from './components/Rates';
 import { Contact } from './components/Contact';
 import { BookingForm } from './components/BookingForm';
+import { AvailabilityCalendar } from './components/AvailabilityCalendar';
 import { MyBookings } from './components/MyBookings';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { Footer } from './components/Footer';
@@ -97,6 +98,8 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/bikes" element={<BikeCollection bikes={fleetBikes} />} />
           <Route path="/rates" element={<Rates bikes={fleetBikes} additionalCharges={ADDITIONAL_CHARGES || []} />} />
+          <Route path="/availability" element={<AvailabilityCalendar bikes={fleetBikes} />} />
+          <Route path="/calendar" element={<Navigate to="/availability" replace />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/book" element={<BookingForm bikes={fleetBikes} additionalCharges={ADDITIONAL_CHARGES} onShowPolicy={setModalContent} />} />

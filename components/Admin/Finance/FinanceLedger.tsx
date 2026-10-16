@@ -632,7 +632,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                 setEditOpeningBankInput(monthStats.endingBank > 0 ? monthStats.endingBank : 100000);
                 setShowInitMonthModal(true);
               }}
-              className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-heading text-sm uppercase tracking-wider shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all"
+              className="w-full py-4 rounded-2xl bg-sky-500 hover:bg-sky-400 text-black font-heading text-sm uppercase tracking-wider shadow-xl shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all font-bold"
             >
               <Plus className="w-4 h-4" />
               <span>Initialize Month: {selectedMonth} {selectedYear}</span>
@@ -646,7 +646,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
           {/* Left Column: Form & Summary */}
           <div className="space-y-6">
             {/* Balancing Dashboard Card */}
-            <div className="bg-brand-gray-dark/60 p-6 rounded-3xl border border-white/5 space-y-4">
+            <div className="bg-[#0a0a0a] p-6 rounded-3xl border border-neutral-800 space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
                 <span className="text-[10px] font-black uppercase text-white/50 tracking-widest">
                   Balancing Dashboard
@@ -658,7 +658,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                     setEditOpeningBankInput(openingBank);
                     setShowEditOpeningModal(true);
                   }}
-                  className="text-[10px] font-black uppercase tracking-wider text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
+                  className="text-[10px] font-black uppercase tracking-wider text-sky-400 hover:text-sky-300 transition-colors cursor-pointer"
                 >
                   Edit Opening
                 </button>
@@ -688,10 +688,10 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
               <div className="space-y-1.5 pt-1 text-xs font-mono">
                 <div className="flex items-center justify-between text-white/70">
                   <span className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
                     <span className="font-sans text-xs">Total Credits (Month)</span>
                   </span>
-                  <span className="text-emerald-400 font-bold">
+                  <span className="text-sky-400 font-bold">
                     +₹{monthStats.totalCredits.toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -718,13 +718,13 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                 </div>
                 <div className="text-right text-[10px] font-mono space-y-0.5 text-white/70">
                   <p>Cash: <b className="text-white">₹{monthStats.endingCash.toLocaleString('en-IN')}</b></p>
-                  <p>Bank: <b className="text-brand-teal">₹{monthStats.endingBank.toLocaleString('en-IN')}</b></p>
+                  <p>Bank: <b className="text-sky-400">₹{monthStats.endingBank.toLocaleString('en-IN')}</b></p>
                 </div>
               </div>
             </div>
 
             {/* Add Transaction Form */}
-            <div className="bg-brand-gray-dark/60 p-6 rounded-3xl border border-white/5 space-y-5">
+            <div className="bg-[#0a0a0a] p-6 rounded-3xl border border-neutral-800 space-y-5">
               <h3 className="font-heading text-sm text-white uppercase tracking-wider pb-3 border-b border-white/5">
                 Log Ledger Entry
               </h3>
@@ -738,8 +738,8 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                       setTxType('credit');
                       setTxCategory(DEFAULT_CREDIT_CATEGORIES[0]);
                     }}
-                    className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                      txType === 'credit' ? 'bg-emerald-600 text-white shadow-md' : 'text-white/40 hover:text-white'
+                    className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      txType === 'credit' ? 'bg-sky-500 text-black font-bold shadow-md' : 'text-white/40 hover:text-white'
                     }`}
                   >
                     Credit (Inflow)
@@ -864,7 +864,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                   disabled={isSubmittingTx || txAmount <= 0}
                   className={`w-full py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-lg transition-all cursor-pointer ${
                     txType === 'credit'
-                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                      ? 'bg-sky-500 hover:bg-sky-400 text-black font-bold shadow-sky-500/20'
                       : 'bg-brand-orange hover:bg-brand-orange/90 shadow-brand-orange/20'
                   }`}
                 >
@@ -875,7 +875,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
           </div>
 
           {/* Right Column: Multi-Column Ledger Grid */}
-          <div className="lg:col-span-2 bg-brand-gray-dark/60 rounded-3xl border border-white/5 flex flex-col h-[750px] overflow-hidden">
+          <div className="lg:col-span-2 bg-[#0a0a0a] rounded-3xl border border-neutral-800 flex flex-col h-[750px] overflow-hidden">
             <div className="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
               <div>
                 <h4 className="font-heading text-sm text-white uppercase tracking-wider">
@@ -898,7 +898,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                   onClick={exportSheetCSV}
                   className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 border border-white/10 cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5 text-brand-teal" />
+                  <Download className="w-3.5 h-3.5 text-sky-400" />
                   <span>Export CSV</span>
                 </button>
                 <button
@@ -912,13 +912,13 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
 
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="sticky top-0 bg-brand-gray-dark border-b border-white/10 text-[9px] font-black uppercase tracking-widest text-white/40 z-10 shadow-sm">
+                <thead className="sticky top-0 bg-[#0a0a0a] border-b border-white/10 text-[9px] font-black uppercase tracking-widest text-white/40 z-10 shadow-sm">
                   <tr>
                     <th className="py-3 px-3 text-center">Action</th>
                     <th className="py-3 px-3">Date</th>
-                    <th className="py-3 px-3 text-right text-emerald-400">Cr Cash</th>
+                    <th className="py-3 px-3 text-right text-sky-400">Cr Cash</th>
                     <th className="py-3 px-3">Details</th>
-                    <th className="py-3 px-3 text-right text-emerald-400">Cr Bank</th>
+                    <th className="py-3 px-3 text-right text-sky-400">Cr Bank</th>
                     <th className="py-3 px-3">Details</th>
                     <th className="py-3 px-3 text-right text-red-400">Db Cash</th>
                     <th className="py-3 px-3">Details</th>
@@ -926,7 +926,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                     <th className="py-3 px-3">Details</th>
                     <th className="py-3 px-3 text-right">Cash Bal</th>
                     <th className="py-3 px-3 text-right">Bank Bal</th>
-                    <th className="py-3 px-3 text-right text-brand-teal bg-brand-teal/5">Total Bal</th>
+                    <th className="py-3 px-3 text-right text-sky-400 bg-sky-500/5">Total Bal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 font-mono text-[11px]">
@@ -938,8 +938,8 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                       Starting Period Balance
                     </td>
                     <td className="py-2.5 px-3 text-right font-bold text-white">₹{openingCash.toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-brand-teal">₹{openingBank.toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-brand-orange bg-brand-teal/5">
+                    <td className="py-2.5 px-3 text-right font-bold text-sky-400">₹{openingBank.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-brand-orange bg-sky-500/5">
                       ₹{(openingCash + openingBank).toLocaleString('en-IN')}
                     </td>
                   </tr>
@@ -956,13 +956,13 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                         </button>
                       </td>
                       <td className="py-2.5 px-3 text-white/70 whitespace-nowrap">{entry.date}</td>
-                      <td className="py-2.5 px-3 text-right text-emerald-400 font-bold whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right text-sky-400 font-bold whitespace-nowrap">
                         {entry.credit_cash ? `₹${entry.credit_cash.toLocaleString('en-IN')}` : '-'}
                       </td>
                       <td className="py-2.5 px-3 max-w-[120px] truncate text-white/50 font-sans text-[10px]" title={entry.credit_cash_details}>
                         {entry.credit_cash_details || '-'}
                       </td>
-                      <td className="py-2.5 px-3 text-right text-emerald-400 font-bold whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right text-sky-400 font-bold whitespace-nowrap">
                         {entry.credit_bank ? `₹${entry.credit_bank.toLocaleString('en-IN')}` : '-'}
                       </td>
                       <td className="py-2.5 px-3 max-w-[120px] truncate text-white/50 font-sans text-[10px]" title={entry.credit_bank_details}>
@@ -1039,8 +1039,8 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                   </button>
                   <button
                     onClick={() => setPieFocus('credit')}
-                    className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
-                      pieFocus === 'credit' ? 'bg-emerald-600 text-white' : 'text-white/40'
+                    className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer ${
+                      pieFocus === 'credit' ? 'bg-sky-500 text-black font-bold' : 'text-white/40'
                     }`}
                   >
                     Revenue (In)
@@ -1285,7 +1285,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           <button
                             onClick={() => handleRestore(log.entry_id)}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider cursor-pointer transition-colors"
+                            className="px-2.5 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/30 text-[9px] font-black uppercase tracking-wider cursor-pointer transition-colors"
                             title="Restore entry back to ledger"
                           >
                             Restore
@@ -1313,15 +1313,15 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
       {/* Edit Opening Balance Modal */}
       {showEditOpeningModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-brand-gray-dark border border-white/10 rounded-3xl max-w-md w-full p-6 space-y-5 text-white shadow-2xl">
+          <div className="bg-[#0a0a0a] border border-neutral-800 rounded-3xl max-w-md w-full p-6 space-y-5 text-white shadow-2xl">
             <div className="flex justify-between items-start border-b border-white/10 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center">
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-heading text-lg text-white uppercase tracking-tight">Edit Opening Balance</h3>
-                  <p className="text-[10px] text-brand-teal font-mono font-bold mt-0.5">
+                  <p className="text-[10px] text-sky-400 font-mono font-bold mt-0.5">
                     {activeTabName}
                   </p>
                 </div>
@@ -1347,7 +1347,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                     step="any"
                     value={editOpeningCashInput}
                     onChange={(e) => setEditOpeningCashInput(parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-white outline-none focus:border-emerald-500"
+                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-white outline-none focus:border-sky-400"
                   />
                 </div>
 
@@ -1362,7 +1362,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                     step="any"
                     value={editOpeningBankInput}
                     onChange={(e) => setEditOpeningBankInput(parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-brand-teal outline-none focus:border-brand-teal"
+                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-sky-400 outline-none focus:border-sky-400"
                   />
                 </div>
 
@@ -1390,7 +1390,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingOpening}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-black font-bold text-xs uppercase tracking-wider shadow-lg shadow-sky-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isSavingOpening ? 'Saving...' : 'Save Opening Balance'}
                 </button>
@@ -1403,17 +1403,17 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
       {/* Initialize Month Modal */}
       {showInitMonthModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-brand-gray-dark border border-white/10 rounded-3xl max-w-md w-full p-6 space-y-5 text-white shadow-2xl">
+          <div className="bg-[#0a0a0a] border border-neutral-800 rounded-3xl max-w-md w-full p-6 space-y-5 text-white shadow-2xl">
             <div className="flex justify-between items-start border-b border-white/10 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center">
                   <Plus className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-heading text-lg text-white uppercase tracking-tight">
                     Initialize Month Tab
                   </h3>
-                  <p className="text-[10px] text-brand-teal font-mono font-bold mt-0.5">
+                  <p className="text-[10px] text-sky-400 font-mono font-bold mt-0.5">
                     {activeTabName}
                   </p>
                 </div>
@@ -1443,7 +1443,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                     step="any"
                     value={editOpeningCashInput}
                     onChange={(e) => setEditOpeningCashInput(parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-white outline-none focus:border-emerald-500"
+                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-white outline-none focus:border-sky-400"
                   />
                 </div>
 
@@ -1458,7 +1458,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                     step="any"
                     value={editOpeningBankInput}
                     onChange={(e) => setEditOpeningBankInput(parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-brand-teal outline-none focus:border-brand-teal"
+                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm font-mono font-bold text-sky-400 outline-none focus:border-sky-400"
                   />
                 </div>
 
@@ -1469,7 +1469,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                       setEditOpeningCashInput(monthStats.endingCash);
                       setEditOpeningBankInput(monthStats.endingBank);
                     }}
-                    className="w-full p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-brand-teal flex items-center justify-between cursor-pointer transition-colors"
+                    className="w-full p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-wider text-sky-400 flex items-center justify-between cursor-pointer transition-colors"
                   >
                     <span>Carry Forward Previous Closing:</span>
                     <span className="font-mono text-white">
@@ -1490,7 +1490,7 @@ export const FinanceLedger: React.FC<FinanceLedgerProps> = ({
                 <button
                   type="submit"
                   disabled={isSavingOpening}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-black font-bold text-xs uppercase tracking-wider shadow-lg shadow-sky-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isSavingOpening ? 'Initializing...' : 'Initialize Tab'}
                 </button>

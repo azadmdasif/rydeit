@@ -21,6 +21,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
   const [activeFilter, setActiveFilter] = useState<UpcomingFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [bikeFilter, setBikeFilter] = useState<string>('all');
+  const [expandedBookingId, setExpandedBookingId] = useState<number | null>(null);
 
   // Modal & Operations state
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
@@ -320,17 +321,17 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
     if (pickupDate === todayStr) {
-      if (diffHours <= 0) return { label: 'PICKUP DUE NOW', color: 'bg-red-500 text-white animate-pulse' };
-      if (diffHours === 1) return { label: 'IN 1 HOUR', color: 'bg-brand-orange text-white animate-pulse' };
-      return { label: `TODAY IN ${diffHours}H`, color: 'bg-brand-orange text-white' };
+      if (diffHours <= 0) return { label: 'PICKUP DUE NOW', color: 'bg-rose-600 text-white font-bold' };
+      if (diffHours === 1) return { label: 'IN 1 HOUR', color: 'bg-orange-600 text-white font-bold' };
+      return { label: `TODAY IN ${diffHours}H`, color: 'bg-orange-600/90 text-white font-bold' };
     }
     if (pickupDate === tomorrowStr) {
-      return { label: 'TOMORROW', color: 'bg-brand-yellow text-brand-black font-black' };
+      return { label: 'TOMORROW', color: 'bg-amber-600 text-white font-bold' };
     }
     if (diffDays <= 7) {
-      return { label: `IN ${diffDays} DAYS`, color: 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30' };
+      return { label: `IN ${diffDays} DAYS`, color: 'bg-sky-950/80 text-sky-300 border border-sky-800/60 font-semibold' };
     }
-    return { label: pickupDate, color: 'bg-white/10 text-white/60 border border-white/10' };
+    return { label: pickupDate, color: 'bg-slate-800 text-slate-300 border border-slate-700 font-semibold' };
   };
 
   // WhatsApp Reminder Generator
@@ -356,106 +357,99 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
   };
 
   return (
-    <div className="space-y-10 animate-fade-in max-w-7xl mx-auto pb-16">
+    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto pb-16">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-5 border-b border-neutral-900 pb-6">
         <div>
-          <div className="flex items-center gap-3">
-            <span className="w-3 h-3 rounded-full bg-green-500 animate-ping"></span>
-            <span className="text-[10px] font-black text-brand-teal uppercase tracking-[0.4em]">Advance Payment Confirmed</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+            <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">Payment Confirmed Slots</span>
           </div>
-          <h1 className="text-4xl lg:text-5xl font-heading text-white uppercase tracking-tighter mt-2">
-            Upcoming <span className="text-brand-orange">Reservations</span>
+          <h1 className="text-3xl font-heading text-slate-100 tracking-wide mt-1.5">
+            Upcoming <span className="text-orange-500">Reservations</span>
           </h1>
-          <p className="text-white/40 text-xs mt-2 max-w-xl">
-            Live queue of reserved machines with locked advance payments. These time slots are strictly reserved and blocked from overlapping bookings.
+          <p className="text-neutral-400 text-xs mt-1.5 max-w-xl">
+            Live queue of reserved machines with confirmed advance payments. These time slots are strictly reserved and blocked from overlapping bookings.
           </p>
         </div>
 
         <button
           type="button"
           onClick={fetchUpcomingReservations}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gray-dark border border-white/10 text-white/70 hover:text-white hover:border-brand-teal transition-all text-xs font-bold uppercase tracking-wider"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0a0a0a] border border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 transition-all text-xs font-semibold cursor-pointer shadow-sm"
         >
-          <svg className={`w-4 h-4 ${loading ? 'animate-spin text-brand-teal' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className={`w-4 h-4 ${loading ? 'animate-spin text-orange-500' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           Refresh Queue
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-brand-gray-dark/50 p-7 rounded-[2.5rem] border border-brand-teal/20 relative overflow-hidden group hover:border-brand-teal/50 transition-all">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-brand-teal/5 rounded-full blur-2xl group-hover:bg-brand-teal/10 transition-all"></div>
-          <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Upcoming Fleet Departures</p>
-          <p className="text-4xl lg:text-5xl font-heading text-brand-teal">{metrics.totalCount}</p>
-          <div className="flex items-center gap-3 mt-4 text-[9px] font-bold text-white/50 uppercase tracking-wider">
-            <span className="text-brand-orange font-black">{metrics.todayDepartures} Today</span>
+      {/* KPI Cards: Pitch Black & High Contrast (Black + White + Sky/Orange) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 shadow-sm">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Upcoming Departures</p>
+          <p className="text-2xl font-bold text-white">{metrics.totalCount}</p>
+          <div className="flex items-center gap-2 mt-2 text-xs font-medium text-neutral-400">
+            <span className="text-orange-400 font-semibold">{metrics.todayDepartures} Today</span>
             <span>•</span>
-            <span className="text-brand-yellow font-black">{metrics.tomorrowDepartures} Tomorrow</span>
+            <span className="text-neutral-300">{metrics.tomorrowDepartures} Tomorrow</span>
           </div>
         </div>
 
-        <div className="bg-brand-gray-dark/50 p-7 rounded-[2.5rem] border border-green-500/20 relative overflow-hidden group hover:border-green-500/50 transition-all">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-all"></div>
-          <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Advance Collected</p>
-          <p className="text-4xl lg:text-5xl font-heading text-green-400">₹{metrics.totalAdvance.toLocaleString()}</p>
-          <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-4">Secured in Bank / Cash</p>
+        <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 shadow-sm">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Advance Collected</p>
+          <p className="text-2xl font-bold text-sky-400">₹{metrics.totalAdvance.toLocaleString()}</p>
+          <p className="text-xs text-neutral-400 mt-2">Secured in Bank / Cash</p>
         </div>
 
-        <div className="bg-brand-gray-dark/50 p-7 rounded-[2.5rem] border border-brand-yellow/20 relative overflow-hidden group hover:border-brand-yellow/50 transition-all">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-brand-yellow/5 rounded-full blur-2xl group-hover:bg-brand-yellow/10 transition-all"></div>
-          <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Balance Due at Handover</p>
-          <p className="text-4xl lg:text-5xl font-heading text-brand-yellow">₹{metrics.totalBalance.toLocaleString()}</p>
-          <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-4">Payable Before Ignition</p>
+        <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 shadow-sm">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Balance Due</p>
+          <p className="text-2xl font-bold text-white">₹{metrics.totalBalance.toLocaleString()}</p>
+          <p className="text-xs text-neutral-400 mt-2">Due at Handover</p>
         </div>
 
-        <div className="bg-brand-gray-dark/50 p-7 rounded-[2.5rem] border border-brand-orange/20 relative overflow-hidden group hover:border-brand-orange/50 transition-all">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-brand-orange/5 rounded-full blur-2xl group-hover:bg-brand-orange/10 transition-all"></div>
-          <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Next Departure</p>
+        <div className="bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 shadow-sm">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Next Departure</p>
           {metrics.nextRide ? (
             <div>
-              <p className="text-2xl lg:text-3xl font-heading text-brand-orange truncate">
+              <p className="text-base font-bold text-orange-400 truncate">
                 {BIKES.find(b => b.id === metrics.nextRide.bike_id)?.name || 'Bike'}
               </p>
-              <p className="text-[10px] font-black text-white uppercase tracking-wider mt-2">
+              <p className="text-xs font-medium text-neutral-300 mt-0.5">
                 {metrics.nextRide.pickup_date} @ {metrics.nextRide.pickup_time}
-              </p>
-              <p className="text-[9px] text-white/40 uppercase tracking-widest truncate mt-0.5">
-                Rider: {metrics.nextRide.customer_name}
               </p>
             </div>
           ) : (
             <div>
-              <p className="text-3xl font-heading text-white/20">None Pending</p>
-              <p className="text-[9px] font-bold text-white/20 uppercase tracking-widest mt-4">Fleet idling</p>
+              <p className="text-base font-bold text-neutral-400">None Pending</p>
+              <p className="text-xs text-neutral-500 mt-1">All slots free</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-brand-gray-dark/40 p-6 rounded-[2.5rem] border border-white/5 space-y-4 shadow-xl">
+      <div className="bg-[#0a0a0a] p-5 rounded-2xl border border-neutral-800 space-y-4 shadow-sm">
         <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
           {/* Quick Filter Tabs */}
           <div className="flex flex-wrap gap-2">
             {[
-              { id: 'all', label: 'All Upcoming' },
+              { id: 'all', label: `All Upcoming (${metrics.totalCount})` },
               { id: 'today', label: `Today (${metrics.todayDepartures})` },
               { id: 'tomorrow', label: `Tomorrow (${metrics.tomorrowDepartures})` },
               { id: 'week', label: 'Next 7 Days' },
-              { id: 'confirmed', label: 'Verified Paid' },
-              { id: 'verifying', label: 'Proof Uploaded' }
+              { id: 'confirmed', label: 'Payment Confirmed' },
+              { id: 'verifying', label: 'Proof Under Review' }
             ].map(tab => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveFilter(tab.id as UpcomingFilter)}
-                className={`px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer border ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer border ${
                   activeFilter === tab.id
-                    ? 'bg-brand-orange text-white border-brand-orange shadow-lg shadow-brand-orange/20'
-                    : 'bg-brand-black/40 text-white/50 border-white/5 hover:border-white/20 hover:text-white'
+                    ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
+                    : 'bg-[#0f141f] text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
                 }`}
               >
                 {tab.label}
@@ -469,7 +463,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
             <select
               value={bikeFilter}
               onChange={(e) => setBikeFilter(e.target.value)}
-              className="w-full sm:w-auto bg-brand-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-white outline-none focus:border-brand-teal cursor-pointer"
+              className="w-full sm:w-auto bg-[#0f141f] border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-orange-500 cursor-pointer"
             >
               <option value="all">All Fleet Machines</option>
               {BIKES.map(bike => (
@@ -478,15 +472,15 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
             </select>
 
             {/* Search Input */}
-            <div className="relative w-full sm:w-64">
+            <div className="relative w-full sm:w-60">
               <input
                 type="text"
                 placeholder="Search rider, phone, ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-brand-black/60 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-[10px] text-white placeholder:text-white/30 outline-none focus:border-brand-teal transition-all"
+                className="w-full bg-[#0f141f] border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-orange-500 transition-all"
               />
-              <svg className="w-4 h-4 text-white/30 absolute left-3 top-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 text-slate-500 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
@@ -524,206 +518,152 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
             const badge = getRelativeTimeBadge(booking.pickup_date, booking.pickup_time);
             const isConfirmed = booking.status === 'booking_confirmed';
             const isVerifying = booking.status === 'verifying_payment';
+            const isExpanded = expandedBookingId === booking.id;
 
             return (
               <div
                 key={booking.id}
-                className="bg-brand-gray-dark/40 hover:bg-brand-gray-dark/60 border border-white/5 hover:border-brand-teal/30 rounded-[2.5rem] p-6 lg:p-8 transition-all duration-300 shadow-xl"
+                className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-4 transition-all shadow-sm space-y-3"
               >
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-                  {/* Left: Machine & Rider */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 w-full lg:w-auto">
-                    <div className="relative w-28 h-20 rounded-2xl overflow-hidden border border-white/10 shrink-0">
+                {/* Main Row: Extremely Main Info Only */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  {/* Machine & Rider */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-neutral-800 shrink-0 bg-black">
                       <img src={bike?.imageUrl} alt={bike?.name} className="w-full h-full object-cover" />
-                      <div className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[8px] font-black text-brand-yellow">
-                        ₹{bike?.dailyRate}/d
-                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-brand-orange text-[10px] font-black uppercase tracking-widest">
-                          {booking.readable_id}
-                        </span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${badge.color}`}>
-                          {badge.label}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
-                          isConfirmed ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-brand-yellow/20 text-brand-yellow border border-brand-yellow/30'
-                        }`}>
-                          {isConfirmed ? 'ADVANCE VERIFIED' : 'PROOF UNDER REVIEW'}
-                        </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-orange-400 text-xs font-bold uppercase">{booking.readable_id}</span>
+                        <span className="text-xs text-neutral-400 font-normal">·</span>
+                        <h3 className="text-sm font-bold text-white">{bike?.name}</h3>
                       </div>
-
-                      <h3 className="text-xl font-heading text-white uppercase tracking-tight">
-                        {bike?.name}
-                      </h3>
-
-                      <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-white/70">
-                        <span className="font-bold text-white">{booking.customer_name}</span>
-                        <span>•</span>
-                        <a
-                          href={`tel:${booking.customer_phone}`}
-                          className="text-brand-teal hover:underline font-bold inline-flex items-center gap-1"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
+                      <div className="flex items-center gap-2 text-xs text-neutral-300 mt-0.5">
+                        <span className="font-semibold text-white">{booking.customer_name}</span>
+                        <span className="text-neutral-500">·</span>
+                        <a href={`tel:${booking.customer_phone}`} className="text-neutral-400 hover:text-white">
                           {booking.customer_phone}
                         </a>
                       </div>
                     </div>
                   </div>
 
-                  {/* Middle: Slot Schedule & Logistics */}
-                  <div className="grid grid-cols-2 gap-6 bg-brand-black/40 px-6 py-4 rounded-2xl border border-white/5 w-full lg:w-auto">
+                  {/* Pickup Slot */}
+                  <div className="flex items-center gap-6">
                     <div>
-                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest block">Pickup Slot</span>
-                      <p className="text-xs font-bold text-white uppercase mt-0.5">{booking.pickup_date}</p>
-                      <p className="text-[10px] text-brand-teal font-black uppercase">@ {booking.pickup_time}</p>
+                      <span className="text-[10px] text-neutral-500 uppercase font-semibold block">Pickup</span>
+                      <p className="text-xs font-semibold text-white">
+                        {booking.pickup_date} <span className="text-orange-400">@ {booking.pickup_time}</span>
+                      </p>
                     </div>
 
+                    {/* Advance Status Badge (Sky for Confirmed) */}
                     <div>
-                      <span className="text-[8px] font-black text-white/30 uppercase tracking-widest block">Return Slot</span>
-                      <p className="text-xs font-bold text-white uppercase mt-0.5">{booking.return_date}</p>
-                      <p className="text-[10px] text-brand-yellow font-black uppercase">@ {booking.return_time}</p>
+                      <span className="text-[10px] text-neutral-500 uppercase font-semibold block">Advance</span>
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        isConfirmed 
+                          ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30' 
+                          : 'bg-neutral-900 text-neutral-300 border border-neutral-800'
+                      }`}>
+                        {isConfirmed ? `₹${advancePaid} Paid ✓` : 'Under Review'}
+                      </span>
                     </div>
 
-                    {booking.address ? (
-                      <div className="col-span-2 pt-2 border-t border-white/5 space-y-1 text-[9px]">
-                        {booking.address.includes('|') ? (
-                          <>
-                            <div className="flex items-start gap-1.5 text-white/90">
-                              <span className="text-brand-teal font-black shrink-0">🚚 Deliv:</span>
-                              <span className="truncate">{booking.address.split('|')[0].replace('Delivery:', '').trim()}</span>
-                            </div>
-                            <div className="flex items-start gap-1.5 text-white/90">
-                              <span className="text-brand-yellow font-black shrink-0">🏁 Return:</span>
-                              <span className="truncate">{booking.address.split('|')[1].replace('Return Pickup:', '').trim()}</span>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex items-start gap-1.5 text-white/90">
-                            <span className="text-brand-teal font-black shrink-0">📍 Handover:</span>
-                            <span className="truncate">{booking.address}</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="col-span-2 pt-2 border-t border-white/5 flex items-center justify-between text-[9px] font-bold text-white/40 uppercase">
-                        <span>Location:</span>
-                        <span className="text-white/80">Garage (Self-Pickup & Return)</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right: Financials & Action Buttons */}
-                  <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-4 w-full lg:w-auto">
-                    <div className="text-left lg:text-right">
-                      <div className="flex items-center lg:justify-end gap-2">
-                        <span className="text-xs text-white/40 uppercase font-black">Agreed Rent:</span>
-                        <span className="text-base font-heading text-white">₹{finalAgreedRent}</span>
-                      </div>
-
-                      {adjAmount !== 0 && (
-                        <div className="flex items-center lg:justify-end mt-1">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                            adjAmount < 0
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                              : 'bg-brand-orange/20 text-brand-orange border border-brand-orange/30'
-                          }`}>
-                            {adjAmount < 0 ? `🏷️ Discount -₹${Math.abs(adjAmount)}` : `🏷️ Premium +₹${adjAmount}`}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center lg:justify-end gap-3 mt-1.5 text-[10px]">
-                        <span className="text-green-400 font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">
-                          Advance: ₹{advancePaid} ✓
-                        </span>
-                        <span className="text-brand-yellow font-bold bg-brand-yellow/10 px-2 py-0.5 rounded border border-brand-yellow/20">
-                          Due: ₹{balanceDue}
-                        </span>
-                      </div>
-
-                      {booking.payment_screenshot_url && (
-                        <button
-                          type="button"
-                          onClick={() => setViewPaymentProofUrl(booking.payment_screenshot_url)}
-                          className="text-[9px] font-black text-brand-teal hover:underline uppercase tracking-wider mt-1.5 inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          View UPI Screenshot
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-start lg:justify-end">
-                      {/* Confirm Payment / Edit Rent Terms Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenConfirmPaymentModal(booking)}
-                        className={`px-3.5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-                          isConfirmed
-                            ? 'bg-green-500/15 hover:bg-green-500 hover:text-black text-green-400 border border-green-500/30'
-                            : 'bg-green-500 hover:bg-green-400 text-black font-black shadow-lg shadow-green-500/20'
-                        }`}
-                        title="Manually entry advance paid and finally agreed rent"
-                      >
-                        <span>{isConfirmed ? 'Rent Terms' : 'Confirm Pay'}</span>
-                      </button>
-
-                      {/* Cancel Booking Button - available and prominent even if payment was confirmed earlier */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenCancelModal(booking)}
-                        className="px-3.5 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500 hover:text-white border border-red-500/30 text-red-400 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
-                        title="Cancel confirmed booking (payment was confirmed)"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        <span>Cancel</span>
-                      </button>
-
-                      {/* WhatsApp Reminder Button */}
-                      <a
-                        href={getWhatsAppReminderUrl(booking, bike?.name || 'Machine')}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-2.5 rounded-xl bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-black border border-[#25D366]/30 text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow"
-                        title="Send confirmation reminder on WhatsApp"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 448 512">
-                          <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 221.9-99.6 221.9-222 0-59.3-25.2-115-67.1-157zm-157 .9c48.4 0 93.2 18.7 127.3 52.8 34.1 34.1 52.8 78.9 52.8 127.3s-18.7 93.2-52.8 127.3c-34.1 34.1-78.9 52.8-127.3 52.8h-.1c-34.9 0-68.9-9.8-97.3-27.9l-11.5-6.8-71.3 18.6 19-69.8-7.5-11.8C34 317.6 24 286.5 24 252.3c0-110.3 89.7-200 200-200z" />
-                        </svg>
-                        WhatsApp
-                      </a>
-
-                      {/* Operations Modal Button */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBooking(booking)}
-                        className="px-4 py-2.5 rounded-xl bg-brand-black/60 hover:bg-brand-teal hover:text-brand-black border border-brand-teal/30 text-brand-teal text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
-                      >
-                        Operate
-                      </button>
-
-                      {/* Quick Handover Button */}
+                    {/* Actions: Primary Dispatch + Details Toggle */}
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => handleQuickDispatch(booking)}
-                        className="px-4 py-2.5 rounded-xl bg-brand-orange hover:bg-brand-yellow text-white hover:text-black font-black uppercase text-[9px] tracking-wider transition-all shadow-lg shadow-brand-orange/20 cursor-pointer"
+                        className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer"
                       >
                         Dispatch
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
+                        className="px-3 py-1.5 rounded-xl bg-black hover:bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white font-medium text-xs transition-all cursor-pointer"
+                      >
+                        {isExpanded ? 'Less ▲' : 'Details ▼'}
                       </button>
                     </div>
                   </div>
                 </div>
+
+                {/* Progressive Disclosure: Details Only When Requested */}
+                {isExpanded && (
+                  <div className="pt-3 border-t border-neutral-800 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs animate-fade-in">
+                    {/* Return & Logistics */}
+                    <div className="bg-black p-3 rounded-xl border border-neutral-800 space-y-1">
+                      <span className="text-[10px] uppercase font-semibold text-neutral-500 block">Return Schedule & Location</span>
+                      <p className="font-semibold text-white">
+                        {booking.return_date} @ {booking.return_time}
+                      </p>
+                      <p className="text-neutral-400 text-[11px] truncate mt-1">
+                        {booking.address ? booking.address : 'Garage Self-Pickup & Return'}
+                      </p>
+                    </div>
+
+                    {/* Financial Terms */}
+                    <div className="bg-black p-3 rounded-xl border border-neutral-800 space-y-1">
+                      <span className="text-[10px] uppercase font-semibold text-neutral-500 block">Agreed Rent & Balance</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-neutral-400">Agreed Rent:</span>
+                        <span className="font-bold text-white">₹{finalAgreedRent}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-sky-400 font-semibold">Advance: ₹{advancePaid}</span>
+                        <span className="text-orange-400 font-semibold">Balance Due: ₹{balanceDue}</span>
+                      </div>
+                      {booking.payment_screenshot_url && (
+                        <button
+                          type="button"
+                          onClick={() => setViewPaymentProofUrl(booking.payment_screenshot_url)}
+                          className="text-[11px] text-orange-400 hover:underline block pt-1 cursor-pointer"
+                        >
+                          View UPI Screenshot →
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Secondary Operations Actions */}
+                    <div className="bg-black p-3 rounded-xl border border-neutral-800 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenConfirmPaymentModal(booking)}
+                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold cursor-pointer"
+                      >
+                        Rent Terms
+                      </button>
+
+                      <a
+                        href={getWhatsAppReminderUrl(booking, bike?.name || 'Machine')}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1.5 rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-xs font-semibold"
+                      >
+                        WhatsApp
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBooking(booking)}
+                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold cursor-pointer"
+                      >
+                        Operate
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCancelModal(booking)}
+                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-rose-950/60 text-neutral-400 hover:text-rose-400 text-xs font-medium cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })
@@ -740,7 +680,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-brand-teal font-heading text-[10px] uppercase tracking-[0.3em]">Reserved Rider</span>
-                    <span className="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider bg-green-500/20 text-green-400 border border-green-500/30">
+                    <span className="px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider bg-sky-500/20 text-sky-400 border border-sky-500/30">
                       Advance Paid: ₹{selectedBooking.advance_amount || Math.floor((selectedBooking.total_rent || 0) * 0.4)}
                     </span>
                   </div>
@@ -907,7 +847,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
               <button
                 type="button"
                 onClick={() => handleOpenConfirmPaymentModal(selectedBooking)}
-                className="py-4 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/20 cursor-pointer flex items-center justify-center gap-2"
+                className="py-4 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all bg-sky-400 hover:bg-sky-300 text-black shadow-lg shadow-sky-500/20 cursor-pointer flex items-center justify-center gap-2"
               >
                 <span>{selectedBooking.status === 'booking_confirmed' ? '✓ Payment Confirmed (Edit Rent / Advance)' : 'Confirm Payment & Rent Terms'}</span>
               </button>
@@ -988,7 +928,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                   min="0"
                   value={paymentForm.advancePaid}
                   onChange={(e) => setPaymentForm(p => ({ ...p, advancePaid: parseFloat(e.target.value) || 0 }))}
-                  className="w-full bg-brand-black border border-white/15 rounded-xl p-4 text-white font-heading text-lg outline-none focus:border-green-500"
+                  className="w-full bg-brand-black border border-white/15 rounded-xl p-4 text-white font-heading text-lg outline-none focus:border-sky-400"
                   required
                 />
                 <div className="flex gap-2 pt-1">
@@ -1009,7 +949,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                   <button
                     type="button"
                     onClick={() => setPaymentForm(p => ({ ...p, advancePaid: paymentForm.agreedRent }))}
-                    className="px-2.5 py-1 rounded-lg bg-green-500/10 border border-green-500/20 text-[8px] font-bold text-green-400 uppercase cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[8px] font-bold text-sky-400 uppercase cursor-pointer"
                   >
                     Full Rent (₹{paymentForm.agreedRent})
                   </button>
@@ -1064,14 +1004,14 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                 <button
                   type="button"
                   onClick={() => setPaymentForm(p => ({ ...p, agreedRent: Math.max(100, p.agreedRent - 100) }))}
-                  className="px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 text-[8px] font-bold uppercase cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[8px] font-bold uppercase cursor-pointer"
                 >
                   - ₹100
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentForm(p => ({ ...p, agreedRent: Math.max(100, p.agreedRent - 200) }))}
-                  className="px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 text-[8px] font-bold uppercase cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[8px] font-bold uppercase cursor-pointer"
                 >
                   - ₹200
                 </button>
@@ -1090,14 +1030,14 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
               const diff = Number(paymentForm.agreedRent) - Number(selectedBooking.total_rent);
               if (diff < 0) {
                 return (
-                  <div className="bg-green-500/10 border-2 border-green-500/40 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
+                  <div className="bg-sky-500/10 border border-sky-500/30 rounded-2xl p-4 flex items-center gap-3 animate-fade-in">
                     <span className="text-2xl shrink-0">🏷️</span>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded bg-green-500 text-black text-[9px] font-black uppercase">
+                        <span className="px-2 py-0.5 rounded bg-sky-400 text-black text-[9px] font-black uppercase">
                           Discount Tag
                         </span>
-                        <span className="text-green-400 font-bold text-sm">
+                        <span className="text-sky-400 font-bold text-sm">
                           -₹{Math.abs(diff)}
                         </span>
                       </div>
@@ -1164,8 +1104,8 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                 <span className="text-base font-heading text-white">₹{paymentForm.agreedRent}</span>
               </div>
               <div className="border-x border-white/10">
-                <span className="text-[8px] font-black text-green-400 uppercase tracking-wider block">Advance Paid</span>
-                <span className="text-base font-heading text-green-400">₹{paymentForm.advancePaid}</span>
+                <span className="text-[8px] font-black text-sky-400 uppercase tracking-wider block">Advance Paid</span>
+                <span className="text-base font-heading text-sky-400">₹{paymentForm.advancePaid}</span>
               </div>
               <div>
                 <span className="text-[8px] font-black text-brand-yellow uppercase tracking-wider block">Due at Handover</span>
@@ -1184,7 +1124,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
               </button>
               <button
                 type="submit"
-                className="flex-[2] py-4 bg-green-500 hover:bg-green-600 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-green-500/20 cursor-pointer"
+                className="flex-[2] py-4 bg-sky-400 hover:bg-sky-300 text-black font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-sky-500/20 cursor-pointer"
               >
                 Confirm Payment & Apply Rent Terms
               </button>
