@@ -55,29 +55,29 @@ export const REFUND_POLICY: LegalContent = {
             <table class="w-full text-left text-[11px] uppercase tracking-wider">
               <thead class="bg-brand-gray-dark/50 text-brand-teal">
                 <tr>
-                  <th class="p-4">Time Window</th>
-                  <th class="p-4">Refund %</th>
+                  <th class="p-4">Time Window (Before Departure)</th>
+                  <th class="p-4">Refund Percentage</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5">
                 <tr>
-                  <td class="p-4">More than 48 hours before</td>
-                  <td class="p-4 font-bold text-green-400">100% Refund</td>
+                  <td class="p-4 font-semibold text-white">96 hours or more before departure</td>
+                  <td class="p-4 font-bold text-amber-400">100% Return</td>
                 </tr>
                 <tr>
-                  <td class="p-4">36 to 48 hours before</td>
-                  <td class="p-4">75% Refund</td>
+                  <td class="p-4 font-semibold text-white">72 to 96 hours before departure</td>
+                  <td class="p-4 font-bold text-amber-300">75% Refund</td>
                 </tr>
                 <tr>
-                  <td class="p-4">24 to 36 hours before</td>
-                  <td class="p-4">50% Refund</td>
+                  <td class="p-4 font-semibold text-white">48 to 72 hours before departure</td>
+                  <td class="p-4 font-bold text-amber-300/80">50% Refund</td>
                 </tr>
                 <tr>
-                  <td class="p-4">12 to 24 hours before</td>
-                  <td class="p-4">25% Refund</td>
+                  <td class="p-4 font-semibold text-white">24 to 48 hours before departure</td>
+                  <td class="p-4 font-bold text-amber-200/70">25% Return</td>
                 </tr>
                 <tr>
-                  <td class="p-4">Less than 12 hours before</td>
+                  <td class="p-4 font-semibold text-white">Less than 24 hours before departure</td>
                   <td class="p-4 font-bold text-brand-orange">No Refund</td>
                 </tr>
               </tbody>

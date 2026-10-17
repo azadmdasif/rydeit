@@ -32,7 +32,7 @@ const RateBikeCard: React.FC<{ bike: Bike, onBook: (id: number) => void }> = ({ 
           </div>
         </div>
       </div>
-      <div className="p-6 pt-0 space-y-2">
+      <div className="p-6 pt-0">
         <button 
           onClick={() => onBook(bike.id)}
           disabled={isMaintenance}
@@ -40,12 +40,6 @@ const RateBikeCard: React.FC<{ bike: Bike, onBook: (id: number) => void }> = ({ 
         >
           {!isMaintenance ? 'BOOK NOW' : 'UNDER SERVICE'}
         </button>
-        <Link
-          to={`/availability?bikeId=${bike.id}`}
-          className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-brand-teal text-[10px] font-black uppercase tracking-wider transition-all"
-        >
-          <span>📅 View Free Slots & Calendar</span>
-        </Link>
       </div>
     </div>
   );

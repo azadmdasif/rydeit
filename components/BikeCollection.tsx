@@ -53,7 +53,7 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
         </div>
         <p className="text-brand-gray-light font-sans text-xs flex-grow mb-6 opacity-70 leading-relaxed uppercase tracking-wider">{bike.description}</p>
         
-        <div className="mt-auto space-y-2">
+        <div className="mt-auto">
           <button 
             onClick={() => onBook(bike.id)}
             disabled={isMaintenance}
@@ -61,12 +61,6 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
           >
             {!isMaintenance ? 'BOOK THIS BIKE' : 'UNDER SERVICE'}
           </button>
-          <Link
-            to={`/availability?bikeId=${bike.id}`}
-            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-brand-teal text-[10px] font-black uppercase tracking-wider transition-all"
-          >
-            <span>📅 View Free Slots & Calendar</span>
-          </Link>
         </div>
       </div>
     </div>

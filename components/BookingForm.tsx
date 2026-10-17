@@ -29,7 +29,7 @@ type DetailsSubStep = 'identity' | 'dates' | 'logistics' | 'summary';
 
 const ValidCheck: React.FC = () => (
   <svg 
-    className="w-4 h-4 text-emerald-400 shrink-0" 
+    className="w-4 h-4 text-amber-400 shrink-0" 
     viewBox="0 0 24 24" 
     fill="none" 
     stroke="currentColor" 
@@ -171,6 +171,33 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     }) || null;
   }, [formData.bikeId, formData.fromDate, formData.fromTime, formData.toDate, formData.toTime, reservedSlots]);
 
+  // Alternate bikes available for the requested slot when the selected bike is booked
+  const availableAlternateBikes = useMemo(() => {
+    if (!conflictingBooking || !formData.fromDate || !formData.fromTime || !formData.toDate || !formData.toTime) {
+      return [];
+    }
+    const reqStart = new Date(`${formData.fromDate}T${formData.fromTime}`).getTime();
+    const reqEnd = new Date(`${formData.toDate}T${formData.toTime}`).getTime();
+    if (isNaN(reqStart) || isNaN(reqEnd) || reqEnd <= reqStart) return [];
+
+    const currentBikeId = parseInt(formData.bikeId);
+
+    return bikes.filter(otherBike => {
+      if (otherBike.id === currentBikeId) return false;
+      if (otherBike.status?.toLowerCase() === 'maintenance') return false;
+
+      // Check if otherBike has overlapping confirmed/ongoing booking
+      const hasConflict = reservedSlots.some(b => {
+        if (b.bike_id !== otherBike.id) return false;
+        const exStart = new Date(`${b.pickup_date}T${b.pickup_time || '10:00'}`).getTime();
+        const exEnd = new Date(`${b.return_date}T${b.return_time || '20:00'}`).getTime();
+        if (isNaN(exStart) || isNaN(exEnd)) return false;
+        return reqStart < exEnd && reqEnd > exStart;
+      });
+
+      return !hasConflict;
+    });
+  }, [conflictingBooking, formData.bikeId, formData.fromDate, formData.fromTime, formData.toDate, formData.toTime, bikes, reservedSlots]);
 
   const bike = useMemo(() => bikes.find(b => b.id.toString() === formData.bikeId), [formData.bikeId, bikes]);
 
@@ -1066,7 +1093,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
 
                   {/* 4. TRUST, DONE QUIETLY */}
                   <div className="flex items-center gap-2 text-neutral-400 text-xs font-normal pt-1 ml-0.5 border-t border-white/[0.06]">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
                     <span className="text-[11px] text-neutral-400">Strictly private. We never share your contact details.</span>
                   </div>
                 </div>
@@ -1191,30 +1218,101 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                 {/* Availability Badge */}
                 <div className="field-enter" style={{ animationDelay: '150ms' }}>
                   {conflictingBooking ? (
-                    <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-3.5 text-white space-y-2">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-red-400 shrink-0"></span>
-                          <h5 className="text-xs sm:text-sm font-medium text-red-400">
-                            Machine unavailable for this schedule
-                          </h5>
+                    <div className="space-y-3.5">
+                      {/* Unavailability Alert */}
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-white space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-red-400 shrink-0"></span>
+                            <h5 className="text-xs sm:text-sm font-semibold text-red-400">
+                              {bike?.name || 'Selected Machine'} is unavailable for this schedule
+                            </h5>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setStep('selection')} 
+                            className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium transition-all cursor-pointer"
+                          >
+                            Browse All Fleet →
+                          </button>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setStep('selection')} 
-                          className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium transition-all self-start sm:self-auto cursor-pointer"
-                        >
-                          Change Bike →
-                        </button>
+                        <p className="text-xs text-neutral-300 leading-relaxed">
+                          This vehicle is already booked for your selected time window. Switch to an available machine below to keep your dates and continue your booking:
+                        </p>
                       </div>
-                      <p className="text-xs text-neutral-300 leading-relaxed">
-                        <strong>{bike?.name}</strong> is reserved ({conflictingBooking.readable_id}) from <span className="text-white font-medium">{conflictingBooking.pickup_date} @ {conflictingBooking.pickup_time?.slice(0,5)}</span> to <span className="text-white font-medium">{conflictingBooking.return_date} @ {conflictingBooking.return_time?.slice(0,5)}</span>.
-                      </p>
+
+                      {/* Alternate Available Bikes Section */}
+                      <div className="bg-[#121214] border border-amber-500/25 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.7)]">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-4 bg-brand-orange rounded-full shrink-0"></span>
+                            <h4 className="text-sm font-semibold text-white tracking-tight">
+                              Available Alternative Bikes for this Schedule
+                            </h4>
+                          </div>
+                          <span className="text-[11px] text-amber-400 font-medium bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                            {availableAlternateBikes.length} {availableAlternateBikes.length === 1 ? 'bike' : 'bikes'} available
+                          </span>
+                        </div>
+
+                        {availableAlternateBikes.length > 0 ? (
+                          <div className="space-y-2.5 pt-1">
+                            {availableAlternateBikes.map(altBike => (
+                              <div
+                                key={altBike.id}
+                                className="bg-black/50 border border-white/[0.08] hover:border-brand-orange/60 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3 transition-all duration-200"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <img 
+                                    src={altBike.imageUrl} 
+                                    alt={altBike.name}
+                                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-cover bg-neutral-900 border border-white/10 shrink-0" 
+                                  />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <h5 className="text-xs sm:text-sm font-semibold text-white tracking-tight truncate">
+                                        {altBike.name}
+                                      </h5>
+                                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-white/[0.08] text-neutral-300 uppercase tracking-wider">
+                                        {altBike.category}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-brand-orange font-mono font-semibold">
+                                      ₹{altBike.dailyRate} <span className="text-[10px] text-neutral-400 font-normal">/ day</span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData(p => ({ ...p, bikeId: altBike.id.toString() }));
+                                    showToast(`Switched to ${altBike.name}! This machine is ready & available.`, "success");
+                                  }}
+                                  className="px-3.5 sm:px-4 py-2 rounded-lg bg-brand-orange hover:bg-orange-500 text-neutral-950 font-semibold text-xs tracking-wide transition-all active:scale-[0.97] cursor-pointer shrink-0 flex items-center gap-1 shadow-sm"
+                                >
+                                  <span>Select</span>
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-neutral-900/40 rounded-xl border border-white/5 text-center space-y-1">
+                            <p className="text-xs text-neutral-300 font-medium">
+                              No alternate machines are available for this exact time window.
+                            </p>
+                            <p className="text-[11px] text-neutral-400">
+                              Please try adjusting your pickup or return schedule above.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div className="bg-emerald-500/[0.07] border border-emerald-500/20 rounded-xl px-3.5 py-2.5 text-xs text-emerald-300 flex items-center justify-between">
+                    <div className="bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-3.5 py-2.5 text-xs text-amber-300/90 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
                         <span className="font-medium">
                           ✓ {bike?.name} is ready & available
                         </span>
@@ -1252,7 +1350,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                         <p className={`text-xs sm:text-sm font-medium ${formData.pickupMethod === 'garage' ? 'text-white font-semibold' : 'text-neutral-300'}`}>
                           Garage Self Pickup
                         </p>
-                        <p className="text-[11px] text-emerald-400 font-medium">Free · 6C Mohammadan Burial Ground Ln</p>
+                        <p className="text-[11px] text-amber-400 font-medium">Free · 6C Mohammadan Burial Ground Ln</p>
                       </div>
                       <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                         formData.pickupMethod === 'garage' ? 'border-brand-orange bg-brand-orange' : 'border-white/25'
@@ -1308,7 +1406,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                         <p className={`text-xs sm:text-sm font-medium ${formData.dropMethod === 'garage' ? 'text-white font-semibold' : 'text-neutral-300'}`}>
                           Garage Self Drop
                         </p>
-                        <p className="text-[11px] text-emerald-400 font-medium">Free · 6C Mohammadan Burial Ground Ln</p>
+                        <p className="text-[11px] text-amber-400 font-medium">Free · 6C Mohammadan Burial Ground Ln</p>
                       </div>
                       <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                         formData.dropMethod === 'garage' ? 'border-brand-orange bg-brand-orange' : 'border-white/25'
@@ -1470,6 +1568,55 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
             {/* SUB-STEP 4: BOOKING SUMMARY (REVIEW & CONFIRM) */}
             {detailsSubStep === 'summary' && (
               <form onSubmit={handleSubmitRequest} key="summary" className="space-y-6 animate-step-in w-full">
+                {conflictingBooking && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-white space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-400 shrink-0"></span>
+                        <h4 className="text-xs sm:text-sm font-semibold text-red-400">
+                          {bike?.name || 'Selected Machine'} is unavailable for this schedule
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setDetailsSubStep('dates'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className="text-xs text-brand-orange hover:underline font-medium"
+                      >
+                        Adjust Schedule →
+                      </button>
+                    </div>
+                    {availableAlternateBikes.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-xs text-neutral-300">Switch to an available machine for this exact period:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {availableAlternateBikes.slice(0, 4).map(altBike => (
+                            <button
+                              key={altBike.id}
+                              type="button"
+                              onClick={() => {
+                                setFormData(p => ({ ...p, bikeId: altBike.id.toString() }));
+                                showToast(`Switched to ${altBike.name}! Machine is ready & available.`, "success");
+                              }}
+                              className="bg-black/60 border border-white/10 hover:border-brand-orange/60 rounded-xl p-2.5 flex items-center justify-between gap-2 text-left cursor-pointer transition-all"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <img src={altBike.imageUrl} alt={altBike.name} className="w-10 h-10 rounded-md object-cover bg-neutral-900 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-white truncate">{altBike.name}</p>
+                                  <p className="text-[10px] text-brand-orange font-mono">₹{altBike.dailyRate}/day</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-semibold text-brand-orange px-2 py-1 rounded bg-brand-orange/10 border border-brand-orange/20 shrink-0">
+                                Select
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Summary Grid: Trip Overview & Fare Breakdown */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
@@ -1524,7 +1671,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
 
                     <div className="flex items-center justify-between pt-3 pb-2 border-t border-b border-white/[0.08]">
                       <span className="text-sm font-semibold text-white tracking-tight flex items-center gap-2">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> Logistics
+                        <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" /> Logistics
                       </span>
                       <button
                         type="button"
@@ -1565,13 +1712,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                         </div>
                         
                         {charges?.hasDiscount && (
-                          <div className="flex justify-between items-center text-xs text-emerald-400">
+                          <div className="flex justify-between items-center text-xs text-amber-400">
                             <label className="flex items-center gap-1.5 cursor-pointer">
                               <input 
                                 type="checkbox" 
                                 checked={applyDiscount} 
                                 onChange={(e) => setApplyDiscount(e.target.checked)} 
-                                className="w-3.5 h-3.5 rounded bg-black border-white/20 text-emerald-400"
+                                className="w-3.5 h-3.5 rounded bg-black border-white/20 text-amber-400 focus:ring-amber-400"
                               />
                               <span>Discount Code (RYDENOW)</span>
                             </label>

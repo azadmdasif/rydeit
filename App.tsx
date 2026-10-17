@@ -98,8 +98,8 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/bikes" element={<BikeCollection bikes={fleetBikes} />} />
           <Route path="/rates" element={<Rates bikes={fleetBikes} additionalCharges={ADDITIONAL_CHARGES || []} />} />
-          <Route path="/availability" element={<AvailabilityCalendar bikes={fleetBikes} />} />
-          <Route path="/calendar" element={<Navigate to="/availability" replace />} />
+          <Route path="/availability" element={isAdmin ? <AvailabilityCalendar bikes={fleetBikes} isAdminMode={true} /> : <Navigate to="/" replace />} />
+          <Route path="/calendar" element={<Navigate to={isAdmin ? "/availability" : "/"} replace />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/book" element={<BookingForm bikes={fleetBikes} additionalCharges={ADDITIONAL_CHARGES} onShowPolicy={setModalContent} />} />

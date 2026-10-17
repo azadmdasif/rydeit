@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabase';
 import { useToast } from '../../App';
-import { GOOGLE_MAPS_REVIEW_LINK } from '../../constants';
+import { GOOGLE_MAPS_REVIEW_LINK, UPI_ID } from '../../constants';
 import { getFleetBikes } from '../../fleetStorage';
 import { Modal } from '../Modal';
 
@@ -336,24 +336,83 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
 
   // WhatsApp Reminder Generator
   const getWhatsAppReminderUrl = (booking: any, bikeName: string) => {
-    const cleanPhone = (booking.customer_phone || '').replace(/\D/g, '');
+    const rawPhone = (booking.customer_phone || '').replace(/\D/g, '');
+    const cleanPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
     const advancePaid = booking.advance_amount || Math.floor((booking.total_rent || 0) * 0.4);
     const balanceDue = Math.max(0, (booking.total_rent || 0) - advancePaid);
+    const upiId = UPI_ID || '9831846183@ybl';
+    const paymentId = booking.readable_id || `RYDE-${booking.id}`;
+    const totalAmount = (Number(booking.total_rent) || 0) + (Number(booking.adjustment_amount) || 0);
+    const advanceAmount = booking.advance_amount && Number(booking.advance_amount) > 0 ? Number(booking.advance_amount) : 500;
 
-    const message = `Hi ${booking.customer_name},\n\n` +
-      `Greetings from *Rydeit Rentals*!\n` +
-      `This is a confirmation reminder for your upcoming reserved ride:\n\n` +
-      `🏍️ *Machine:* ${bikeName}\n` +
-      `🔖 *Booking ID:* ${booking.readable_id}\n` +
-      `📅 *Pickup:* ${booking.pickup_date} @ ${booking.pickup_time}\n` +
-      `🏁 *Return:* ${booking.return_date} @ ${booking.return_time}\n` +
-      `💰 *Advance Paid:* ₹${advancePaid} (Confirmed ✓)\n` +
-      `💵 *Balance at Handover:* ₹${balanceDue}\n\n` +
-      `📍 *Garage Location:* 6C, Mohammadan Burial Ground Lane, Kolkata - 700023\n` +
-      `⚠️ *Please bring:* Original Driving License & Aadhaar Card for biometric verification.\n\n` +
-      `Have a safe & thrilling journey! Reach us at +91 76860 22245 for any assistance.`;
+    let message = '';
 
-    return `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`;
+    if (booking.status === 'verifying_payment' || booking.status === 'pending_payment') {
+      message = `*RYDEIT - BOOKING & PAYMENT DETAILS* 🏍️💨\n\n` +
+        `Dear *${booking.customer_name}*,\n\n` +
+        `Your booking request for *${bikeName}* has been received! Your booking status is currently *PAYMENT PENDING*.\n\n` +
+        `⚠️ *Action Required:* Please send the advance payment of ₹${advanceAmount} to officially reserve and guarantee your booking slot. Unreserved slots are released to other riders on a first-come, first-served basis.\n\n` +
+        `📋 *Booking Details:*\n` +
+        `• *Payment ID / Ref:* ${paymentId}\n` +
+        `• *Machine:* ${bikeName}\n` +
+        `• *Pickup:* ${booking.pickup_date} @ ${booking.pickup_time || '10:00'}\n` +
+        `• *Return:* ${booking.return_date} @ ${booking.return_time || '20:00'}\n` +
+        `• *Total Rental Amount:* ₹${totalAmount}\n` +
+        `• *Advance Required to Reserve Slot:* ₹${advanceAmount}\n` +
+        `• *Refundable Deposit:* ₹1,000 (payable at vehicle handover)\n\n` +
+        `💳 *How to Pay:*\n` +
+        `1. Transfer *₹${advanceAmount}* via UPI to: *${upiId}*\n` +
+        `2. Mention Payment ID in remarks/notes: *${paymentId}*\n` +
+        `3. Reply to this chat with your payment screenshot or transaction UTR.\n\n` +
+        `Once payment is verified, your booking slot will be officially confirmed!\n\n` +
+        `Need assistance? Call/WhatsApp us at +91 76860 22245\n` +
+        `Team Rydeit Kolkata`;
+    } else {
+      message = `Hi ${booking.customer_name},\n\n` +
+        `Greetings from *Rydeit Rentals*!\n` +
+        `This is a confirmation reminder for your upcoming reserved ride:\n\n` +
+        `🏍️ *Machine:* ${bikeName}\n` +
+        `🔖 *Booking ID:* ${paymentId}\n` +
+        `📅 *Pickup:* ${booking.pickup_date} @ ${booking.pickup_time}\n` +
+        `🏁 *Return:* ${booking.return_date} @ ${booking.return_time}\n` +
+        `💰 *Advance Paid:* ₹${advancePaid} (Confirmed ✓)\n` +
+        `💵 *Balance at Handover:* ₹${balanceDue}\n\n` +
+        `📍 *Garage Location:* 6C, Mohammadan Burial Ground Lane, Kolkata - 700023\n` +
+        `⚠️ *Please bring:* Original Driving License & Aadhaar Card for biometric verification.\n\n` +
+        `Have a safe & thrilling journey! Reach us at +91 76860 22245 for any assistance.`;
+    }
+
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const getTermsAndRefundPolicyUrl = (booking: any, bikeName: string) => {
+    const rawPhone = (booking.customer_phone || '').replace(/\D/g, '');
+    const cleanPhone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
+    const paymentId = booking.readable_id || `RYDE-${booking.id}`;
+
+    const message = `*RYDEIT - TERMS, CONDITIONS & REFUND POLICY* 📄🏍️💨\n\n` +
+      `Dear *${booking.customer_name}*,\n\n` +
+      `Thank you for choosing Rydeit Rentals! Please review our official Rental Terms, Conditions, and Cancellation Refund Policy for your reservation (Ref: *${paymentId}*, Machine: *${bikeName}*):\n\n` +
+      `📋 *1. CANCELLATION & REFUND POLICY:*\n` +
+      `Refunds on the booking advance are processed based on the cancellation time before departure:\n` +
+      `• *96 hours or more before departure:* 100% Return\n` +
+      `• *72 to 96 hours before departure:* 75% Refund\n` +
+      `• *48 to 72 hours before departure:* 50% Refund\n` +
+      `• *24 to 48 hours before departure:* 25% Return\n` +
+      `• *Less than 24 hours before departure:* No Refund\n` +
+      `• *Cancellation by Rydeit:* 100% Full Refund issued immediately.\n` +
+      `• *No-Show:* Failure to arrive within 2 hours of scheduled pickup without prior notice results in full advance forfeiture.\n\n` +
+      `⚙️ *2. KEY RENTAL TERMS & CONDITIONS:*\n` +
+      `• *Operating Hours:* 06:00 AM to 10:00 PM daily. Pickups/returns outside 08:00 AM – 08:00 PM incur a ₹99 convenience surcharge.\n` +
+      `• *Late Return Penalty:* Returning vehicle after scheduled drop-off time incurs *₹120 per hour*.\n` +
+      `• *Breakdown & Service Coverage:* Mechanical support is provided strictly within a 5 KM radius of our main garage. Beyond 5 KM, vehicle towing and logistics are the rider's responsibility.\n` +
+      `• *Refundable Security Deposit:* ₹1,000 security deposit is mandatory at machine handover. A walk-around video inspection is conducted at pickup; new damages forfeit deposit.\n` +
+      `• *Legal Compliance:* Helmets are mandatory. All traffic fines, speeding tickets, or e-challans generated during rental duration are 100% the rider's responsibility. Racing, stunting, or illegal transport is strictly prohibited.\n\n` +
+      `By booking with Rydeit Rentals, you agree to comply with all safety and traffic laws.\n` +
+      `Helpline / Enquiries: +91 76860 22245\n` +
+      `Team Rydeit Kolkata`;
+
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
   return (
@@ -641,9 +700,30 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                         href={getWhatsAppReminderUrl(booking, bike?.name || 'Machine')}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2.5 py-1.5 rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 text-xs font-semibold"
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                          isVerifying 
+                            ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-black border border-emerald-500/30' 
+                            : 'bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30'
+                        }`}
+                        title={isVerifying ? 'Send detailed booking details with payment ID to reserve slot' : 'Send official booking confirmation message on WhatsApp'}
                       >
-                        WhatsApp
+                        <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
+                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.882-4.434 9.885-9.885.002-2.641-1.026-5.124-2.893-6.992-1.867-1.868-4.35-2.896-6.992-2.897-5.451 0-9.885 4.434-9.887 9.884-.001 2.126.602 3.738 1.611 5.421l-.999 3.646 3.883-.769zm10.875-6.193c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                        </svg>
+                        <span>{isVerifying ? 'Send WhatsApp Reminder' : 'Send Confirmation'}</span>
+                      </a>
+
+                      <a
+                        href={getTermsAndRefundPolicyUrl(booking, bike?.name || 'Machine')}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-semibold transition-all flex items-center gap-1.5"
+                        title="Send Terms, Conditions & Refund Policy to rider on WhatsApp"
+                      >
+                        <svg className="w-3.5 h-3.5 fill-none stroke-current shrink-0" viewBox="0 0 24 24" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Terms & Policy</span>
                       </a>
 
                       <button
@@ -694,6 +774,36 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                       </svg>
                       {selectedBooking.customer_phone}
+                    </a>
+
+                    <a
+                      href={getTermsAndRefundPolicyUrl(selectedBooking, BIKES.find(b => b.id === selectedBooking.bike_id)?.name || 'Machine')}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 bg-neutral-900 border border-neutral-700 hover:border-white/30 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                      title="Send Terms, Conditions & Refund Policy to rider on WhatsApp"
+                    >
+                      <svg className="w-4 h-4 text-brand-yellow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Send Terms & Policy</span>
+                    </a>
+
+                    <a
+                      href={getWhatsAppReminderUrl(selectedBooking, BIKES.find(b => b.id === selectedBooking.bike_id)?.name || 'Machine')}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                        selectedBooking.status === 'booking_confirmed'
+                          ? 'bg-sky-500/20 border border-sky-500/40 hover:bg-sky-400 hover:text-black text-sky-300'
+                          : 'bg-emerald-500/20 border border-emerald-500/40 hover:bg-emerald-500 hover:text-black text-emerald-300'
+                      }`}
+                      title={selectedBooking.status === 'booking_confirmed' ? 'Send official booking confirmation message on WhatsApp' : 'Send WhatsApp reminder with payment ID'}
+                    >
+                      <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.882-4.434 9.885-9.885.002-2.641-1.026-5.124-2.893-6.992-1.867-1.868-4.35-2.896-6.992-2.897-5.451 0-9.885 4.434-9.887 9.884-.001 2.126.602 3.738 1.611 5.421l-.999 3.646 3.883-.769zm10.875-6.193c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                      </svg>
+                      <span>{selectedBooking.status === 'booking_confirmed' ? 'Send Confirmation' : 'Send Reminder'}</span>
                     </a>
 
                     <span className="text-[10px] text-white/50 uppercase font-bold">

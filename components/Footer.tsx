@@ -31,7 +31,7 @@ export const Footer: React.FC<FooterProps> = ({ onShowPolicy }) => {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-xs text-neutral-400 hover:text-white transition-colors duration-200"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
             <span>Need help? Chat with us on WhatsApp</span>
           </a>
         </div>
