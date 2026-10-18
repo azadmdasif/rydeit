@@ -13,6 +13,7 @@ import { BIKES } from '../../constants';
 import { getFleetBikes } from '../../fleetStorage';
 import { supabase } from '../../supabase';
 import { useToast } from '../../App';
+import { ensureCustomerProfile } from '../../profileSync';
 
 interface AdminLeadsProps {
   onNavigateToBooking?: (bookingId: string) => void;
@@ -45,18 +46,36 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
   const [nextFollowUpDate, setNextFollowUpDate] = useState<string>('');
   const [statusAfterComment, setStatusAfterComment] = useState<LeadStatus>('need_follow_up');
 
-  // Convert to booking form state
+  // Convert to booking form state (Contains ALL fields asked in manual booking)
   const [convertForm, setConvertForm] = useState({
-    bikeId: 16,
-    pickupDate: '',
-    pickupTime: '10:00',
-    returnDate: '',
-    returnTime: '20:00',
-    advanceAmount: 500,
-    depositAmount: 1000,
-    paymentMethod: 'UPI',
-    pickupMethod: 'garage' as 'garage' | 'home',
-    notes: ''
+    customer_name: '',
+    customer_phone: '',
+    customer_email: '',
+    bike_id: 16,
+    is_outstation: false,
+    pickup_date: '',
+    pickup_time: '10:00',
+    return_date: '',
+    return_time: '20:00',
+    agreed_rent: 700,
+    standard_rent: 700,
+    deposit_amount: 1000,
+    advance_amount: 500,
+    payment_method: 'upi' as 'upi' | 'cash' | 'card' | 'bank_transfer',
+    payment_note: '',
+    pickup_method: 'garage' as 'garage' | 'home',
+    drop_method: 'garage' as 'garage' | 'home',
+    delivery_address: '',
+    return_pickup_address: '',
+    same_address_for_drop: true,
+    aadhaar_number: '',
+    dl_number: '',
+    aadhaar_image: null as File | null,
+    dl_image: null as File | null,
+    handover_image: null as File | null,
+    ride_status: 'booking_confirmed' as 'booking_confirmed' | 'ongoing',
+    start_odometer: 0,
+    admin_notes: ''
   });
 
   // Fast Add/Edit Lead Form state
@@ -386,7 +405,21 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
   };
 
-  // Open Convert to Booking modal
+  // Duration text helper
+  const getDurationText = (pDate: string, pTime: string, rDate: string, rTime: string): string => {
+    if (!pDate || !rDate) return '1 Day';
+    const start = new Date(`${pDate}T${pTime || '10:00'}`).getTime();
+    const end = new Date(`${rDate}T${rTime || '20:00'}`).getTime();
+    const diffHours = (end - start) / (1000 * 60 * 60);
+    if (isNaN(diffHours) || diffHours <= 0) return '1 Day (Standard)';
+    const days = Math.floor(diffHours / 24);
+    const remHours = Math.round(diffHours % 24);
+    if (days === 0) return `${remHours} Hours`;
+    if (remHours === 0) return `${days} Day${days > 1 ? 's' : ''}`;
+    return `${days}D ${remHours}H`;
+  };
+
+  // Open Convert to Booking modal (Prefills with all available Lead Data)
   const handleOpenConvertModal = (lead: Lead) => {
     setConvertingLead(lead);
     
@@ -398,26 +431,84 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       else defaultBikeId = 1;
     }
 
+    const chosenBike = allFleetBikes.find(b => b.id === defaultBikeId) || allFleetBikes[0];
+    const durationDays = lead.rental_duration_days || Math.max(1, Math.round((new Date(lead.return_date).getTime() - new Date(lead.pickup_date).getTime()) / 86400000)) || 1;
+    const standardRent = (chosenBike?.dailyRate || 700) * durationDays;
+
     setConvertForm({
-      bikeId: defaultBikeId,
-      pickupDate: lead.pickup_date,
-      pickupTime: '10:00',
-      returnDate: lead.return_date,
-      returnTime: '20:00',
-      advanceAmount: 500,
-      depositAmount: 1000,
-      paymentMethod: 'UPI',
-      pickupMethod: 'garage',
-      notes: `Converted from ${lead.source.toUpperCase()} inquiry: ${lead.notes || lead.purpose}`
+      customer_name: lead.customer_name || '',
+      customer_phone: lead.customer_phone || '',
+      customer_email: '', // Mandatory for profile creation & cross-device rider login
+      bike_id: defaultBikeId,
+      is_outstation: lead.purpose === 'Long Highway Tour',
+      pickup_date: lead.pickup_date || new Date().toISOString().split('T')[0],
+      pickup_time: '10:00',
+      return_date: lead.return_date || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+      return_time: '20:00',
+      agreed_rent: standardRent,
+      standard_rent: standardRent,
+      deposit_amount: 1000,
+      advance_amount: 500,
+      payment_method: 'upi',
+      payment_note: '',
+      pickup_method: 'garage',
+      drop_method: 'garage',
+      delivery_address: '',
+      return_pickup_address: '',
+      same_address_for_drop: true,
+      aadhaar_number: '',
+      dl_number: '',
+      aadhaar_image: null,
+      dl_image: null,
+      handover_image: null,
+      ride_status: 'booking_confirmed',
+      start_odometer: chosenBike?.odometer_reading || 0,
+      admin_notes: `Converted from ${lead.source.toUpperCase()} lead: ${lead.purpose || ''} ${lead.notes ? `| ${lead.notes}` : ''}`.trim()
     });
   };
 
-  // Confirm Convert to Booking
+  // Recompute prices and odometer when bike or dates change during conversion
+  const handleConvertBikeOrDateChange = (changes: Partial<typeof convertForm>) => {
+    setConvertForm(prev => {
+      const next = { ...prev, ...changes };
+      const bike = allFleetBikes.find(b => b.id === next.bike_id) || allFleetBikes[0];
+      const start = new Date(`${next.pickup_date}T${next.pickup_time}`).getTime();
+      const end = new Date(`${next.return_date}T${next.return_time}`).getTime();
+      const diffHours = (end - start) / (1000 * 60 * 60);
+      const days = Math.max(1, Math.ceil(diffHours / 24));
+      const dailyRate = bike?.dailyRate || 700;
+      const standardRent = dailyRate * days;
+      const wasAgreedAtStandard = prev.agreed_rent === prev.standard_rent;
+
+      return {
+        ...next,
+        standard_rent: standardRent,
+        agreed_rent: wasAgreedAtStandard ? standardRent : next.agreed_rent,
+        start_odometer: changes.bike_id ? (bike?.odometer_reading || 0) : next.start_odometer
+      };
+    });
+  };
+
+  // Confirm Convert to Booking with ALL manual booking fields, mandatory email, and guaranteed profile
   const handleConfirmConversion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!convertingLead) return;
 
-    const chosenBike = allFleetBikes.find(b => b.id === Number(convertForm.bikeId));
+    if (!convertForm.customer_name.trim()) {
+      showToast('Customer name is required', 'warning');
+      return;
+    }
+    if (!convertForm.customer_phone.trim()) {
+      showToast('Customer phone is required', 'warning');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!convertForm.customer_email.trim() || !emailRegex.test(convertForm.customer_email.trim())) {
+      showToast('Valid Customer Email is mandatory for converting to booking & creating rider profile', 'warning');
+      return;
+    }
+
+    const chosenBike = allFleetBikes.find(b => b.id === Number(convertForm.bike_id));
     if (!chosenBike) {
       showToast('Please select a valid bike', 'warning');
       return;
@@ -426,33 +517,166 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     setLoading(true);
     const readableId = `RD-M${Math.floor(100000 + Math.random() * 900000)}`;
 
-    const durationDays = Math.max(1, Math.round((new Date(convertForm.returnDate).getTime() - new Date(convertForm.pickupDate).getTime()) / 86400000)) || convertingLead.rental_duration_days;
-    const standardRent = (chosenBike.dailyRate || 700) * durationDays;
+    const reqStart = new Date(`${convertForm.pickup_date}T${convertForm.pickup_time}`).getTime();
+    const reqEnd = new Date(`${convertForm.return_date}T${convertForm.return_time}`).getTime();
+
+    // Verify slot collision with active confirmed bookings
+    const { data: conflicts } = await supabase
+      .from('bookings')
+      .select('id, readable_id, pickup_date, pickup_time, return_date, return_time')
+      .eq('bike_id', convertForm.bike_id)
+      .in('status', ['booking_confirmed', 'ongoing']);
+
+    const conflict = conflicts?.find(b => {
+      const bStart = new Date(`${b.pickup_date}T${b.pickup_time || '10:00'}`).getTime();
+      const bEnd = new Date(`${b.return_date}T${b.return_time || '20:00'}`).getTime();
+      return reqStart < bEnd && reqEnd > bStart;
+    });
+
+    if (conflict) {
+      showToast(`Conflict: Bike already has an active reservation (${conflict.readable_id}: ${conflict.pickup_date} ${conflict.pickup_time} - ${conflict.return_date})`, 'error');
+      setLoading(false);
+      return;
+    }
 
     try {
+      let aadhaar_url = '';
+      let dl_url = '';
+      let customer_photo_url = '';
+
+      // Upload Aadhaar if present
+      if (convertForm.aadhaar_image) {
+        try {
+          const fileExt = convertForm.aadhaar_image.name.split('.').pop();
+          const fileName = `aadhaar_${readableId}_${Date.now()}.${fileExt}`;
+          const filePath = `manual-docs/${fileName}`;
+          const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, convertForm.aadhaar_image);
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+            aadhaar_url = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('Aadhaar upload skipped:', uploadErr);
+        }
+      }
+
+      // Upload DL if present
+      if (convertForm.dl_image) {
+        try {
+          const fileExt = convertForm.dl_image.name.split('.').pop();
+          const fileName = `dl_${readableId}_${Date.now()}.${fileExt}`;
+          const filePath = `manual-docs/${fileName}`;
+          const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, convertForm.dl_image);
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+            dl_url = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('DL upload skipped:', uploadErr);
+        }
+      }
+
+      // Upload Handover Photo if present
+      if (convertForm.handover_image) {
+        try {
+          const fileExt = convertForm.handover_image.name.split('.').pop();
+          const fileName = `handover_${readableId}_${Date.now()}.${fileExt}`;
+          const filePath = `handover-photos/${fileName}`;
+          const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, convertForm.handover_image);
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+            customer_photo_url = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('Handover photo upload skipped:', uploadErr);
+        }
+      }
+
+      let combinedAddress = '';
+      if (convertForm.pickup_method === 'home' && convertForm.drop_method === 'home') {
+        if (convertForm.same_address_for_drop || convertForm.delivery_address.trim() === convertForm.return_pickup_address.trim()) {
+          combinedAddress = `Delivery & Return: ${convertForm.delivery_address.trim()}`;
+        } else {
+          combinedAddress = `Delivery: ${convertForm.delivery_address.trim()} | Return Pickup: ${convertForm.return_pickup_address.trim()}`;
+        }
+      } else if (convertForm.pickup_method === 'home') {
+        combinedAddress = `Delivery: ${convertForm.delivery_address.trim()}`;
+      } else if (convertForm.drop_method === 'home') {
+        combinedAddress = `Return Pickup: ${convertForm.return_pickup_address.trim()}`;
+      }
+
+      const diff = Number(convertForm.agreed_rent) - Number(convertForm.standard_rent);
+      let adjustmentAmount = 0;
+      let adjustmentReason = '';
+
+      if (diff < 0) {
+        adjustmentAmount = diff;
+        adjustmentReason = `Negotiated discount: agreed rent ₹${convertForm.agreed_rent} (₹${Math.abs(diff)} discount on standard ₹${convertForm.standard_rent})`;
+      } else if (diff > 0) {
+        adjustmentAmount = diff;
+        adjustmentReason = `Premium charge: agreed rent ₹${convertForm.agreed_rent} (₹${diff} premium over standard ₹${convertForm.standard_rent})`;
+      }
+
+      const combinedNotes = [
+        convertForm.admin_notes.trim(),
+        convertForm.payment_note ? `Payment: ${convertForm.payment_note.trim()}` : ''
+      ].filter(Boolean).join(' | ');
+
       const bookingPayload: any = {
         readable_id: readableId,
         bike_id: chosenBike.id,
-        customer_name: convertingLead.customer_name,
-        customer_phone: convertingLead.customer_phone,
-        customer_email: `${convertingLead.customer_phone}@rydeit.in`,
-        pickup_date: convertForm.pickupDate,
-        pickup_time: convertForm.pickupTime,
-        return_date: convertForm.returnDate,
-        return_time: convertForm.returnTime,
-        total_rent: standardRent,
-        advance_amount: Number(convertForm.advanceAmount) || 500,
-        security_deposit: Number(convertForm.depositAmount) || 1000,
-        payment_method: convertForm.paymentMethod,
-        status: 'pending_payment',
-        needs_delivery: convertForm.pickupMethod === 'home',
-        needs_return_pickup: false,
-        address: convertForm.pickupMethod === 'home' ? 'Delivery requested by customer' : 'Garage Self-Pickup',
-        admin_notes: `Converted from Lead (${convertingLead.id}): ${convertForm.notes || convertingLead.purpose}`
+        customer_name: convertForm.customer_name.trim(),
+        customer_phone: convertForm.customer_phone.trim(),
+        customer_email: convertForm.customer_email.trim(),
+        pickup_date: convertForm.pickup_date,
+        pickup_time: convertForm.pickup_time,
+        return_date: convertForm.return_date,
+        return_time: convertForm.return_time,
+        total_rent: Number(convertForm.standard_rent),
+        adjustment_amount: adjustmentAmount,
+        adjustment_reason: adjustmentReason || null,
+        security_deposit: Number(convertForm.deposit_amount) || 0,
+        advance_amount: Number(convertForm.advance_amount) || 0,
+        payment_method: convertForm.payment_method,
+        status: convertForm.ride_status || 'booking_confirmed',
+        is_outstation: convertForm.is_outstation || false,
+        needs_delivery: convertForm.pickup_method === 'home',
+        needs_return_pickup: convertForm.drop_method === 'home',
+        address: combinedAddress || null,
+        aadhaar_number: convertForm.aadhaar_number.trim() || null,
+        dl_number: convertForm.dl_number.trim() || null,
+        aadhaar_url: aadhaar_url || null,
+        dl_url: dl_url || null,
+        customer_photo_url: customer_photo_url || null,
+        start_odometer: Number(convertForm.start_odometer) || null,
+        admin_notes: combinedNotes || `Converted from Lead (${convertingLead.id}): ${convertingLead.purpose}`
       };
 
       const { error: bookingErr } = await supabase.from('bookings').insert(bookingPayload);
       if (bookingErr) throw bookingErr;
+
+      // GUARANTEED PROFILE: Create or update customer profile in public.profiles
+      try {
+        await ensureCustomerProfile({
+          email: convertForm.customer_email.trim(),
+          full_name: convertForm.customer_name.trim(),
+          phone: convertForm.customer_phone.trim(),
+          dl_number: convertForm.dl_number.trim() || null,
+          aadhaar_number: convertForm.aadhaar_number.trim() || null,
+          dl_url: dl_url || null,
+          aadhaar_url: aadhaar_url || null
+        });
+      } catch (profileErr) {
+        console.warn('Profile sync notice on lead conversion:', profileErr);
+      }
+
+      // Record follow-up comment on lead
+      await addFollowUpComment(
+        convertingLead.id,
+        `Converted to confirmed booking #${readableId} (${chosenBike.name})`,
+        undefined,
+        'booked'
+      );
 
       const updatedLead: Lead = {
         ...convertingLead,
@@ -465,20 +689,21 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       const updatedList = await fetchLeadsFromSupabase();
       setLeads(updatedList);
       setConvertingLead(null);
-      showToast(`Success! Converted lead to booking ${readableId} (Status: Pending Payment)`, 'success');
+      showToast(`Success! Converted lead to booking ${readableId} with confirmed rider profile.`, 'success');
 
       // WhatsApp booking confirmation
-      const phone = convertingLead.customer_phone.replace(/\D/g, '');
+      const phone = convertForm.customer_phone.replace(/\D/g, '');
       const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
-      const msg = `*RYDEIT - BOOKING RESERVATION CREATED* 🏍️💨\n\n` +
-        `Dear *${convertingLead.customer_name}*,\n\n` +
+      const msg = `*RYDEIT - BOOKING RESERVATION CONFIRMED* 🏍️💨\n\n` +
+        `Dear *${convertForm.customer_name}*,\n\n` +
         `Your reservation has been created for *${chosenBike.name}*!\n` +
         `• *Booking Ref:* ${readableId}\n` +
-        `• *Pickup:* ${convertForm.pickupDate} @ ${convertForm.pickupTime}\n` +
-        `• *Return:* ${convertForm.returnDate} @ ${convertForm.returnTime}\n` +
-        `• *Agreed Total Rent:* ₹${standardRent}\n` +
-        `• *Advance to Lock Slot:* ₹${convertForm.advanceAmount}\n\n` +
-        `Pay ₹${convertForm.advanceAmount} via UPI to 9831846183@ybl to lock your machine.\n` +
+        `• *Pickup:* ${convertForm.pickup_date} @ ${convertForm.pickup_time}\n` +
+        `• *Return:* ${convertForm.return_date} @ ${convertForm.return_time}\n` +
+        `• *Agreed Total Rent:* ₹${convertForm.agreed_rent}\n` +
+        `• *Advance Received:* ₹${convertForm.advance_amount}\n` +
+        `• *Rider Email:* ${convertForm.customer_email}\n\n` +
+        `You can log in to view your booking at https://rydeit.in using your Email or Phone with your mobile number as initial password.\n\n` +
         `Team Rydeit Kolkata`;
 
       window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -1860,142 +2085,586 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
         </div>
       )}
 
-      {/* CONVERT TO BOOKING MODAL */}
+      {/* CONVERT TO BOOKING MODAL (ASKS ALL MANUAL BOOKING FIELDS WITH PREFILLED LEAD DATA) */}
       {convertingLead && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#0a0a0a] border border-neutral-800 w-full max-w-xl rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl animate-fade-in my-8">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-[#0c0c0c] border border-neutral-800 w-full max-w-4xl rounded-3xl p-5 sm:p-7 space-y-6 shadow-2xl animate-fade-in my-6 max-h-[92vh] overflow-y-auto">
             
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
               <div>
-                <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
-                  Convert Lead → Confirmed Booking
+                <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-widest bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                  Lead Conversion → Create Booking & Rider Profile
                 </span>
-                <h3 className="text-lg font-heading tracking-wide uppercase text-white mt-0.5">
-                  Lock Reservation for {convertingLead.customer_name}
+                <h3 className="text-xl font-heading tracking-wide uppercase text-white mt-1">
+                  Convert Inquiry: {convertingLead.customer_name}
                 </h3>
+                <p className="text-neutral-400 text-xs mt-0.5">
+                  Prefilled from {convertingLead.source.toUpperCase()} inquiry. Email is mandatory to create their cross-device login profile.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setConvertingLead(null)}
-                className="text-neutral-400 hover:text-white p-2 rounded-xl bg-neutral-900 border border-neutral-800"
+                className="text-neutral-400 hover:text-white p-2.5 rounded-xl bg-neutral-900 border border-neutral-800 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleConfirmConversion} className="space-y-5">
-              <div className="bg-black p-4 rounded-2xl border border-neutral-800 grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="text-neutral-500 block text-[10px] uppercase font-bold">Rider Name</span>
-                  <span className="text-white font-bold text-sm">{convertingLead.customer_name}</span>
-                </div>
-                <div>
-                  <span className="text-neutral-500 block text-[10px] uppercase font-bold">Phone Number</span>
-                  <span className="text-white font-mono font-bold text-sm">{convertingLead.customer_phone}</span>
-                </div>
-              </div>
+            <form onSubmit={handleConfirmConversion} className="space-y-6">
 
-              <div>
-                <label className="text-[11px] uppercase font-bold text-neutral-400 block mb-1.5">
-                  Select Machine Slot *
-                </label>
-                <select
-                  value={convertForm.bikeId}
-                  onChange={(e) => setConvertForm(prev => ({ ...prev, bikeId: Number(e.target.value) }))}
-                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold focus:border-orange-500 focus:outline-none"
-                >
-                  {allFleetBikes.map(b => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} — ₹{b.dailyRate}/day ({b.category}) {b.rc_number ? `· ${b.rc_number}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] uppercase font-semibold text-neutral-400 block mb-1">
-                    Pickup Date & Time
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={convertForm.pickupDate}
-                    onChange={(e) => setConvertForm(prev => ({ ...prev, pickupDate: e.target.value }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white mb-2"
-                  />
-                  <input
-                    type="time"
-                    required
-                    value={convertForm.pickupTime}
-                    onChange={(e) => setConvertForm(prev => ({ ...prev, pickupTime: e.target.value }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white"
-                  />
+              {/* 1. CUSTOMER INFORMATION */}
+              <div className="bg-black/60 p-5 rounded-2xl border border-neutral-800/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>👤</span> 1. Customer Information
+                  </h4>
+                  <span className="text-[9px] text-neutral-500 uppercase">From Lead Inquiry</span>
                 </div>
 
-                <div>
-                  <label className="text-[10px] uppercase font-semibold text-neutral-400 block mb-1">
-                    Return Date & Time
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={convertForm.returnDate}
-                    onChange={(e) => setConvertForm(prev => ({ ...prev, returnDate: e.target.value }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white mb-2"
-                  />
-                  <input
-                    type="time"
-                    required
-                    value={convertForm.returnTime}
-                    onChange={(e) => setConvertForm(prev => ({ ...prev, returnTime: e.target.value }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-300 uppercase">Rider Full Name *</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Rahul Sharma"
+                      value={convertForm.customer_name}
+                      onChange={(e) => setConvertForm(p => ({ ...p, customer_name: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-xs text-white outline-none focus:border-sky-400 font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-300 uppercase">Mobile Phone *</label>
+                    <input 
+                      type="tel" 
+                      placeholder="e.g. 9876543210"
+                      value={convertForm.customer_phone}
+                      onChange={(e) => setConvertForm(p => ({ ...p, customer_phone: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-xs text-white outline-none focus:border-sky-400 font-mono font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-sky-400 uppercase flex items-center justify-between">
+                      <span>Rider Email (Mandatory) *</span>
+                      <span className="text-[9px] text-emerald-400 font-mono">Profile Auth</span>
+                    </label>
+                    <input 
+                      type="email" 
+                      placeholder="customer@gmail.com"
+                      value={convertForm.customer_email}
+                      onChange={(e) => setConvertForm(p => ({ ...p, customer_email: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-sky-500/40 rounded-xl p-3 text-xs text-white outline-none focus:border-sky-400 font-medium"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 bg-black p-4 rounded-2xl border border-neutral-800">
-                <div>
-                  <label className="text-[10px] text-neutral-400 block mb-1 uppercase font-semibold">Advance (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={convertForm.advanceAmount}
-                    onChange={(e) => setConvertForm(prev => ({ ...prev, advanceAmount: Number(e.target.value) }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white font-bold"
-                  />
+              {/* 2. VEHICLE & RENTAL SCHEDULE */}
+              <div className="bg-black/60 p-5 rounded-2xl border border-neutral-800/80 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <h4 className="text-[11px] font-bold text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>🏍️</span> 2. Vehicle & Rental Schedule
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-bold text-sky-400 uppercase">
+                      Duration: {getDurationText(convertForm.pickup_date, convertForm.pickup_time, convertForm.return_date, convertForm.return_time)}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-neutral-300 uppercase">
+                      Standard Tariff: ₹{convertForm.standard_rent}
+                    </span>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-[10px] text-neutral-400 block mb-1 uppercase font-semibold">Deposit (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={convertForm.depositAmount}
-                    onChange={(e) => setConvertForm(prev => ({ ...prev, depositAmount: Number(e.target.value) }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white font-bold"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Select Machine</label>
+                    <select 
+                      value={convertForm.bike_id}
+                      onChange={(e) => handleConvertBikeOrDateChange({ bike_id: parseInt(e.target.value) })}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-sky-400"
+                      required
+                    >
+                      {allFleetBikes.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} ({b.category}) — ₹{b.dailyRate}/day {b.rc_number ? `• ${b.rc_number}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="text-[10px] text-neutral-400 block mb-1 uppercase font-semibold">Method</label>
-                  <select
-                    value={convertForm.paymentMethod}
-                    onChange={(e) => setConvertForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-2 py-2 text-xs text-white"
-                  >
-                    <option value="UPI">UPI</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Card">Card</option>
-                  </select>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Trip Scope (City or Outstation)</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, is_outstation: false }))}
+                        className={`py-2 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          !convertForm.is_outstation ? 'bg-sky-400 text-black shadow' : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        🏙️ City / Local Riding
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, is_outstation: true }))}
+                        className={`py-2 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          convertForm.is_outstation ? 'bg-orange-500 text-white shadow' : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        🛣️ Outstation / Highway
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Pickup Date & Time</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input 
+                        type="date" 
+                        value={convertForm.pickup_date}
+                        onChange={(e) => handleConvertBikeOrDateChange({ pickup_date: e.target.value })}
+                        className="bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-sky-400 cursor-pointer"
+                        required
+                      />
+                      <input 
+                        type="time" 
+                        value={convertForm.pickup_time}
+                        onChange={(e) => handleConvertBikeOrDateChange({ pickup_time: e.target.value })}
+                        className="bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-sky-400 cursor-pointer"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Return Date & Time</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input 
+                        type="date" 
+                        value={convertForm.return_date}
+                        onChange={(e) => handleConvertBikeOrDateChange({ return_date: e.target.value })}
+                        className="bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-sky-400 cursor-pointer"
+                        required
+                      />
+                      <input 
+                        type="time" 
+                        value={convertForm.return_time}
+                        onChange={(e) => handleConvertBikeOrDateChange({ return_time: e.target.value })}
+                        className="bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-sky-400 cursor-pointer"
+                        required
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-neutral-800">
+              {/* 3. AGREED RENT, DEPOSIT & FINANCIAL TERMS */}
+              <div className="bg-black/60 p-5 rounded-2xl border-2 border-yellow-500/20 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <h4 className="text-[11px] font-bold text-yellow-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>💰</span> 3. Agreed Rent, Deposit & Payment Terms
+                  </h4>
+                  <span className="text-[9px] text-neutral-400 uppercase">Settlement Breakdown</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  {/* Agreed Rent */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-neutral-300 uppercase">Finally Agreed Rent (₹) *</label>
+                      <span className="text-[9px] text-neutral-400 uppercase">Std: ₹{convertForm.standard_rent}</span>
+                    </div>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={convertForm.agreed_rent}
+                      onChange={(e) => setConvertForm(p => ({ ...p, agreed_rent: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-2.5 text-base font-heading font-bold text-yellow-400 outline-none focus:border-yellow-400"
+                      required
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, agreed_rent: p.standard_rent }))}
+                        className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[9px] font-bold text-neutral-400 uppercase cursor-pointer"
+                      >
+                        Std (₹{convertForm.standard_rent})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, agreed_rent: Math.max(100, p.standard_rent - 100) }))}
+                        className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[9px] font-bold text-sky-400 uppercase cursor-pointer"
+                      >
+                        -₹100
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, agreed_rent: Math.max(100, p.standard_rent - 200) }))}
+                        className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[9px] font-bold text-sky-400 uppercase cursor-pointer"
+                      >
+                        -₹200
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Deposit */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-neutral-300 uppercase">Deposit Received (₹)</label>
+                      <span className="text-[9px] text-teal-400 uppercase">Refundable</span>
+                    </div>
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={convertForm.deposit_amount}
+                      onChange={(e) => setConvertForm(p => ({ ...p, deposit_amount: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-2.5 text-base font-heading font-bold text-teal-400 outline-none focus:border-teal-400"
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, deposit_amount: 0 }))}
+                        className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[9px] font-bold text-neutral-400 uppercase cursor-pointer"
+                      >
+                        ₹0
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, deposit_amount: 1000 }))}
+                        className="px-2 py-0.5 rounded bg-teal-500/10 border border-teal-500/20 text-[9px] font-bold text-teal-400 uppercase cursor-pointer"
+                      >
+                        ₹1,000 (Std)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, deposit_amount: 1500 }))}
+                        className="px-2 py-0.5 rounded bg-teal-500/10 border border-teal-500/20 text-[9px] font-bold text-teal-400 uppercase cursor-pointer"
+                      >
+                        ₹1,500
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Advance */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-neutral-300 uppercase">Advance Received (₹)</label>
+                      <span className="text-[9px] text-sky-400 uppercase">Paid Now</span>
+                    </div>
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={convertForm.advance_amount}
+                      onChange={(e) => setConvertForm(p => ({ ...p, advance_amount: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-2.5 text-base font-heading font-bold text-sky-400 outline-none focus:border-sky-400"
+                    />
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, advance_amount: 500 }))}
+                        className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[9px] font-bold text-neutral-400 uppercase cursor-pointer"
+                      >
+                        ₹500 Min
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, advance_amount: p.agreed_rent }))}
+                        className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[9px] font-bold text-sky-400 uppercase cursor-pointer"
+                      >
+                        Full Rent
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, advance_amount: p.agreed_rent + p.deposit_amount }))}
+                        className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[9px] font-bold text-sky-400 uppercase cursor-pointer"
+                      >
+                        Rent + Dep
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4-way settlement breakdown */}
+                <div className="bg-black p-3.5 rounded-xl border border-neutral-800 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                  <div>
+                    <span className="text-[8px] font-bold text-neutral-500 uppercase tracking-wider block">Agreed Rent</span>
+                    <span className="text-sm font-heading text-white">₹{convertForm.agreed_rent}</span>
+                  </div>
+                  <div className="sm:border-l border-neutral-800">
+                    <span className="text-[8px] font-bold text-teal-400 uppercase tracking-wider block">Deposit Recv.</span>
+                    <span className="text-sm font-heading text-teal-400">₹{convertForm.deposit_amount}</span>
+                  </div>
+                  <div className="sm:border-l border-neutral-800">
+                    <span className="text-[8px] font-bold text-sky-400 uppercase tracking-wider block">Advance Recv.</span>
+                    <span className="text-sm font-heading text-sky-400">₹{convertForm.advance_amount}</span>
+                  </div>
+                  <div className="sm:border-l border-neutral-800">
+                    <span className="text-[8px] font-bold text-yellow-400 uppercase tracking-wider block">Balance on Handover</span>
+                    <span className="text-sm font-heading text-yellow-400">
+                      ₹{Math.max(0, (Number(convertForm.agreed_rent) + Number(convertForm.deposit_amount)) - Number(convertForm.advance_amount))}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 border-t border-neutral-800">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Payment Method</label>
+                    <select 
+                      value={convertForm.payment_method}
+                      onChange={(e) => setConvertForm(p => ({ ...p, payment_method: e.target.value as any }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs text-white font-bold outline-none focus:border-sky-400"
+                    >
+                      <option value="upi">UPI (GPay / PhonePe / QR)</option>
+                      <option value="cash">Cash Received at Garage</option>
+                      <option value="card">Debit / Credit Card POS</option>
+                      <option value="bank_transfer">Bank Transfer / IMPS</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Payment / Transaction Note</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Advance paid via UPI ref / Cash at desk..."
+                      value={convertForm.payment_note}
+                      onChange={(e) => setConvertForm(p => ({ ...p, payment_note: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-sky-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. LOGISTICS & HANDOVER LOCATIONS */}
+              <div className="bg-black/60 p-5 rounded-2xl border border-neutral-800/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>📍</span> 4. Logistics & Handover Locations
+                  </h4>
+                  <span className="text-[9px] text-neutral-500 uppercase">Garage or Home Delivery</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Pickup Handover</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, pickup_method: 'garage' }))}
+                        className={`py-2 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          convertForm.pickup_method === 'garage'
+                            ? 'bg-sky-400 text-black shadow'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        Garage Pickup
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, pickup_method: 'home' }))}
+                        className={`py-2 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          convertForm.pickup_method === 'home'
+                            ? 'bg-sky-400 text-black shadow'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        Deliver to Home
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Return Drop</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, drop_method: 'garage' }))}
+                        className={`py-2 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          convertForm.drop_method === 'garage'
+                            ? 'bg-yellow-400 text-black shadow'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        Garage Drop
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, drop_method: 'home' }))}
+                        className={`py-2 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          convertForm.drop_method === 'home'
+                            ? 'bg-yellow-400 text-black shadow'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        Pickup from Home
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {convertForm.pickup_method === 'home' && (
+                  <div className="space-y-2 pt-2 border-t border-neutral-800 animate-fade-in">
+                    <label className="text-[10px] font-bold text-sky-400 uppercase">
+                      🚚 Delivery Address in Kolkata
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Flat 4B, Park Street..."
+                      value={convertForm.delivery_address}
+                      onChange={(e) => setConvertForm(p => ({ ...p, delivery_address: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-sky-400"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 5. DOCUMENTS & KYC */}
+              <div className="bg-black/60 p-5 rounded-2xl border border-neutral-800/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>🪪</span> 5. Identity Verification & KYC
+                  </h4>
+                  <span className="text-[9px] text-neutral-500 uppercase">Can enter now or at garage</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Aadhaar / National ID</label>
+                    <input 
+                      type="text" 
+                      placeholder="XXXX-XXXX-XXXX"
+                      value={convertForm.aadhaar_number}
+                      onChange={(e) => setConvertForm(p => ({ ...p, aadhaar_number: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white outline-none focus:border-sky-400"
+                    />
+                    <label className="flex items-center gap-2 cursor-pointer bg-neutral-900 border border-dashed border-neutral-700 rounded-xl p-2.5 hover:border-sky-400 transition-all">
+                      <span className="text-[9px] font-bold text-neutral-400 uppercase truncate">
+                        {convertForm.aadhaar_image ? convertForm.aadhaar_image.name : 'Upload Aadhaar Photo'}
+                      </span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => e.target.files?.[0] && setConvertForm(p => ({ ...p, aadhaar_image: e.target.files![0] }))} 
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Driving License</label>
+                    <input 
+                      type="text" 
+                      placeholder="DL Number"
+                      value={convertForm.dl_number}
+                      onChange={(e) => setConvertForm(p => ({ ...p, dl_number: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono text-white outline-none focus:border-sky-400"
+                    />
+                    <label className="flex items-center gap-2 cursor-pointer bg-neutral-900 border border-dashed border-neutral-700 rounded-xl p-2.5 hover:border-sky-400 transition-all">
+                      <span className="text-[9px] font-bold text-neutral-400 uppercase truncate">
+                        {convertForm.dl_image ? convertForm.dl_image.name : 'Upload DL Photo'}
+                      </span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => e.target.files?.[0] && setConvertForm(p => ({ ...p, dl_image: e.target.files![0] }))} 
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6. OPERATIONAL STATUS & HANDOVER */}
+              <div className="bg-black/60 p-5 rounded-2xl border border-neutral-800/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-sky-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>⚡</span> 6. Operational Status & Handover
+                  </h4>
+                  <span className="text-[9px] text-neutral-500 uppercase">Active Dispatch</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Operational Status</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, ride_status: 'booking_confirmed' }))}
+                        className={`py-2.5 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          convertForm.ride_status === 'booking_confirmed'
+                            ? 'bg-sky-400 text-black shadow-lg shadow-sky-500/20'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        ✓ Confirmed (Ready)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConvertForm(p => ({ ...p, ride_status: 'ongoing' }))}
+                        className={`py-2.5 px-3 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          convertForm.ride_status === 'ongoing'
+                            ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        🚀 Start Ride Now
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Starting Odometer (KM)</label>
+                    <input 
+                      type="number"
+                      min="0"
+                      value={convertForm.start_odometer || ''}
+                      onChange={(e) => setConvertForm(p => ({ ...p, start_odometer: parseFloat(e.target.value) || 0 }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-xs font-mono font-bold text-white outline-none focus:border-sky-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Handover Notes / Inspection</label>
+                    <textarea 
+                      rows={2}
+                      placeholder="e.g. 2 Helmets provided, scratch on mirror..."
+                      value={convertForm.admin_notes}
+                      onChange={(e) => setConvertForm(p => ({ ...p, admin_notes: e.target.value }))}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2 text-xs text-white resize-none outline-none focus:border-sky-400"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase">Rider Handover Photo</label>
+                    <label className="flex flex-col items-center justify-center cursor-pointer bg-neutral-900 border border-dashed border-neutral-700 rounded-xl p-2 hover:border-sky-400 transition-all h-[58px]">
+                      <span className="text-[9px] font-bold text-neutral-400 truncate">
+                        {convertForm.handover_image ? convertForm.handover_image.name : 'Take / Upload Handover Photo'}
+                      </span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => e.target.files?.[0] && setConvertForm(p => ({ ...p, handover_image: e.target.files![0] }))} 
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-800">
                 <button
                   type="button"
                   onClick={() => setConvertingLead(null)}
-                  className="px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white text-xs font-semibold"
+                  className="px-5 py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white text-xs font-bold uppercase transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -2003,9 +2672,9 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+                  className="px-7 py-3 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-black font-black text-xs uppercase tracking-wider transition-all shadow-xl shadow-emerald-500/20 active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
-                  {loading ? 'Creating Booking...' : 'Confirm & Create Booking'}
+                  {loading ? 'Creating Booking & Profile...' : 'Confirm & Create Booking'}
                 </button>
               </div>
 

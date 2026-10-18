@@ -66,10 +66,18 @@ export const MyBookings: React.FC = () => {
   const fetchAll = async (userId: string) => {
     setLoading(true);
     try {
-      // OPTIMIZATION: Concurrent fetching
+      const { data: { session } } = await supabase.auth.getSession();
+      const userEmail = (session?.user?.email || '').trim().toLowerCase();
+
+      // OPTIMIZATION: Concurrent fetching of profile & bookings
+      let orFilter = `user_id.eq.${userId}`;
+      if (userEmail) {
+        orFilter += `,customer_email.ilike.${userEmail}`;
+      }
+
       const [profileRes, bookingsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        supabase.from('bookings').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+        supabase.from('bookings').select('*').or(orFilter).order('created_at', { ascending: false })
       ]);
 
       if (profileRes.error) console.error("Profile Fetch Error:", profileRes.error);
@@ -87,8 +95,17 @@ export const MyBookings: React.FC = () => {
         setEditDlNumber(pData.dl_number || '');
         setEditAadhaarNumber(pData.aadhaar_number || '');
       }
-      
-      setBookings(bookingsRes.data || []);
+
+      const fetchedBookings = bookingsRes.data || [];
+      setBookings(fetchedBookings);
+
+      // Auto-link any unlinked bookings matching this user's email
+      const unlinkedIds = fetchedBookings.filter(b => !b.user_id).map(b => b.id);
+      if (unlinkedIds.length > 0) {
+        supabase.from('bookings').update({ user_id: userId }).in('id', unlinkedIds).then(() => {
+          console.info(`Linked ${unlinkedIds.length} bookings to user profile.`);
+        });
+      }
     } catch (err) {
       console.error("Dashboard Fetch Catch:", err);
     } finally {

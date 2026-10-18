@@ -4,6 +4,7 @@ import { supabase } from '../../supabase';
 import { useToast } from '../../App';
 import { GOOGLE_MAPS_REVIEW_LINK, UPI_ID, GARAGE_MAPS_LINK, GARAGE_ADDRESS } from '../../constants';
 import { getFleetBikes } from '../../fleetStorage';
+import { ensureCustomerProfile } from '../../profileSync';
 import { Modal } from '../Modal';
 
 interface AdminBookingsProps {
@@ -456,6 +457,11 @@ Team Rydeit Rentals`;
       showToast('Customer phone is required', 'warning');
       return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!manualBooking.customer_email.trim() || !emailRegex.test(manualBooking.customer_email.trim())) {
+      showToast('Valid Customer Email is mandatory for creating all bookings', 'warning');
+      return;
+    }
 
     setLoading(true);
     const readableId = `RD-M${Math.floor(100000 + Math.random() * 900000)}`;
@@ -597,6 +603,23 @@ Team Rydeit Rentals`;
 
       const { error } = await supabase.from('bookings').insert(bookingPayload);
       if (error) throw error;
+
+      // Ensure each payment-confirmed or registered booking gets a profile in public.profiles
+      if (manualBooking.ride_status === 'booking_confirmed' || manualBooking.ride_status === 'ongoing' || Number(manualBooking.advance_amount) > 0) {
+        try {
+          await ensureCustomerProfile({
+            email: manualBooking.customer_email.trim(),
+            full_name: manualBooking.customer_name.trim(),
+            phone: manualBooking.customer_phone.trim(),
+            dl_number: manualBooking.dl_number.trim() || null,
+            aadhaar_number: manualBooking.aadhaar_number.trim() || null,
+            dl_url: dl_url || null,
+            aadhaar_url: aadhaar_url || null
+          });
+        } catch (profileErr) {
+          console.warn('Profile sync notice:', profileErr);
+        }
+      }
 
       showToast(`Manual ride request ${readableId} submitted! It is now in the ledger ready for operation.`, 'success');
       setShowManualModal(false);
@@ -916,6 +939,23 @@ Team Rydeit Rentals`;
 
       const { error } = await supabase.from('bookings').update(updates).eq('id', selectedBooking.id);
       if (error) throw error;
+
+      // Ensure payment confirmed booking gets a profile in public.profiles
+      if (selectedBooking.customer_email) {
+        try {
+          await ensureCustomerProfile({
+            email: selectedBooking.customer_email,
+            full_name: selectedBooking.customer_name,
+            phone: selectedBooking.customer_phone,
+            dl_number: selectedBooking.dl_number,
+            aadhaar_number: selectedBooking.aadhaar_number,
+            dl_url: selectedBooking.dl_url,
+            aadhaar_url: selectedBooking.aadhaar_url
+          });
+        } catch (profErr) {
+          console.warn('Profile sync notice on confirm payment:', profErr);
+        }
+      }
 
       const tagText = diff < 0 ? ` (Discount: ₹${Math.abs(diff)})` : diff > 0 ? ` (Premium: ₹${diff})` : '';
       showToast(`Payment confirmed! Advance: ₹${advancePaid}, Agreed Rent: ₹${agreedRent}, Deposit: ₹${depositAmount}${tagText}`, 'success');
@@ -2657,13 +2697,14 @@ Team Rydeit Rentals`;
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-bold text-white/40 uppercase">Email (Optional)</label>
+                  <label className="text-[9px] font-bold text-sky-400 uppercase">Rider Email Address (Mandatory) *</label>
                   <input 
                     type="email" 
                     placeholder="customer@gmail.com"
                     value={manualBooking.customer_email}
                     onChange={(e) => setManualBooking(p => ({ ...p, customer_email: e.target.value }))}
-                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal"
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal font-medium"
+                    required
                   />
                 </div>
               </div>

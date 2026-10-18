@@ -136,3 +136,110 @@
   }
 }
 
+/* ==============================================================================
+   ADMIN PANEL LIGHT THEME (WHITE BACKGROUND, NATURAL CONTRAST & ERGONOMIC FONTS)
+   ============================================================================== */
+.admin-panel-white {
+  font-family: 'Plus Jakarta Sans', 'Inter', 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  background-color: #f8fafc !important; /* slate-50 canvas */
+  color: #1e293b !important; /* slate-800 natural contrast text */
+}
+
+/* Card & Container Backgrounds */
+.admin-panel-white .bg-black:not(.keep-dark),
+.admin-panel-white .bg-neutral-950:not(.keep-dark),
+.admin-panel-white .bg-\[\#0a0a0a\],
+.admin-panel-white .bg-\[\#121212\],
+.admin-panel-white .bg-brand-black {
+  background-color: #ffffff !important;
+}
+
+/* Secondary Panels & Table Headers */
+.admin-panel-white .bg-neutral-900:not(button):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]) {
+  background-color: #f1f5f9 !important; /* slate-100 */
+}
+
+/* Subtle Hover states */
+.admin-panel-white tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Natural, eye-comforting borders */
+.admin-panel-white .border-neutral-900,
+.admin-panel-white .border-neutral-800,
+.admin-panel-white .border-white\/10,
+.admin-panel-white .border-white\/5 {
+  border-color: #e2e8f0 !important; /* slate-200 */
+}
+
+/* High Natural Contrast Typography */
+.admin-panel-white h1, 
+.admin-panel-white h2, 
+.admin-panel-white h3, 
+.admin-panel-white h4,
+.admin-panel-white .text-white:not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]):not(.keep-white) {
+  color: #0f172a !important; /* slate-900 bold clarity */
+}
+
+.admin-panel-white .text-neutral-400,
+.admin-panel-white .text-neutral-500,
+.admin-panel-white .text-slate-400,
+.admin-panel-white .text-white\/40,
+.admin-panel-white .text-white\/50,
+.admin-panel-white .text-white\/60 {
+  color: #64748b !important; /* slate-500 readable secondary */
+}
+
+.admin-panel-white .text-neutral-300,
+.admin-panel-white .text-neutral-200,
+.admin-panel-white .text-white\/70,
+.admin-panel-white .text-white\/80 {
+  color: #334155 !important; /* slate-700 body text */
+}
+
+/* Protect white text on colored action buttons */
+.admin-panel-white .bg-orange-600,
+.admin-panel-white .bg-orange-500,
+.admin-panel-white .bg-rose-600,
+.admin-panel-white .bg-emerald-600,
+.admin-panel-white .bg-sky-500,
+.admin-panel-white .bg-sky-600 {
+  color: #ffffff !important;
+}
+.admin-panel-white .bg-orange-600 *,
+.admin-panel-white .bg-orange-500 *,
+.admin-panel-white .bg-rose-600 *,
+.admin-panel-white .bg-emerald-600 *,
+.admin-panel-white .bg-sky-500 *,
+.admin-panel-white .bg-sky-600 * {
+  color: #ffffff !important;
+}
+
+/* Inputs, Textareas, Selects */
+.admin-panel-white input:not([type="checkbox"]):not([type="radio"]),
+.admin-panel-white select,
+.admin-panel-white textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important; /* slate-300 */
+}
+
+.admin-panel-white input::placeholder,
+.admin-panel-white textarea::placeholder {
+  color: #94a3b8 !important; /* slate-400 */
+}
+
+.admin-panel-white input:focus,
+.admin-panel-white select:focus,
+.admin-panel-white textarea:focus {
+  border-color: #f97316 !important; /* brand orange */
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2) !important;
+}
+
+/* Soft shadows for elevation */
+.admin-panel-white .shadow-sm,
+.admin-panel-white .shadow {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04) !important;
+}
+

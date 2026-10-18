@@ -94,9 +94,9 @@ const AppContent: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-brand-black text-brand-gray-light flex flex-col w-full">
+    <div className={`min-h-screen flex flex-col w-full ${isAdminRoute ? 'bg-slate-50 text-slate-800' : 'bg-brand-black text-brand-gray-light'}`}>
       {!isAdminRoute && <Header />}
-      <main className="flex-grow w-full bg-brand-black">
+      <main className={`flex-grow w-full ${isAdminRoute ? 'bg-slate-50 text-slate-800' : 'bg-brand-black'}`}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<LoginPage />} />

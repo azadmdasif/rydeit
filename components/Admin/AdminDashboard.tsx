@@ -179,34 +179,34 @@ export const AdminDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 flex flex-col lg:flex-row font-sans selection:bg-orange-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col lg:flex-row font-sans selection:bg-orange-500 selection:text-white admin-panel-white">
       {/* Mobile Top Navigation Bar (Hidden on Desktop) */}
-      <div className="lg:hidden sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-neutral-900 px-3.5 py-2.5 flex items-center justify-between">
+      <div className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3.5 py-2.5 flex items-center justify-between shadow-xs">
         <button
           type="button"
           onClick={() => setIsMobileDrawerOpen(true)}
-          className="px-2.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white flex items-center gap-1.5 border border-neutral-800 transition-all cursor-pointer active:scale-95"
+          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer active:scale-95"
           title="Open Admin Menu"
         >
           <svg className="w-4 h-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
-          <span className="text-xs font-bold uppercase tracking-wider text-neutral-200">Menu</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Menu</span>
           {(stats.leadsNeedFollowUp > 0 || stats.upcomingReservations > 0) && (
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
           )}
         </button>
 
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
-          <span className="text-xs font-bold uppercase tracking-wider text-white">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-900">
             {tabs.find(t => t.id === activeTab)?.label || 'Log Lead'}
           </span>
         </div>
 
         <Link
           to="/"
-          className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 transition-colors"
+          className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors"
           title="Exit to customer website"
         >
           Site ↗
@@ -218,30 +218,30 @@ export const AdminDashboard: React.FC = () => {
         <div className="lg:hidden fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
             onClick={() => setIsMobileDrawerOpen(false)}
           />
 
           {/* Drawer Content */}
-          <div className="relative w-72 max-w-[85vw] bg-neutral-950 border-r border-neutral-800 p-5 z-50 flex flex-col justify-between overflow-y-auto animate-fade-in shadow-2xl">
+          <div className="relative w-72 max-w-[85vw] bg-white border-r border-slate-200 p-5 z-50 flex flex-col justify-between overflow-y-auto animate-fade-in shadow-2xl">
             <div className="space-y-6">
               {/* Drawer Header */}
-              <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                    <span className="font-heading text-lg text-white tracking-wide">
+                    <span className="font-heading text-lg text-slate-900 tracking-wide">
                       RYDEIT <span className="text-orange-500">ADMIN</span>
                     </span>
                   </div>
-                  <span className="text-[11px] text-neutral-400 mt-0.5">
+                  <span className="text-[11px] text-slate-500 mt-0.5">
                     Operations & Fleet Console
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="p-2 rounded-xl bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800 cursor-pointer"
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 border border-slate-200 cursor-pointer"
                 >
                   ✕
                 </button>
@@ -263,21 +263,21 @@ export const AdminDashboard: React.FC = () => {
                           }}
                           className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                             isActive
-                              ? 'bg-orange-600 text-white shadow-sm'
-                              : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+                              ? 'bg-orange-500 text-white shadow-xs'
+                              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <span className={isActive ? 'text-white' : 'text-neutral-400'}>
+                            <span className={isActive ? 'text-white' : 'text-slate-500'}>
                               {tab.icon}
                             </span>
                             <span>{tab.label}</span>
                           </div>
-                          <span className={`text-neutral-400 text-xs transition-transform ${isFinanceExpanded ? 'rotate-180' : ''}`}>▾</span>
+                          <span className={`text-slate-400 text-xs transition-transform ${isFinanceExpanded ? 'rotate-180' : ''}`}>▾</span>
                         </div>
 
                         {isFinanceExpanded && (
-                          <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-orange-500/40 ml-4">
+                          <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-orange-500 ml-4">
                             {[
                               { id: 'sheet', label: 'Ledger Book', icon: '📑' },
                               { id: 'capex', label: 'CapEx & Assets', icon: '🏍️' },
@@ -296,8 +296,8 @@ export const AdminDashboard: React.FC = () => {
                                   }}
                                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
                                     isSubActive
-                                      ? 'bg-sky-600 text-white font-semibold'
-                                      : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200'
+                                      ? 'bg-orange-50 text-orange-700 font-semibold border border-orange-200'
+                                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                                   }`}
                                 >
                                   <span className="text-xs">{sub.icon}</span>
@@ -322,18 +322,20 @@ export const AdminDashboard: React.FC = () => {
                       }}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                         isActive
-                          ? 'bg-orange-600 text-white shadow-sm'
-                          : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+                          ? 'bg-orange-500 text-white shadow-xs'
+                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className={isActive ? 'text-white' : 'text-neutral-400'}>
+                        <span className={isActive ? 'text-white' : 'text-slate-500'}>
                           {tab.icon}
                         </span>
                         <span>{tab.label}</span>
                       </div>
                       {Boolean(tab.badge && tab.badge > 0) && (
-                        <span className="px-2 py-0.5 rounded-full bg-sky-400 text-black text-[10px] font-bold">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          isActive ? 'bg-white/20 text-white' : 'bg-orange-50 text-orange-700 border border-orange-200'
+                        }`}>
                           {tab.badge}
                         </span>
                       )}
@@ -344,15 +346,15 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Drawer Footer */}
-            <div className="pt-4 border-t border-neutral-900 flex flex-col gap-2.5">
+            <div className="pt-4 border-t border-slate-200 flex flex-col gap-2.5">
               <Link
                 to="/"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="w-full text-center py-2 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
+                className="w-full text-center py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 hover:text-slate-900 transition-all flex items-center justify-center gap-1.5"
               >
                 <span>← Back to Customer Website</span>
               </Link>
-              <div className="flex items-center justify-between text-[11px] text-neutral-500 px-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
                 <span>Rydeit Kolkata Admin</span>
                 <span>v2.4</span>
               </div>
@@ -362,18 +364,18 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* Desktop Sidebar (Only visible on lg screens, hidden on mobile) */}
-      <aside className={`hidden lg:flex transition-all duration-300 bg-black border-r border-neutral-900 flex-col shrink-0 ${isSidebarCollapsed ? 'lg:w-20' : 'lg:w-72'}`}>
+      <aside className={`hidden lg:flex transition-all duration-300 bg-white border-r border-slate-200 flex-col shrink-0 ${isSidebarCollapsed ? 'lg:w-20' : 'lg:w-72'}`}>
         {/* Header */}
         {!isSidebarCollapsed ? (
-          <div className="p-5 border-b border-neutral-900 flex items-center justify-between">
+          <div className="p-5 border-b border-slate-200 flex items-center justify-between">
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                <span className="font-heading text-lg text-white tracking-wide">
+                <span className="font-heading text-lg text-slate-900 tracking-wide">
                   RYDEIT <span className="text-orange-500">ADMIN</span>
                 </span>
               </div>
-              <span className="text-xs font-medium text-neutral-400 mt-1">
+              <span className="text-xs font-medium text-slate-500 mt-1">
                 Operations & Fleet Console
               </span>
             </div>
@@ -383,7 +385,7 @@ export const AdminDashboard: React.FC = () => {
                 setIsSidebarCollapsed(true);
                 try { localStorage.setItem('rydeit_admin_sidebar_collapsed', 'true'); } catch {}
               }}
-              className="p-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-all cursor-pointer"
               title="Collapse sidebar to maximize screen space"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -392,7 +394,7 @@ export const AdminDashboard: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="p-4 border-b border-neutral-900 flex flex-col items-center justify-center gap-2">
+          <div className="p-4 border-b border-slate-200 flex flex-col items-center justify-center gap-2">
             <span className="font-heading text-base text-orange-500">RA</span>
             <button
               type="button"
@@ -400,7 +402,7 @@ export const AdminDashboard: React.FC = () => {
                 setIsSidebarCollapsed(false);
                 try { localStorage.setItem('rydeit_admin_sidebar_collapsed', 'false'); } catch {}
               }}
-              className="p-2 rounded-xl bg-neutral-900 hover:bg-orange-600 hover:text-white text-neutral-400 transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-orange-500 hover:text-white text-slate-500 transition-all cursor-pointer"
               title="Expand sidebar"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -427,13 +429,13 @@ export const AdminDashboard: React.FC = () => {
                   title={tab.label}
                   className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all cursor-pointer relative ${
                     isActive
-                      ? 'bg-orange-600 text-white shadow-sm'
-                      : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'
+                      ? 'bg-orange-500 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   {tab.icon}
                   {Boolean(tab.badge && tab.badge > 0) && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-sky-400 text-black text-[10px] font-bold flex items-center justify-center shadow">
+                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center shadow-xs">
                       {tab.badge}
                     </span>
                   )}
@@ -451,12 +453,12 @@ export const AdminDashboard: React.FC = () => {
                     }}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer select-none ${
                       isActive
-                        ? 'bg-orange-600 text-white shadow-sm'
-                        : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+                        ? 'bg-orange-500 text-white shadow-xs'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={isActive ? 'text-white' : 'text-neutral-400'}>
+                      <span className={isActive ? 'text-white' : 'text-slate-500'}>
                         {tab.icon}
                       </span>
                       <span>{tab.label}</span>
@@ -468,7 +470,7 @@ export const AdminDashboard: React.FC = () => {
                         e.stopPropagation();
                         setIsFinanceExpanded(prev => !prev);
                       }}
-                      className={`p-1 rounded-lg transition-transform text-neutral-400 hover:text-white ${
+                      className={`p-1 rounded-lg transition-transform text-slate-400 hover:text-slate-700 ${
                         isFinanceExpanded ? 'rotate-180' : ''
                       }`}
                       title={isFinanceExpanded ? 'Collapse finance menu' : 'Expand finance menu'}
@@ -481,7 +483,7 @@ export const AdminDashboard: React.FC = () => {
 
                   {/* Collapsible Sub-Menu */}
                   {isFinanceExpanded && (
-                    <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-orange-500/40 ml-4">
+                    <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-orange-500 ml-4">
                       {[
                         { id: 'sheet', label: 'Ledger Book', icon: '📑' },
                         { id: 'capex', label: 'CapEx & Assets', icon: '🏍️' },
@@ -499,8 +501,8 @@ export const AdminDashboard: React.FC = () => {
                             }}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer text-left ${
                               isSubActive
-                                ? 'bg-sky-600 text-white font-semibold'
-                                : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200'
+                                ? 'bg-orange-50 text-orange-700 font-semibold border border-orange-200'
+                                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                             }`}
                           >
                             <span className="text-xs">{sub.icon}</span>
@@ -523,19 +525,19 @@ export const AdminDashboard: React.FC = () => {
                 }}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-orange-600 text-white shadow-sm'
-                    : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+                    ? 'bg-orange-500 text-white shadow-xs'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className={isActive ? 'text-white' : 'text-neutral-400'}>
+                  <span className={isActive ? 'text-white' : 'text-slate-500'}>
                     {tab.icon}
                   </span>
                   <span>{tab.label}</span>
                 </div>
                 {Boolean(tab.badge && tab.badge > 0) && (
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                    isActive ? 'bg-black/40 text-white' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                    isActive ? 'bg-white/20 text-white' : 'bg-orange-50 text-orange-700 border border-orange-200'
                   }`}>
                     {tab.badge}
                   </span>
@@ -546,88 +548,88 @@ export const AdminDashboard: React.FC = () => {
         </nav>
       </aside>
 
-      {/* Main Content Area - Pitch Black Background & High Contrast Typography */}
-      <main className="flex-grow p-3 sm:p-5 lg:p-8 overflow-y-auto bg-black">
+      {/* Main Content Area - Clean White Background, Comforting Fonts & Natural Contrast */}
+      <main className="flex-grow p-3 sm:p-5 lg:p-8 overflow-y-auto bg-slate-50 text-slate-800">
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
             {/* Clean Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-900 pb-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-5">
               <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Operations Dashboard</h1>
-                <p className="text-xs text-neutral-400 mt-0.5">Live fleet status & confirmed bookings</p>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Operations Dashboard</h1>
+                <p className="text-xs text-slate-500 mt-0.5">Live fleet status & confirmed bookings</p>
               </div>
               
               {/* Clean Date Filter */}
-              <div className="flex items-center gap-2 bg-[#0a0a0a] px-3 py-1.5 rounded-xl border border-neutral-800">
+              <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs">
                 <input 
                   type="date" 
                   value={dateRange.start} 
                   onChange={(e) => setDateRange(prev => ({...prev, start: e.target.value}))}
-                  className="bg-transparent text-xs font-medium text-neutral-300 outline-none cursor-pointer" 
+                  className="bg-transparent text-xs font-medium text-slate-700 outline-none cursor-pointer" 
                 />
-                <span className="text-neutral-500 text-xs">to</span>
+                <span className="text-slate-400 text-xs">to</span>
                 <input 
                   type="date" 
                   value={dateRange.end} 
                   onChange={(e) => setDateRange(prev => ({...prev, end: e.target.value}))}
-                  className="bg-transparent text-xs font-medium text-neutral-300 outline-none cursor-pointer" 
+                  className="bg-transparent text-xs font-medium text-slate-700 outline-none cursor-pointer" 
                 />
               </div>
             </div>
 
-            {/* Essential 4 KPIs - Strict 2-3 Color Scheme on Pitch Black (Black + White + Sky/Orange) */}
+            {/* Essential 4 KPIs - Soft White Cards, Ergonomic Natural Contrast */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div 
                 onClick={() => setActiveTab('upcoming')}
-                className="bg-[#0a0a0a] border border-neutral-800 p-5 rounded-2xl cursor-pointer hover:border-sky-500/40 transition-all shadow-sm"
+                className="bg-white border border-slate-200 p-5 rounded-2xl cursor-pointer hover:border-sky-300 transition-all shadow-xs"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Upcoming</span>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Upcoming</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
                     Paid
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-sky-400">{stats.upcomingReservations}</p>
-                <p className="text-xs text-neutral-400 mt-2">Payment confirmed rides</p>
+                <p className="text-3xl font-extrabold text-sky-600">{stats.upcomingReservations}</p>
+                <p className="text-xs text-slate-500 mt-2">Payment confirmed rides</p>
               </div>
 
               <div 
                 onClick={() => { setActiveTab('bookings'); setBookingFilter('ongoing'); }}
-                className="bg-[#0a0a0a] border border-neutral-800 p-5 rounded-2xl cursor-pointer hover:border-neutral-700 transition-all shadow-sm"
+                className="bg-white border border-slate-200 p-5 rounded-2xl cursor-pointer hover:border-slate-300 transition-all shadow-xs"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">On Road</span>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-900 text-neutral-300">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">On Road</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
                     Active
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-white">{stats.activeRides}</p>
-                <p className="text-xs text-neutral-400 mt-2">Bikes currently running</p>
+                <p className="text-3xl font-extrabold text-slate-900">{stats.activeRides}</p>
+                <p className="text-xs text-slate-500 mt-2">Bikes currently running</p>
               </div>
 
               <div 
                 onClick={handleReturnWatch}
-                className="bg-[#0a0a0a] border border-neutral-800 p-5 rounded-2xl cursor-pointer hover:border-orange-500/40 transition-all shadow-sm"
+                className="bg-white border border-slate-200 p-5 rounded-2xl cursor-pointer hover:border-orange-300 transition-all shadow-xs"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Overdue</span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${stats.overdueRides > 0 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' : 'bg-neutral-900 text-neutral-400'}`}>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overdue</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${stats.overdueRides > 0 ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-slate-100 text-slate-600'}`}>
                     {stats.overdueRides > 0 ? 'Check Now' : 'Clear'}
                   </span>
                 </div>
-                <p className={`text-3xl font-bold ${stats.overdueRides > 0 ? 'text-orange-400' : 'text-neutral-300'}`}>{stats.overdueRides}</p>
-                <p className="text-xs text-neutral-400 mt-2">Past return schedule</p>
+                <p className={`text-3xl font-extrabold ${stats.overdueRides > 0 ? 'text-orange-600' : 'text-slate-800'}`}>{stats.overdueRides}</p>
+                <p className="text-xs text-slate-500 mt-2">Past return schedule</p>
               </div>
 
-              <div className="bg-[#0a0a0a] border border-neutral-800 p-5 rounded-2xl shadow-sm">
+              <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Revenue</span>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-900 text-neutral-300">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Revenue</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
                     Period
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-white">₹{stats.totalRevenue.toLocaleString()}</p>
-                <p className="text-xs text-neutral-400 mt-2">Rent in date range</p>
+                <p className="text-3xl font-extrabold text-slate-900">₹{stats.totalRevenue.toLocaleString()}</p>
+                <p className="text-xs text-slate-500 mt-2">Rent in date range</p>
               </div>
             </div>
 
@@ -636,18 +638,18 @@ export const AdminDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('leads')}
-                className="bg-[#0a0a0a] hover:bg-neutral-900 border border-neutral-800 hover:border-amber-500/50 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between"
+                className="bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-amber-300 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between shadow-xs"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center mb-3">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
-                  <h3 className="text-sm font-bold text-white">Log Lead</h3>
-                  <p className="text-xs text-neutral-400 mt-1">{stats.leadsNeedFollowUp} follow-ups pending</p>
+                  <h3 className="text-sm font-bold text-slate-900">Log Lead</h3>
+                  <p className="text-xs text-slate-500 mt-1">{stats.leadsNeedFollowUp} follow-ups pending</p>
                 </div>
-                <span className="text-xs font-semibold text-amber-400 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
+                <span className="text-xs font-semibold text-amber-600 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
                   Log Lead →
                 </span>
               </button>
@@ -655,18 +657,18 @@ export const AdminDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('calendar')}
-                className="bg-[#0a0a0a] hover:bg-neutral-900 border border-neutral-800 hover:border-orange-500/50 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between"
+                className="bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-orange-300 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between shadow-xs"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-orange-600/10 text-orange-400 flex items-center justify-center mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center mb-3">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <h3 className="text-sm font-bold text-white">Availability Calendar</h3>
-                  <p className="text-xs text-neutral-400 mt-1">See free vs booked bikes and time slots</p>
+                  <h3 className="text-sm font-bold text-slate-900">Availability Calendar</h3>
+                  <p className="text-xs text-slate-500 mt-1">See free vs booked bikes and time slots</p>
                 </div>
-                <span className="text-xs font-semibold text-orange-400 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
+                <span className="text-xs font-semibold text-orange-600 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
                   Open Calendar →
                 </span>
               </button>
@@ -674,18 +676,18 @@ export const AdminDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('upcoming')}
-                className="bg-[#0a0a0a] hover:bg-neutral-900 border border-neutral-800 hover:border-sky-500/50 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between"
+                className="bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-sky-300 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between shadow-xs"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center mb-3">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                   </div>
-                  <h3 className="text-sm font-bold text-white">Upcoming Queue</h3>
-                  <p className="text-xs text-neutral-400 mt-1">{stats.upcomingReservations} paid bookings awaiting handover</p>
+                  <h3 className="text-sm font-bold text-slate-900">Upcoming Queue</h3>
+                  <p className="text-xs text-slate-500 mt-1">{stats.upcomingReservations} paid bookings awaiting handover</p>
                 </div>
-                <span className="text-xs font-semibold text-sky-400 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
+                <span className="text-xs font-semibold text-sky-600 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
                   View Pickups →
                 </span>
               </button>
@@ -693,18 +695,18 @@ export const AdminDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setActiveTab('bookings'); setBookingFilter('pending'); }}
-                className="bg-[#0a0a0a] hover:bg-neutral-900 border border-neutral-800 hover:border-neutral-700 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between"
+                className="bg-white hover:bg-slate-50/80 border border-slate-200 hover:border-slate-300 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between shadow-xs"
               >
                 <div>
-                  <div className="w-8 h-8 rounded-lg bg-neutral-900 text-neutral-300 flex items-center justify-center mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center mb-3">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
-                  <h3 className="text-sm font-bold text-white">Pending Verification</h3>
-                  <p className="text-xs text-slate-400 mt-1">{stats.pendingPayments} inquiries awaiting advance check</p>
+                  <h3 className="text-sm font-bold text-slate-900">Pending Verification</h3>
+                  <p className="text-xs text-slate-500 mt-1">{stats.pendingPayments} inquiries awaiting advance check</p>
                 </div>
-                <span className="text-xs font-semibold text-slate-300 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
+                <span className="text-xs font-semibold text-slate-600 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
                   Review Payments →
                 </span>
               </button>

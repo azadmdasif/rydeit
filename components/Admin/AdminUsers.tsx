@@ -30,6 +30,7 @@ export const AdminUsers: React.FC = () => {
       const search = searchTerm.toLowerCase();
       return (
         (u.full_name?.toLowerCase().includes(search)) ||
+        (u.username?.toLowerCase().includes(search)) ||
         (u.email?.toLowerCase().includes(search)) ||
         (u.whatsapp?.toLowerCase().includes(search)) ||
         (u.phone?.toLowerCase().includes(search))
@@ -130,7 +131,10 @@ export const AdminUsers: React.FC = () => {
                         </div>
                         <div>
                           <div className="text-sm font-bold text-white uppercase tracking-tight">{profile.full_name || 'Anonymous Rider'}</div>
-                          <div className="text-[10px] text-white/30 uppercase mt-1 tracking-widest">{profile.email}</div>
+                          <div className="text-[10px] text-white/40 uppercase mt-1 tracking-widest flex items-center gap-2">
+                            <span>{profile.email}</span>
+                            {profile.username && <span className="text-orange-500 font-mono lowercase">@{profile.username}</span>}
+                          </div>
                         </div>
                       </div>
                     </td>

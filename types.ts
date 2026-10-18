@@ -28,6 +28,7 @@ export interface UserProfile {
   email: string | null;
   phone: string | null;
   whatsapp: string | null;
+  username?: string | null;
   dl_url: string | null;
   aadhaar_url: string | null;
   dl_number: string | null;
