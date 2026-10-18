@@ -446,7 +446,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       // 3. Update booking record
       const updatePayload: any = {
         payment_screenshot_url: publicUrl || 'uploaded_by_user',
-        status: 'verifying_payment'
+        status: 'pending_payment'
       };
       if (user) {
         updatePayload.user_id = user.id;
@@ -2039,7 +2039,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                       {paymentScreenshotUploaded ? (
                         <div className="p-4 rounded-xl bg-sky-500/10 border border-sky-500/30 text-center space-y-2">
                           <p className="text-xs font-bold text-sky-400">
-                            Payment screenshot submitted! Status: Verifying Payment.
+                            Payment screenshot submitted! Status: Pending Payment.
                           </p>
                           <p className="text-[11px] text-neutral-300">
                             Your money is safe and slot is being reserved.

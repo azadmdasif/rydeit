@@ -5,7 +5,8 @@ import {
   Routes, 
   Route, 
   Navigate, 
-  useNavigate 
+  useNavigate,
+  useLocation
 } from 'react-router-dom';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
@@ -81,6 +82,9 @@ const AppContent: React.FC = () => {
   const [modalContent, setModalContent] = useState<LegalContent | null>(null);
   const { isAdmin, loading } = useAuth();
   const { bikes: fleetBikes } = useFleetBikes();
+  const location = useLocation();
+
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   if (loading) return (
     <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center gap-6">
@@ -91,7 +95,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-brand-black text-brand-gray-light flex flex-col w-full">
-      <Header />
+      {!isAdminRoute && <Header />}
       <main className="flex-grow w-full bg-brand-black">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -108,8 +112,8 @@ const AppContent: React.FC = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <Footer onShowPolicy={setModalContent} />
-      <WhatsAppButton />
+      {!isAdminRoute && <Footer onShowPolicy={setModalContent} />}
+      {!isAdminRoute && <WhatsAppButton />}
       {modalContent && (
         <Modal isOpen={!!modalContent} onClose={() => setModalContent(null)} title={modalContent.title}>
           <div dangerouslySetInnerHTML={{ __html: modalContent.content }} />

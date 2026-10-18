@@ -9,6 +9,8 @@ export const EARLY_LATE_FEE = 99;
 export const OUTSTATION_DAILY_SURCHARGE = 99;
 export const DELIVERY_PICKUP_FEE = 199;
 export const GOOGLE_MAPS_REVIEW_LINK = 'https://g.page/r/CTu6seBNVsLqEBM/review';
+export const GARAGE_MAPS_LINK = 'https://maps.app.goo.gl/qam5mMjonF66ZHkr6?g_st=ic';
+export const GARAGE_ADDRESS = '6C, Mohammadan Burial Ground Lane, Kolkata - 700023';
 
 export const BIKES: Bike[] = [
   // Scooters

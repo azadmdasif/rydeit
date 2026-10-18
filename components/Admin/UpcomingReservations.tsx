@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabase';
 import { useToast } from '../../App';
-import { GOOGLE_MAPS_REVIEW_LINK, UPI_ID } from '../../constants';
+import { GOOGLE_MAPS_REVIEW_LINK, UPI_ID, GARAGE_MAPS_LINK, GARAGE_ADDRESS } from '../../constants';
 import { getFleetBikes } from '../../fleetStorage';
 import { Modal } from '../Modal';
 
@@ -10,7 +10,7 @@ interface UpcomingReservationsProps {
   onRefreshStats?: () => void;
 }
 
-type UpcomingFilter = 'all' | 'today' | 'tomorrow' | 'week' | 'confirmed' | 'verifying';
+type UpcomingFilter = 'all' | 'today' | 'tomorrow' | 'week' | 'confirmed' | 'pending';
 
 export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRefreshStats }) => {
   const { showToast } = useToast();
@@ -40,6 +40,168 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
     note: ''
   });
 
+  // Edit Booking Modal state
+  const [editingBooking, setEditingBooking] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    customer_name: '',
+    customer_phone: '',
+    customer_email: '',
+    bike_id: 15,
+    pickup_date: '',
+    pickup_time: '10:00',
+    return_date: '',
+    return_time: '20:00',
+    total_rent: 700,
+    advance_amount: 500,
+    security_deposit: 1000,
+    status: 'booking_confirmed',
+    needs_delivery: false,
+    address: '',
+    admin_notes: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const calculateStandardRent = (bikeId: number, pickDate: string, pickTime: string, retDate: string, retTime: string) => {
+    const bike = fleetBikes.find(b => b.id === bikeId) || BIKES.find(b => b.id === bikeId);
+    const dailyRate = bike?.dailyRate || 700;
+    if (!pickDate || !retDate) return dailyRate;
+    const start = new Date(`${pickDate}T${pickTime || '10:00'}`);
+    const end = new Date(`${retDate}T${retTime || '20:00'}`);
+    const diffMs = end.getTime() - start.getTime();
+    const diffHours = Math.max(1, diffMs / (1000 * 60 * 60));
+    const days = Math.max(1, Math.ceil(diffHours / 24));
+    return days * dailyRate;
+  };
+
+  const getDurationText = (pickDate: string, pickTime: string, retDate: string, retTime: string) => {
+    if (!pickDate || !retDate) return '1 Day';
+    const start = new Date(`${pickDate}T${pickTime || '10:00'}`);
+    const end = new Date(`${retDate}T${retTime || '20:00'}`);
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) return 'Same Day';
+    const totalHours = Math.round(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const remHours = totalHours % 24;
+    if (days === 0) return `${totalHours} Hours`;
+    if (remHours === 0) return `${days} Day${days > 1 ? 's' : ''}`;
+    return `${days} Day${days > 1 ? 's' : ''} ${remHours} Hr${remHours > 1 ? 's' : ''}`;
+  };
+
+  const handleOpenEditModal = (booking: any) => {
+    setEditingBooking(booking);
+    setEditForm({
+      customer_name: booking.customer_name || '',
+      customer_phone: booking.customer_phone || '',
+      customer_email: booking.customer_email || '',
+      bike_id: Number(booking.bike_id) || fleetBikes[0]?.id || 15,
+      pickup_date: booking.pickup_date || '',
+      pickup_time: booking.pickup_time || '10:00',
+      return_date: booking.return_date || '',
+      return_time: booking.return_time || '20:00',
+      total_rent: Number(booking.total_rent) || 0,
+      advance_amount: Number(booking.advance_amount) || 0,
+      security_deposit: Number(booking.security_deposit) || 1000,
+      status: booking.status || 'booking_confirmed',
+      needs_delivery: Boolean(booking.needs_delivery),
+      address: booking.address || '',
+      admin_notes: booking.admin_notes || '',
+    });
+  };
+
+  const handleRecalculateEditRent = () => {
+    const stdRent = calculateStandardRent(
+      editForm.bike_id,
+      editForm.pickup_date,
+      editForm.pickup_time,
+      editForm.return_date,
+      editForm.return_time
+    );
+    setEditForm(prev => ({ ...prev, total_rent: stdRent }));
+    showToast(`Rent recalculated to standard tariff: ₹${stdRent}`, "info");
+  };
+
+  const handleSaveEditBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBooking) return;
+    if (!editForm.customer_name.trim()) {
+      showToast("Customer name is required", "warning");
+      return;
+    }
+    if (!editForm.customer_phone.trim()) {
+      showToast("Customer phone is required", "warning");
+      return;
+    }
+    if (!editForm.pickup_date || !editForm.return_date) {
+      showToast("Pickup and return dates are required", "warning");
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      // Slot collision check: only block bookings for any vehicle if its status is payment confirmed ('booking_confirmed' or 'ongoing')
+      const reqStart = new Date(`${editForm.pickup_date}T${editForm.pickup_time || '10:00'}`).getTime();
+      const reqEnd = new Date(`${editForm.return_date}T${editForm.return_time || '20:00'}`).getTime();
+      if (!isNaN(reqStart) && !isNaN(reqEnd)) {
+        const { data: conflicts } = await supabase
+          .from('bookings')
+          .select('id, readable_id, pickup_date, pickup_time, return_date, return_time')
+          .eq('bike_id', Number(editForm.bike_id))
+          .in('status', ['booking_confirmed', 'ongoing']);
+
+        const conflict = conflicts?.find(b => {
+          if (b.id === editingBooking.id) return false;
+          const bStart = new Date(`${b.pickup_date}T${b.pickup_time || '10:00'}`).getTime();
+          const bEnd = new Date(`${b.return_date}T${b.return_time || '20:00'}`).getTime();
+          return reqStart < bEnd && reqEnd > bStart;
+        });
+
+        if (conflict) {
+          showToast(`Conflict: Bike already has a payment-confirmed reservation (${conflict.readable_id || `#${conflict.id}`}). Unconfirmed bookings do not block slots.`, 'error');
+          setSavingEdit(false);
+          return;
+        }
+      }
+
+      const updates = {
+        customer_name: editForm.customer_name.trim(),
+        customer_phone: editForm.customer_phone.trim(),
+        customer_email: editForm.customer_email.trim(),
+        bike_id: Number(editForm.bike_id),
+        pickup_date: editForm.pickup_date,
+        pickup_time: editForm.pickup_time,
+        return_date: editForm.return_date,
+        return_time: editForm.return_time,
+        total_rent: Number(editForm.total_rent),
+        advance_amount: Number(editForm.advance_amount),
+        security_deposit: Number(editForm.security_deposit),
+        status: editForm.status,
+        needs_delivery: editForm.needs_delivery,
+        address: editForm.address.trim(),
+        admin_notes: editForm.admin_notes.trim(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('bookings')
+        .update(updates)
+        .eq('id', editingBooking.id);
+
+      if (error) throw error;
+
+      showToast(`Booking ${editingBooking.readable_id || `#${editingBooking.id}`} updated successfully!`, "success");
+      setEditingBooking(null);
+      await fetchUpcomingReservations();
+      if (selectedBooking?.id === editingBooking.id) {
+        setSelectedBooking((prev: any) => prev ? { ...prev, ...updates } : null);
+      }
+    } catch (err: any) {
+      console.error("Error updating booking:", err);
+      showToast(`Failed to update booking: ${err.message || 'Unknown error'}`, "error");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   useEffect(() => {
     fetchUpcomingReservations();
     const handleFleetUpdate = () => setFleetBikes(getFleetBikes());
@@ -50,12 +212,11 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
   const fetchUpcomingReservations = async () => {
     setLoading(true);
     try {
-      // Query reservations where advance has been paid or confirmed:
-      // status = 'booking_confirmed' (advance verified/locked) OR 'verifying_payment' (advance paid via UPI/cash, awaiting/checking)
+      // Query reservations: status = 'booking_confirmed' or 'pending_payment'
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
-        .in('status', ['booking_confirmed', 'verifying_payment'])
+        .in('status', ['booking_confirmed', 'pending_payment'])
         .order('pickup_date', { ascending: true })
         .order('pickup_time', { ascending: true });
 
@@ -265,7 +426,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
       if (activeFilter === 'tomorrow' && b.pickup_date !== tomorrowStr) return false;
       if (activeFilter === 'week' && (b.pickup_date < todayStr || b.pickup_date > nextWeekStr)) return false;
       if (activeFilter === 'confirmed' && b.status !== 'booking_confirmed') return false;
-      if (activeFilter === 'verifying' && b.status !== 'verifying_payment') return false;
+      if (activeFilter === 'pending' && b.status !== 'pending_payment') return false;
 
       // 2. Machine filter
       if (bikeFilter !== 'all' && b.bike_id.toString() !== bikeFilter) return false;
@@ -347,7 +508,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
 
     let message = '';
 
-    if (booking.status === 'verifying_payment' || booking.status === 'pending_payment') {
+    if (booking.status === 'pending_payment') {
       message = `*RYDEIT - BOOKING & PAYMENT DETAILS* 🏍️💨\n\n` +
         `Dear *${booking.customer_name}*,\n\n` +
         `Your booking request for *${bikeName}* has been received! Your booking status is currently *PAYMENT PENDING*.\n\n` +
@@ -377,7 +538,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
         `🏁 *Return:* ${booking.return_date} @ ${booking.return_time}\n` +
         `💰 *Advance Paid:* ₹${advancePaid} (Confirmed ✓)\n` +
         `💵 *Balance at Handover:* ₹${balanceDue}\n\n` +
-        `📍 *Garage Location:* 6C, Mohammadan Burial Ground Lane, Kolkata - 700023\n` +
+        `📍 *Garage Location & Map:* ${GARAGE_MAPS_LINK} (${GARAGE_ADDRESS})\n` +
         `⚠️ *Please bring:* Original Driving License & Aadhaar Card for biometric verification.\n\n` +
         `Have a safe & thrilling journey! Reach us at +91 76860 22245 for any assistance.`;
     }
@@ -499,7 +660,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
               { id: 'tomorrow', label: `Tomorrow (${metrics.tomorrowDepartures})` },
               { id: 'week', label: 'Next 7 Days' },
               { id: 'confirmed', label: 'Payment Confirmed' },
-              { id: 'verifying', label: 'Proof Under Review' }
+              { id: 'pending', label: 'Payment Pending' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -576,7 +737,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
             const balanceDue = Math.max(0, finalAgreedRent - advancePaid);
             const badge = getRelativeTimeBadge(booking.pickup_date, booking.pickup_time);
             const isConfirmed = booking.status === 'booking_confirmed';
-            const isVerifying = booking.status === 'verifying_payment';
+            const isPending = booking.status === 'pending_payment';
             const isExpanded = expandedBookingId === booking.id;
 
             return (
@@ -608,8 +769,8 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                     </div>
                   </div>
 
-                  {/* Pickup Slot */}
-                  <div className="flex items-center gap-6">
+                  {/* Pickup Slot & Status & Primary Actions */}
+                  <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
                     <div>
                       <span className="text-[10px] text-neutral-500 uppercase font-semibold block">Pickup</span>
                       <p className="text-xs font-semibold text-white">
@@ -617,32 +778,90 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                       </p>
                     </div>
 
-                    {/* Advance Status Badge (Sky for Confirmed) */}
+                    {/* Advance Status Badge (Sky for Confirmed, Amber for Pending) */}
                     <div>
                       <span className="text-[10px] text-neutral-500 uppercase font-semibold block">Advance</span>
                       <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
                         isConfirmed 
                           ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30' 
-                          : 'bg-neutral-900 text-neutral-300 border border-neutral-800'
+                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                       }`}>
-                        {isConfirmed ? `₹${advancePaid} Paid ✓` : 'Under Review'}
+                        {isConfirmed ? `₹${advancePaid} Paid ✓` : 'Payment Pending'}
                       </span>
                     </div>
 
-                    {/* Actions: Primary Dispatch + Details Toggle */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDispatch(booking)}
-                        className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer"
-                      >
-                        Dispatch
-                      </button>
+                    {/* Actions: Right next to booking details */}
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      {isPending ? (
+                        <>
+                          <a
+                            href={getWhatsAppReminderUrl(booking, bike?.name || 'Machine')}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500 hover:text-black border border-emerald-500/30 whitespace-nowrap shadow-sm active:scale-95"
+                            title="Send WhatsApp payment reminder with payment ID to reserve slot"
+                          >
+                            <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
+                              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.882-4.434 9.885-9.885.002-2.641-1.026-5.124-2.893-6.992-1.867-1.868-4.35-2.896-6.992-2.897-5.451 0-9.885 4.434-9.887 9.884-.001 2.126.602 3.738 1.611 5.421l-.999 3.646 3.883-.769zm10.875-6.193c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                            </svg>
+                            <span>Send Payment reminder</span>
+                          </a>
+
+                          <a
+                            href={`tel:${booking.customer_phone}`}
+                            className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white border border-neutral-800 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                            title={`Call ${booking.customer_name} (${booking.customer_phone})`}
+                          >
+                            <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            <span>Call</span>
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBooking(booking)}
+                            className="px-3.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-400 hover:text-black text-sky-400 border border-sky-500/30 text-xs font-semibold cursor-pointer transition-all active:scale-95 whitespace-nowrap"
+                          >
+                            Operate
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickDispatch(booking)}
+                            className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition-all shadow-sm cursor-pointer"
+                          >
+                            Dispatch
+                          </button>
+
+                          <a
+                            href={`tel:${booking.customer_phone}`}
+                            className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white border border-neutral-800 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                            title={`Call ${booking.customer_name} (${booking.customer_phone})`}
+                          >
+                            <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            <span>Call</span>
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBooking(booking)}
+                            className="px-3.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-400 hover:text-black text-sky-400 border border-sky-500/30 text-xs font-semibold cursor-pointer transition-all active:scale-95 whitespace-nowrap"
+                          >
+                            Operate
+                          </button>
+                        </>
+                      )}
 
                       <button
                         type="button"
                         onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
                         className="px-3 py-1.5 rounded-xl bg-black hover:bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white font-medium text-xs transition-all cursor-pointer"
+                        title={isExpanded ? 'Hide details' : 'Show details'}
                       >
                         {isExpanded ? 'Less ▲' : 'Details ▼'}
                       </button>
@@ -652,7 +871,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
 
                 {/* Progressive Disclosure: Details Only When Requested */}
                 {isExpanded && (
-                  <div className="pt-3 border-t border-neutral-800 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs animate-fade-in">
+                  <div className="pt-3 border-t border-neutral-800 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs animate-fade-in">
                     {/* Return & Logistics */}
                     <div className="bg-black p-3 rounded-xl border border-neutral-800 space-y-1">
                       <span className="text-[10px] uppercase font-semibold text-neutral-500 block">Return Schedule & Location</span>
@@ -684,63 +903,6 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                           View UPI Screenshot →
                         </button>
                       )}
-                    </div>
-
-                    {/* Secondary Operations Actions */}
-                    <div className="bg-black p-3 rounded-xl border border-neutral-800 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenConfirmPaymentModal(booking)}
-                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold cursor-pointer"
-                      >
-                        Rent Terms
-                      </button>
-
-                      <a
-                        href={getWhatsAppReminderUrl(booking, bike?.name || 'Machine')}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                          isVerifying 
-                            ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-black border border-emerald-500/30' 
-                            : 'bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30'
-                        }`}
-                        title={isVerifying ? 'Send detailed booking details with payment ID to reserve slot' : 'Send official booking confirmation message on WhatsApp'}
-                      >
-                        <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
-                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.882-4.434 9.885-9.885.002-2.641-1.026-5.124-2.893-6.992-1.867-1.868-4.35-2.896-6.992-2.897-5.451 0-9.885 4.434-9.887 9.884-.001 2.126.602 3.738 1.611 5.421l-.999 3.646 3.883-.769zm10.875-6.193c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                        </svg>
-                        <span>{isVerifying ? 'Send WhatsApp Reminder' : 'Send Confirmation'}</span>
-                      </a>
-
-                      <a
-                        href={getTermsAndRefundPolicyUrl(booking, bike?.name || 'Machine')}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-semibold transition-all flex items-center gap-1.5"
-                        title="Send Terms, Conditions & Refund Policy to rider on WhatsApp"
-                      >
-                        <svg className="w-3.5 h-3.5 fill-none stroke-current shrink-0" viewBox="0 0 24 24" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>Terms & Policy</span>
-                      </a>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBooking(booking)}
-                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold cursor-pointer"
-                      >
-                        Operate
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleOpenCancelModal(booking)}
-                        className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-rose-950/60 text-neutral-400 hover:text-rose-400 text-xs font-medium cursor-pointer"
-                      >
-                        Cancel
-                      </button>
                     </div>
                   </div>
                 )}
@@ -809,6 +971,32 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
                     <span className="text-[10px] text-white/50 uppercase font-bold">
                       Vehicle: <strong className="text-white">{BIKES.find(b => b.id === selectedBooking.bike_id)?.name}</strong>
                     </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(selectedBooking)}
+                      className="inline-flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-400 hover:text-black text-amber-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                      title="Edit booking details (name, dates, vehicle, rent)"
+                    >
+                      <svg className="w-3.5 h-3.5 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                      <span>Edit Details</span>
+                    </button>
+
+                    {selectedBooking.status !== 'cancelled' && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCancelModal(selectedBooking)}
+                        className="inline-flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500 hover:text-white text-rose-300 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                        title="Cancel this reservation"
+                      >
+                        <svg className="w-3.5 h-3.5 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        <span>Cancel Booking</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1350,6 +1538,324 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* EDIT BOOKING DETAILS MODAL */}
+      {editingBooking && (
+        <Modal
+          isOpen={!!editingBooking}
+          onClose={() => setEditingBooking(null)}
+          title={`EDIT RESERVATION: ${editingBooking.readable_id || `#${editingBooking.id}`}`}
+          maxWidth="3xl"
+        >
+          <form onSubmit={handleSaveEditBooking} className="space-y-6 py-2">
+            
+            {/* Header info bar */}
+            <div className="bg-brand-black/60 p-4 rounded-2xl border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <span className="text-[9px] font-black uppercase text-amber-400 tracking-widest block">
+                  Admin Reservation Modification
+                </span>
+                <p className="text-white text-sm font-bold">
+                  Editing: <span className="font-mono text-amber-300">{editingBooking.readable_id || editingBooking.id}</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-white/50 uppercase font-semibold">Status:</span>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm(p => ({ ...p, status: e.target.value }))}
+                  className="bg-brand-black border border-white/20 rounded-lg px-2.5 py-1 text-xs text-white font-bold outline-none focus:border-amber-400"
+                >
+                  <option value="pending_payment">Pending Payment</option>
+                  <option value="booking_confirmed">Booking Confirmed</option>
+                  <option value="ongoing">Ongoing (Dispatched)</option>
+                  <option value="completed">Completed (Returned)</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 1. CUSTOMER IDENTITY */}
+            <div className="bg-brand-black/40 p-6 rounded-2xl border border-white/5 space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-widest text-brand-teal flex items-center gap-2">
+                <span>👤</span> 1. Customer Details
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Customer Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.customer_name}
+                    onChange={(e) => setEditForm(p => ({ ...p, customer_name: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium outline-none focus:border-brand-teal"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Phone / WhatsApp Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={editForm.customer_phone}
+                    onChange={(e) => setEditForm(p => ({ ...p, customer_phone: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium outline-none focus:border-brand-teal"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.customer_email}
+                    onChange={(e) => setEditForm(p => ({ ...p, customer_email: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium outline-none focus:border-brand-teal"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 2. VEHICLE SELECTION */}
+            <div className="bg-brand-black/40 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+                  <span>🏍️</span> 2. Assigned Vehicle
+                </h4>
+                {(() => {
+                  const currentBike = fleetBikes.find(b => b.id === editForm.bike_id) || BIKES.find(b => b.id === editForm.bike_id);
+                  return (
+                    <span className="text-[11px] font-mono font-semibold text-brand-orange">
+                      Daily Rate: ₹{currentBike?.dailyRate || 700}/day
+                    </span>
+                  );
+                })()}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Select Machine
+                  </label>
+                  <select
+                    value={editForm.bike_id}
+                    onChange={(e) => {
+                      const newBikeId = parseInt(e.target.value);
+                      setEditForm(p => ({ ...p, bike_id: newBikeId }));
+                    }}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium outline-none focus:border-amber-400"
+                  >
+                    {fleetBikes.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.category}) — ₹{b.dailyRate}/day {b.rc_number ? `[${b.rc_number}]` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Bike preview */}
+                {(() => {
+                  const b = fleetBikes.find(x => x.id === editForm.bike_id) || BIKES.find(x => x.id === editForm.bike_id);
+                  if (!b) return null;
+                  return (
+                    <div className="bg-brand-black/80 border border-white/10 rounded-xl p-2.5 flex items-center gap-3">
+                      <img src={b.imageUrl} alt={b.name} className="w-12 h-12 rounded-lg object-cover bg-neutral-900 border border-white/10 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{b.name}</p>
+                        <p className="text-[10px] text-white/50">{b.category} • {b.rc_number || 'RC on file'}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* 3. DATES & TIMINGS */}
+            <div className="bg-brand-black/40 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-black uppercase tracking-widest text-sky-400 flex items-center gap-2">
+                  <span>📅</span> 3. Rental Schedule
+                </h4>
+                <span className="text-[11px] font-bold text-sky-300">
+                  Duration: {getDurationText(editForm.pickup_date, editForm.pickup_time, editForm.return_date, editForm.return_time)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Pickup */}
+                <div className="bg-brand-black/50 p-4 rounded-xl border border-white/5 space-y-3">
+                  <span className="text-[9px] font-black uppercase text-sky-400 tracking-wider block">Pickup</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[8px] font-black uppercase text-white/40 block mb-1">Date</label>
+                      <input
+                        type="date"
+                        required
+                        value={editForm.pickup_date}
+                        onChange={(e) => setEditForm(p => ({ ...p, pickup_date: e.target.value }))}
+                        className="w-full bg-brand-black border border-white/15 rounded-lg p-2 text-xs text-white outline-none focus:border-sky-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-black uppercase text-white/40 block mb-1">Time</label>
+                      <input
+                        type="time"
+                        required
+                        value={editForm.pickup_time}
+                        onChange={(e) => setEditForm(p => ({ ...p, pickup_time: e.target.value }))}
+                        className="w-full bg-brand-black border border-white/15 rounded-lg p-2 text-xs text-white outline-none focus:border-sky-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Return */}
+                <div className="bg-brand-black/50 p-4 rounded-xl border border-white/5 space-y-3">
+                  <span className="text-[9px] font-black uppercase text-brand-yellow tracking-wider block">Return</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[8px] font-black uppercase text-white/40 block mb-1">Date</label>
+                      <input
+                        type="date"
+                        required
+                        value={editForm.return_date}
+                        onChange={(e) => setEditForm(p => ({ ...p, return_date: e.target.value }))}
+                        className="w-full bg-brand-black border border-white/15 rounded-lg p-2 text-xs text-white outline-none focus:border-brand-yellow"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-black uppercase text-white/40 block mb-1">Time</label>
+                      <input
+                        type="time"
+                        required
+                        value={editForm.return_time}
+                        onChange={(e) => setEditForm(p => ({ ...p, return_time: e.target.value }))}
+                        className="w-full bg-brand-black border border-white/15 rounded-lg p-2 text-xs text-white outline-none focus:border-brand-yellow"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. FINANCIALS */}
+            <div className="bg-brand-black/40 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                  <span>💰</span> 4. Financial Terms
+                </h4>
+                <button
+                  type="button"
+                  onClick={handleRecalculateEditRent}
+                  className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 rounded-lg text-[9px] font-bold uppercase transition-all cursor-pointer"
+                >
+                  Auto-Calculate Standard Tariff ⟳
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Total Rent (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editForm.total_rent}
+                    onChange={(e) => setEditForm(p => ({ ...p, total_rent: parseFloat(e.target.value) || 0 }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-sm font-heading text-white outline-none focus:border-emerald-400"
+                  />
+                  <span className="text-[8px] text-white/40 block">Standard: ₹{calculateStandardRent(editForm.bike_id, editForm.pickup_date, editForm.pickup_time, editForm.return_date, editForm.return_time)}</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Advance Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.advance_amount}
+                    onChange={(e) => setEditForm(p => ({ ...p, advance_amount: parseFloat(e.target.value) || 0 }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-sm font-heading text-white outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Security Deposit (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.security_deposit}
+                    onChange={(e) => setEditForm(p => ({ ...p, security_deposit: parseFloat(e.target.value) || 0 }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-sm font-heading text-white outline-none focus:border-emerald-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 5. LOGISTICS */}
+            <div className="bg-brand-black/40 p-6 rounded-2xl border border-white/5 space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-widest text-neutral-300 flex items-center gap-2">
+                <span>📍</span> 5. Logistics & Delivery Address
+              </h4>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit_upcoming_delivery"
+                    checked={editForm.needs_delivery}
+                    onChange={(e) => setEditForm(p => ({ ...p, needs_delivery: e.target.checked }))}
+                    className="rounded border-white/20 text-brand-orange focus:ring-0 w-4 h-4"
+                  />
+                  <label htmlFor="edit_upcoming_delivery" className="text-xs text-white font-medium cursor-pointer">
+                    Home Delivery / Return Pickup Required
+                  </label>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                    Delivery Address / Location Notes
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter delivery/pickup address (or leave blank for garage handover)"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm(p => ({ ...p, address: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-white/40"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingBooking(null)}
+                className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-white/70 font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingEdit}
+                className="flex-1 py-3.5 bg-amber-400 hover:bg-amber-300 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-400/20 cursor-pointer disabled:opacity-50"
+              >
+                {savingEdit ? 'Saving Changes...' : 'Save Updated Reservation'}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>

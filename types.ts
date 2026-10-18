@@ -17,7 +17,6 @@ export interface Bike {
 
 export type BookingStatus = 
   | 'pending_payment' 
-  | 'verifying_payment' 
   | 'booking_confirmed' 
   | 'ongoing' 
   | 'completed' 
@@ -88,3 +87,58 @@ export interface BookingDetails {
   pickupMethod: 'garage' | 'home';
   dropMethod: 'garage' | 'home';
 }
+
+export type LeadVehiclePreference = 'scooty' | 'bike' | 'bullet' | 'sports' | 'flexible';
+
+export type LeadStatus = 
+  | 'need_follow_up' 
+  | 'contacted' 
+  | 'booked' 
+  | 'not_interested' 
+  | 'lost_to_availability' 
+  | 'lost_to_price' 
+  | 'postponed';
+
+export type LeadSource = 'whatsapp' | 'call' | 'walk_in' | 'instagram' | 'website';
+
+export type RentalPurpose = 
+  | 'Weekend Trip / Outing'
+  | 'Daily Commute / Office'
+  | 'Local City Errands'
+  | 'Long Highway Tour'
+  | 'Exam / Interview / Work'
+  | 'Vehicle in Service / Replacement'
+  | 'Wedding / Family Function'
+  | 'Joyride / Trial'
+  | 'Other';
+
+export interface FollowUpComment {
+  id: string;
+  timestamp: string;
+  comment: string;
+  next_follow_up_date?: string;
+  status_after?: LeadStatus;
+}
+
+export interface Lead {
+  id: string;
+  created_at: string;
+  customer_name: string;
+  customer_phone: string;
+  source: LeadSource;
+  vehicle_preference: LeadVehiclePreference;
+  specific_vehicle_id?: number | null;
+  specific_vehicle_name?: string;
+  pickup_date: string;
+  return_date: string;
+  rental_duration_days: number;
+  purpose: RentalPurpose;
+  budget_expectation?: string;
+  status: LeadStatus;
+  follow_up_date?: string;
+  notes?: string;
+  follow_up_comments?: FollowUpComment[];
+  converted_booking_id?: string | null;
+  converted_at?: string | null;
+}
+

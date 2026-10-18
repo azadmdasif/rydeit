@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../../supabase';
 import { useToast } from '../../App';
 import { AdminBookings } from './AdminBookings';
@@ -6,10 +7,12 @@ import { AdminFleet } from './AdminFleet';
 import { AdminUsers } from './AdminUsers';
 import { FinanceLedger } from './Finance/FinanceLedger';
 import { UpcomingReservations } from './UpcomingReservations';
+import { AdminLeads } from './AdminLeads';
 import { AvailabilityCalendar } from '../AvailabilityCalendar';
 import { getFleetBikes } from '../../fleetStorage';
+import { getStoredLeads } from '../../leadsStorage';
 
-type AdminTab = 'overview' | 'calendar' | 'upcoming' | 'bookings' | 'fleet' | 'users' | 'finance' | 'reports';
+type AdminTab = 'overview' | 'leads' | 'calendar' | 'upcoming' | 'bookings' | 'fleet' | 'users' | 'finance' | 'reports';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -23,6 +26,7 @@ export const AdminDashboard: React.FC = () => {
       return false;
     }
   });
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
   
   // Date range state
   const [dateRange, setDateRange] = useState({
@@ -37,7 +41,8 @@ export const AdminDashboard: React.FC = () => {
     upcomingReservations: 0,
     totalRevenue: 0,
     totalUsers: 0,
-    overdueRides: 0
+    overdueRides: 0,
+    leadsNeedFollowUp: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -69,10 +74,13 @@ export const AdminDashboard: React.FC = () => {
         ['booking_confirmed', 'ongoing'].includes(b.status) && b.return_date >= todayStr
       );
 
+      const currentLeads = getStoredLeads();
+      const followUpCount = currentLeads.filter(l => l.status === 'need_follow_up').length;
+
       setStats({
         totalBookings: allBookings.length,
         activeRides: allBookings.filter(b => b.status === 'ongoing').length,
-        pendingPayments: allBookings.filter(b => b.status === 'verifying_payment').length,
+        pendingPayments: allBookings.filter(b => b.status === 'pending_payment').length,
         upcomingReservations: upcoming.length,
         totalRevenue: rangeRevenue,
         totalUsers: usersCount || 0,
@@ -80,7 +88,8 @@ export const AdminDashboard: React.FC = () => {
           if (b.status !== 'ongoing') return false;
           const returnDate = new Date(`${b.return_date}T${b.return_time}`);
           return returnDate < now;
-        }).length
+        }).length,
+        leadsNeedFollowUp: followUpCount
       });
     }
     setLoading(false);
@@ -98,6 +107,16 @@ export const AdminDashboard: React.FC = () => {
       icon: (
         <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ) 
+    },
+    { 
+      id: 'leads', 
+      label: 'Log Lead', 
+      badge: stats.leadsNeedFollowUp, 
+      icon: (
+        <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
       ) 
     },
@@ -161,8 +180,189 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-black text-slate-100 flex flex-col lg:flex-row font-sans selection:bg-orange-500 selection:text-white">
-      {/* Sidebar with pitch black styling */}
-      <aside className={`transition-all duration-300 bg-black border-b lg:border-r border-neutral-900 flex flex-col shrink-0 ${isSidebarCollapsed ? 'w-full lg:w-20' : 'w-full lg:w-72'}`}>
+      {/* Mobile Top Navigation Bar (Hidden on Desktop) */}
+      <div className="lg:hidden sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-neutral-900 px-3.5 py-2.5 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setIsMobileDrawerOpen(true)}
+          className="px-2.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white flex items-center gap-1.5 border border-neutral-800 transition-all cursor-pointer active:scale-95"
+          title="Open Admin Menu"
+        >
+          <svg className="w-4 h-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          <span className="text-xs font-bold uppercase tracking-wider text-neutral-200">Menu</span>
+          {(stats.leadsNeedFollowUp > 0 || stats.upcomingReservations > 0) && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+          )}
+        </button>
+
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
+          <span className="text-xs font-bold uppercase tracking-wider text-white">
+            {tabs.find(t => t.id === activeTab)?.label || 'Log Lead'}
+          </span>
+        </div>
+
+        <Link
+          to="/"
+          className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 transition-colors"
+          title="Exit to customer website"
+        >
+          Site ↗
+        </Link>
+      </div>
+
+      {/* Mobile Slide-Over Drawer (Only on Mobile) */}
+      {isMobileDrawerOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+
+          {/* Drawer Content */}
+          <div className="relative w-72 max-w-[85vw] bg-neutral-950 border-r border-neutral-800 p-5 z-50 flex flex-col justify-between overflow-y-auto animate-fade-in shadow-2xl">
+            <div className="space-y-6">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                    <span className="font-heading text-lg text-white tracking-wide">
+                      RYDEIT <span className="text-orange-500">ADMIN</span>
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-neutral-400 mt-0.5">
+                    Operations & Fleet Console
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="p-2 rounded-xl bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Navigation Tabs in Drawer */}
+              <nav className="space-y-1.5">
+                {tabs.map(tab => {
+                  const isFinance = tab.id === 'finance';
+                  const isActive = activeTab === tab.id;
+
+                  if (isFinance) {
+                    return (
+                      <div key={tab.id} className="space-y-1">
+                        <div
+                          onClick={() => {
+                            setActiveTab('finance');
+                            setIsFinanceExpanded(prev => !prev);
+                          }}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-orange-600 text-white shadow-sm'
+                              : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={isActive ? 'text-white' : 'text-neutral-400'}>
+                              {tab.icon}
+                            </span>
+                            <span>{tab.label}</span>
+                          </div>
+                          <span className={`text-neutral-400 text-xs transition-transform ${isFinanceExpanded ? 'rotate-180' : ''}`}>▾</span>
+                        </div>
+
+                        {isFinanceExpanded && (
+                          <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-orange-500/40 ml-4">
+                            {[
+                              { id: 'sheet', label: 'Ledger Book', icon: '📑' },
+                              { id: 'capex', label: 'CapEx & Assets', icon: '🏍️' },
+                              { id: 'pnl', label: 'P&L Statement', icon: '📈' },
+                              { id: 'analytics', label: 'Analytics', icon: '📊' }
+                            ].map(sub => {
+                              const isSubActive = isActive && financeSubView === sub.id;
+                              return (
+                                <button
+                                  key={sub.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTab('finance');
+                                    setFinanceSubView(sub.id as any);
+                                    setIsMobileDrawerOpen(false);
+                                  }}
+                                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
+                                    isSubActive
+                                      ? 'bg-sky-600 text-white font-semibold'
+                                      : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200'
+                                  }`}
+                                >
+                                  <span className="text-xs">{sub.icon}</span>
+                                  <span>{sub.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(tab.id as AdminTab);
+                        if (tab.id === 'bookings') setBookingFilter('all');
+                        setIsMobileDrawerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-orange-600 text-white shadow-sm'
+                          : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={isActive ? 'text-white' : 'text-neutral-400'}>
+                          {tab.icon}
+                        </span>
+                        <span>{tab.label}</span>
+                      </div>
+                      {Boolean(tab.badge && tab.badge > 0) && (
+                        <span className="px-2 py-0.5 rounded-full bg-sky-400 text-black text-[10px] font-bold">
+                          {tab.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="pt-4 border-t border-neutral-900 flex flex-col gap-2.5">
+              <Link
+                to="/"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="w-full text-center py-2 px-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
+              >
+                <span>← Back to Customer Website</span>
+              </Link>
+              <div className="flex items-center justify-between text-[11px] text-neutral-500 px-1">
+                <span>Rydeit Kolkata Admin</span>
+                <span>v2.4</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar (Only visible on lg screens, hidden on mobile) */}
+      <aside className={`hidden lg:flex transition-all duration-300 bg-black border-r border-neutral-900 flex-col shrink-0 ${isSidebarCollapsed ? 'lg:w-20' : 'lg:w-72'}`}>
         {/* Header */}
         {!isSidebarCollapsed ? (
           <div className="p-5 border-b border-neutral-900 flex items-center justify-between">
@@ -347,7 +547,7 @@ export const AdminDashboard: React.FC = () => {
       </aside>
 
       {/* Main Content Area - Pitch Black Background & High Contrast Typography */}
-      <main className="flex-grow p-6 lg:p-10 overflow-y-auto bg-black">
+      <main className="flex-grow p-3 sm:p-5 lg:p-8 overflow-y-auto bg-black">
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
             {/* Clean Header */}
@@ -432,7 +632,26 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Quick Action Navigation */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('leads')}
+                className="bg-[#0a0a0a] hover:bg-neutral-900 border border-neutral-800 hover:border-amber-500/50 p-5 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-3">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">Log Lead</h3>
+                  <p className="text-xs text-neutral-400 mt-1">{stats.leadsNeedFollowUp} follow-ups pending</p>
+                </div>
+                <span className="text-xs font-semibold text-amber-400 mt-4 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-1">
+                  Log Lead →
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab('calendar')}
@@ -494,6 +713,9 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* Tab Components */}
+        {activeTab === 'leads' && (
+          <AdminLeads onNavigateToBooking={() => { setActiveTab('bookings'); setBookingFilter('all'); }} />
+        )}
         {activeTab === 'calendar' && <AvailabilityCalendar bikes={getFleetBikes()} isAdminMode={true} />}
         {activeTab === 'upcoming' && <UpcomingReservations onRefreshStats={fetchStats} />}
         {activeTab === 'bookings' && <AdminBookings initialFilter={bookingFilter} />}
