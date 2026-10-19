@@ -177,27 +177,103 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string, reason?: string) => {
+  const getStatusSuccessMessage = (status: string, bookingRef: string, customerName?: string) => {
+    const nameStr = customerName ? ` for ${customerName}` : '';
+    switch (status) {
+      case 'ongoing':
+        return `Ride ${bookingRef}${nameStr} dispatch successfully done! Status is now ONGOING.`;
+      case 'completed':
+        return `Ride ${bookingRef}${nameStr} return & completion successfully done! Machine received.`;
+      case 'cancelled':
+        return `Booking ${bookingRef}${nameStr} cancellation successfully done! Vehicle slot released.`;
+      case 'booking_confirmed':
+        return `Booking ${bookingRef}${nameStr} confirmation successfully done! Payment recorded.`;
+      case 'pending_payment':
+        return `Booking ${bookingRef} status updated to Pending Payment successfully done!`;
+      default:
+        return `Booking ${bookingRef}: Status "${status.replace(/_/g, ' ').toUpperCase()}" successfully done!`;
+    }
+  };
+
+  const updateStatus = async (id: any, status: string, reason?: string) => {
+    const target = (selectedBooking && (String(selectedBooking.id) === String(id) || selectedBooking.readable_id === id))
+      ? selectedBooking
+      : bookings.find(b => String(b.id) === String(id) || b.readable_id === id);
+
+    const readableId = target?.readable_id || String(id);
+    const customerName = target?.customer_name;
+
     const updates: any = { status };
     if (reason) updates.admin_notes = reason;
+    if (status === 'ongoing') updates.start_timestamp = new Date().toISOString();
+    if (status === 'completed') updates.end_timestamp = new Date().toISOString();
 
-    const { error } = await supabase.from('bookings').update(updates).eq('id', id);
-    if (error) showToast(error.message, 'error');
-    else {
-      showToast(`Status updated: ${status}`, 'success');
-      
-      // If completed, send WhatsApp message with review link
-      if (status === 'completed' && selectedBooking) {
-        const message = `Hi ${selectedBooking.customer_name}, thank you for riding with Rydeit! We hope you had a great experience. We'd love to hear your feedback. Please leave us a review on Google Maps: ${GOOGLE_MAPS_REVIEW_LINK}`;
-        const whatsappUrl = `https://wa.me/${selectedBooking.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank');
+    // 1. Instantly update local state for immediate visual feedback
+    setBookings(prev => prev.map(b => {
+      if (String(b.id) === String(id) || b.readable_id === readableId) {
+        return { ...b, ...updates };
       }
+      return b;
+    }));
 
+    if (selectedBooking && (String(selectedBooking.id) === String(id) || selectedBooking.readable_id === readableId)) {
+      setSelectedBooking((prev: any) => prev ? { ...prev, ...updates } : null);
+    }
+
+    // 2. Persist to Supabase with dual fallback (readable_id first, then numeric/string id)
+    let updateError: any = null;
+    let updateSucceeded = false;
+    
+    if (target?.readable_id) {
+      const { data, error } = await supabase
+        .from('bookings')
+        .update(updates)
+        .eq('readable_id', target.readable_id)
+        .select('id, readable_id, status');
+      if (!error && data && data.length > 0) {
+        updateSucceeded = true;
+      } else {
+        updateError = error;
+      }
+    }
+    
+    if (!updateSucceeded) {
+      const numericId = !isNaN(Number(id)) ? Number(id) : id;
+      const { data, error: idError } = await supabase
+        .from('bookings')
+        .update(updates)
+        .eq('id', numericId)
+        .select('id, readable_id, status');
+      if (!idError && data && data.length > 0) {
+        updateSucceeded = true;
+        updateError = null;
+      } else {
+        updateError = idError || updateError;
+      }
+    }
+
+    if (updateError && !updateSucceeded) {
+      console.error('Supabase booking update error:', updateError);
+      showToast(`Database error: ${updateError.message || 'Failed to persist status change'}`, 'error');
       fetchBookings();
-      if (selectedBooking?.id === id) {
-          const { data } = await supabase.from('bookings').select('*').eq('id', id).single();
-          setSelectedBooking(data);
-      }
+      return;
+    }
+
+    // 3. Prominent success popup saying "---- successfully done!"
+    const successMsg = getStatusSuccessMessage(status, readableId, customerName);
+    showToast(successMsg, 'success');
+
+    // If completed, trigger WhatsApp review request
+    if (status === 'completed' && target) {
+      const message = `Hi ${target.customer_name}, thank you for riding with Rydeit! We hope you had a great experience. We'd love to hear your feedback. Please leave us a review on Google Maps: ${GOOGLE_MAPS_REVIEW_LINK}`;
+      const whatsappUrl = `https://wa.me/${target.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+    }
+
+    fetchBookings();
+    if (selectedBooking && (String(selectedBooking.id) === String(id) || selectedBooking.readable_id === readableId)) {
+      const { data } = await supabase.from('bookings').select('*').eq('readable_id', readableId).maybeSingle();
+      if (data) setSelectedBooking(data);
     }
   };
 
@@ -781,8 +857,7 @@ Team Rydeit Rentals`;
         status: editForm.status,
         needs_delivery: editForm.needs_delivery,
         address: editForm.address.trim(),
-        admin_notes: editForm.admin_notes.trim(),
-        updated_at: new Date().toISOString()
+        admin_notes: editForm.admin_notes.trim()
       };
 
       const { error } = await supabase
@@ -792,7 +867,7 @@ Team Rydeit Rentals`;
 
       if (error) throw error;
 
-      showToast(`Booking ${editingBooking.readable_id || `#${editingBooking.id}`} updated successfully!`, "success");
+      showToast(`Booking ${editingBooking.readable_id || `#${editingBooking.id}`} update successfully done!`, "success");
       setEditingBooking(null);
       await fetchBookings();
       if (selectedBooking?.id === editingBooking.id) {
@@ -937,10 +1012,25 @@ Team Rydeit Rentals`;
         adjustment_reason: adjustmentReason
       };
 
-      const { error } = await supabase.from('bookings').update(updates).eq('id', selectedBooking.id);
-      if (error) throw error;
+      // 1. Optimistically update local state immediately
+      setBookings(prev => prev.map(b => (b.id === selectedBooking.id || b.readable_id === selectedBooking.readable_id) ? { ...b, ...updates } : b));
+      setSelectedBooking((prev: any) => prev ? { ...prev, ...updates } : null);
 
-      // Ensure payment confirmed booking gets a profile in public.profiles
+      // 2. Persist to Supabase (by readable_id first, then id)
+      let updateError: any = null;
+      if (selectedBooking.readable_id) {
+        const { error } = await supabase.from('bookings').update(updates).eq('readable_id', selectedBooking.readable_id);
+        updateError = error;
+      }
+      if (updateError || !selectedBooking.readable_id) {
+        const numericId = !isNaN(Number(selectedBooking.id)) ? Number(selectedBooking.id) : selectedBooking.id;
+        const { error: idError } = await supabase.from('bookings').update(updates).eq('id', numericId);
+        updateError = idError;
+      }
+
+      if (updateError) throw updateError;
+
+      // Ensure payment confirmed booking gets a profile in public.profiles safely
       if (selectedBooking.customer_email) {
         try {
           await ensureCustomerProfile({
@@ -958,13 +1048,13 @@ Team Rydeit Rentals`;
       }
 
       const tagText = diff < 0 ? ` (Discount: ₹${Math.abs(diff)})` : diff > 0 ? ` (Premium: ₹${diff})` : '';
-      showToast(`Payment confirmed! Advance: ₹${advancePaid}, Agreed Rent: ₹${agreedRent}, Deposit: ₹${depositAmount}${tagText}`, 'success');
+      showToast(`Payment Confirmation successfully done! Booking ${selectedBooking.readable_id} is now CONFIRMED. Advance: ₹${advancePaid}, Agreed Rent: ₹${agreedRent}, Deposit: ₹${depositAmount}${tagText}`, 'success');
 
       setShowConfirmPaymentModal(false);
       fetchBookings();
 
-      const { data } = await supabase.from('bookings').select('*').eq('id', selectedBooking.id).single();
-      setSelectedBooking(data);
+      const { data } = await supabase.from('bookings').select('*').eq('readable_id', selectedBooking.readable_id).maybeSingle();
+      if (data) setSelectedBooking(data);
     } catch (err: any) {
       showToast(err.message || 'Failed to save payment terms', 'error');
     }
@@ -1037,15 +1127,15 @@ Team Rydeit Rentals`;
             + Create Booking
           </button>
           
-          <div className="flex flex-wrap gap-1 p-1 bg-[#0a0a0a] border border-neutral-800 rounded-xl">
+          <div className="flex flex-wrap gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl">
             {['all', 'pending', 'confirmed', 'running', 'overdue', 'completed', 'cancelled'].map(f => (
               <button 
                 key={f} 
                 onClick={() => setStatusFilter(f)} 
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                   statusFilter === f 
-                    ? (f === 'overdue' || f === 'cancelled' ? 'bg-rose-600 text-white' : f === 'confirmed' ? 'bg-sky-400 text-black font-bold shadow-sm' : 'bg-orange-600 text-white') 
-                    : 'text-neutral-400 hover:text-white'
+                    ? (f === 'overdue' || f === 'cancelled' ? 'bg-rose-600 text-white font-bold shadow-xs' : f === 'confirmed' ? 'bg-sky-600 text-white font-bold shadow-xs' : 'bg-orange-500 text-white font-bold shadow-xs') 
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/80'
                 }`}
               >
                 {f === 'confirmed' ? 'Payment Confirmed' : f === 'running' ? 'Active Ride' : f.charAt(0).toUpperCase() + f.slice(1)}
@@ -1056,7 +1146,7 @@ Team Rydeit Rentals`;
       </div>
 
       {/* Time Based Filters */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-[#0a0a0a] p-4 rounded-2xl border border-neutral-800 shadow-sm">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex flex-wrap gap-2">
           {[
             { id: 'all_time', label: 'All Time' },
@@ -1071,8 +1161,8 @@ Team Rydeit Rentals`;
               onClick={() => setTimeRange(range.id as TimeRange)}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
                 timeRange === range.id 
-                ? 'bg-neutral-800 text-white border-neutral-700 shadow-sm' 
-                : 'bg-black text-neutral-400 border-neutral-800 hover:border-neutral-700 hover:text-white'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs font-bold' 
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
               {range.label}
@@ -1081,35 +1171,35 @@ Team Rydeit Rentals`;
         </div>
 
         {timeRange === 'custom' && (
-          <div className="flex items-center gap-3 bg-black p-2 rounded-xl border border-neutral-800">
+          <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
             <div className="flex items-center gap-2 px-2">
-              <span className="text-xs font-medium text-neutral-400">From</span>
+              <span className="text-xs font-medium text-slate-500">From</span>
               <input 
                 type="date" 
                 value={customRange.start} 
                 onChange={(e) => setCustomRange(p => ({...p, start: e.target.value}))}
-                className="bg-transparent text-xs font-semibold text-slate-200 outline-none cursor-pointer" 
+                className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer" 
               />
             </div>
-            <div className="w-px h-5 bg-neutral-800"></div>
+            <div className="w-px h-5 bg-slate-200"></div>
             <div className="flex items-center gap-2 px-2">
-              <span className="text-xs font-medium text-neutral-400">To</span>
+              <span className="text-xs font-medium text-slate-500">To</span>
               <input 
                 type="date" 
                 value={customRange.end} 
                 onChange={(e) => setCustomRange(p => ({...p, end: e.target.value}))}
-                className="bg-transparent text-xs font-semibold text-slate-200 outline-none cursor-pointer" 
+                className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer" 
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Bookings Table - Pitch Black Background & Clean Borders */}
-      <div className="bg-black rounded-2xl border border-neutral-800 overflow-hidden shadow-sm">
+      {/* Bookings Table - Crisp White Background & Natural Contrast */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-[#0a0a0a] text-xs font-semibold uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
+            <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4">Rider & Vehicle</th>
                 <th className="px-6 py-4">Status</th>
@@ -1118,18 +1208,18 @@ Team Rydeit Rentals`;
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-900">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="py-16 text-center">
                     <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto mb-3"></div>
-                    <p className="text-xs font-medium text-neutral-400">Loading booking records...</p>
+                    <p className="text-xs font-medium text-slate-500">Loading booking records...</p>
                   </td>
                 </tr>
               ) : bookings.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-16 text-center">
-                    <p className="text-xs font-medium text-neutral-500 uppercase tracking-widest">No Bookings Found in Selected Period</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No Bookings Found in Selected Period</p>
                   </td>
                 </tr>
               ) : (
@@ -1138,105 +1228,144 @@ Team Rydeit Rentals`;
                   const isOverdue = booking.status === 'ongoing' && new Date(`${booking.return_date}T${booking.return_time}`) < new Date();
                   
                   return (
-                    <tr key={booking.id} className="hover:bg-neutral-950 transition-colors group">
+                    <tr key={booking.id} className="hover:bg-slate-50/80 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
                           <div className="text-center shrink-0">
-                            <div className="text-orange-400 text-xs font-bold uppercase mb-1">{booking.readable_id}</div>
-                            <div className="w-12 h-12 rounded-xl overflow-hidden border border-neutral-800 bg-[#0a0a0a]">
+                            <div className="text-orange-600 text-xs font-bold uppercase mb-1">{booking.readable_id}</div>
+                            <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
                               <img src={bike?.imageUrl} className="w-full h-full object-cover" />
                             </div>
                           </div>
                           <div>
-                            <div className="text-sm font-semibold text-slate-100">{booking.customer_name}</div>
-                            <div className="text-xs text-neutral-400 font-medium mt-0.5">{bike?.name}</div>
-                            <div className="text-xs text-neutral-300 mt-0.5">{booking.customer_phone}</div>
+                            <div className="text-sm font-bold text-slate-900">{booking.customer_name}</div>
+                            <div className="text-xs text-slate-700 font-semibold mt-0.5">{bike?.name}</div>
+                            <div className="text-xs font-mono font-medium text-slate-500 mt-0.5">{booking.customer_phone}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide border ${
-                          booking.status === 'completed' ? 'border-sky-500/30 bg-sky-500/10 text-sky-400' :
-                          booking.status === 'ongoing' ? (isOverdue ? 'border-orange-500 bg-orange-950/80 text-orange-400' : 'border-neutral-700 bg-neutral-900 text-white') :
-                          booking.status === 'booking_confirmed' ? 'border-sky-500/30 bg-sky-500/10 text-sky-400' :
-                          booking.status === 'cancelled' ? 'border-neutral-800 bg-neutral-950 text-neutral-500' :
-                          isPaymentPending(booking.status) ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' :
-                          'border-neutral-800 bg-neutral-900 text-neutral-400'
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide border ${
+                          booking.status === 'completed' ? 'border-sky-300 bg-sky-50 text-sky-800' :
+                          booking.status === 'ongoing' ? (isOverdue ? 'border-orange-300 bg-orange-50 text-orange-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800') :
+                          booking.status === 'booking_confirmed' ? 'border-sky-300 bg-sky-50 text-sky-800' :
+                          booking.status === 'cancelled' ? 'border-slate-300 bg-slate-100 text-slate-600' :
+                          isPaymentPending(booking.status) ? 'border-amber-300 bg-amber-50 text-amber-800' :
+                          'border-slate-300 bg-slate-100 text-slate-700'
                         }`}>
                           {isOverdue ? 'OVERDUE' : booking.status === 'booking_confirmed' ? 'PAYMENT CONFIRMED' : isPaymentPending(booking.status) ? 'PENDING PAYMENT' : booking.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-xs text-slate-200 font-semibold">{booking.pickup_date} @ {booking.pickup_time}</div>
-                        <div className={`text-xs mt-0.5 font-medium ${isOverdue ? 'text-orange-400 font-bold' : 'text-neutral-400'}`}>
+                        <div className="text-xs text-slate-900 font-bold">{booking.pickup_date} @ {booking.pickup_time}</div>
+                        <div className={`text-xs mt-0.5 font-medium ${isOverdue ? 'text-orange-700 font-bold' : 'text-slate-600'}`}>
                           Return {booking.return_date} @ {booking.return_time}
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm font-bold text-slate-100">₹{booking.total_rent + (booking.adjustment_amount || 0)}</div>
+                        <div className="text-sm font-black text-slate-900">₹{booking.total_rent + (booking.adjustment_amount || 0)}</div>
                         {booking.advance_amount !== undefined && booking.advance_amount !== null && booking.advance_amount > 0 && (
-                          <div className="text-xs font-semibold text-sky-400 mt-0.5">
+                          <div className="text-xs font-bold text-sky-700 mt-0.5">
                             Adv: ₹{booking.advance_amount} ✓
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2 flex-wrap sm:flex-nowrap">
-                          {isPaymentPending(booking.status) ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleSendWhatsAppReminder(booking)}
-                                className="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-400 hover:text-black text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
-                                title="Send WhatsApp payment reminder with payment ID to customer"
-                              >
-                                <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
-                                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.882-4.434 9.885-9.885.002-2.641-1.026-5.124-2.893-6.992-1.867-1.868-4.35-2.896-6.992-2.897-5.451 0-9.885 4.434-9.887 9.884-.001 2.126.602 3.738 1.611 5.421l-.999 3.646 3.883-.769zm10.875-6.193c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                                </svg>
-                                <span>Send Payment reminder</span>
-                              </button>
+                        <div className="flex items-center justify-end gap-2 flex-wrap">
+                          {/* Quick Status Selector Dropdown */}
+                          <select
+                            value={booking.status}
+                            onChange={(e) => updateStatus(booking.id, e.target.value)}
+                            title="Directly change booking status"
+                            className="bg-white border border-slate-300 hover:border-orange-500 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer transition-all shadow-xs"
+                          >
+                            <option value="pending_payment">Pending Payment</option>
+                            <option value="booking_confirmed">Booking Confirmed</option>
+                            <option value="ongoing">Ongoing (Dispatched)</option>
+                            <option value="completed">Completed (Returned)</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
 
-                              <a
-                                href={`tel:${booking.customer_phone}`}
-                                className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white border border-neutral-800 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
-                                title={`Call ${booking.customer_name} (${booking.customer_phone})`}
-                              >
-                                <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                </svg>
-                                <span>Call</span>
-                              </a>
-
-                              <button 
-                                type="button"
-                                onClick={() => setSelectedBooking(booking)} 
-                                className="text-xs font-semibold text-sky-400 border border-sky-500/30 bg-sky-500/10 px-3.5 py-1.5 rounded-lg hover:bg-sky-400 hover:text-black transition-all cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
-                              >
-                                Operate
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <a
-                                href={`tel:${booking.customer_phone}`}
-                                className="px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white border border-neutral-800 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
-                                title={`Call ${booking.customer_name} (${booking.customer_phone})`}
-                              >
-                                <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                </svg>
-                                <span>Call</span>
-                              </a>
-
-                              <button 
-                                type="button"
-                                onClick={() => setSelectedBooking(booking)} 
-                                className="text-xs font-semibold text-sky-400 border border-sky-500/30 bg-sky-500/10 px-3.5 py-1.5 rounded-lg hover:bg-sky-400 hover:text-black transition-all cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
-                              >
-                                Operate
-                              </button>
-                            </>
+                          {/* Primary Direct Action Button */}
+                          {booking.status === 'booking_confirmed' && (
+                            <button
+                              type="button"
+                              onClick={() => updateStatus(booking.id, 'ongoing')}
+                              className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+                              title="Dispatch machine and start rental"
+                            >
+                              <span>🚀 Dispatch</span>
+                            </button>
                           )}
+
+                          {booking.status === 'ongoing' && (
+                            <button
+                              type="button"
+                              onClick={() => updateStatus(booking.id, 'completed')}
+                              className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+                              title="Receive machine and complete rental"
+                            >
+                              <span>🏁 Receive / Finish</span>
+                            </button>
+                          )}
+
+                          {isPaymentPending(booking.status) && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenConfirmPaymentModal(booking)}
+                              className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+                              title="Confirm payment and lock slot"
+                            >
+                              <span>✓ Confirm Pay</span>
+                            </button>
+                          )}
+
+                          {/* Cancel Quick Action */}
+                          {booking.status !== 'cancelled' && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCancelModal(booking)}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+                              title="Cancel booking"
+                            >
+                              <span>✕ Cancel</span>
+                            </button>
+                          )}
+
+                          {booking.status === 'cancelled' && (
+                            <button
+                              type="button"
+                              onClick={() => updateStatus(booking.id, 'pending_payment', 'Reopened by Admin')}
+                              className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
+                              title="Reopen cancelled booking"
+                            >
+                              <span>Reopen</span>
+                            </button>
+                          )}
+
+                          {/* WhatsApp Reminder if payment is pending */}
+                          {isPaymentPending(booking.status) && (
+                            <button
+                              type="button"
+                              onClick={() => handleSendWhatsAppReminder(booking)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap"
+                              title="Send WhatsApp payment reminder"
+                            >
+                              <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.882-4.434 9.885-9.885.002-2.641-1.026-5.124-2.893-6.992-1.867-1.868-4.35-2.896-6.992-2.897-5.451 0-9.885 4.434-9.887 9.884-.001 2.126.602 3.738 1.611 5.421l-.999 3.646 3.883-.769zm10.875-6.193c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                              </svg>
+                            </button>
+                          )}
+
+                          {/* Full Operations Modal Button */}
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedBooking(booking)} 
+                            className="text-xs font-bold text-slate-800 border border-slate-300 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
+                            title="Open full booking operations modal"
+                          >
+                            Operate ↗
+                          </button>
                         </div>
                       </td>
                     </tr>

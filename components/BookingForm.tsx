@@ -358,8 +358,17 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         let needsSync = false;
         if (!profile?.full_name && formData.name) { updates.full_name = formData.name; needsSync = true; }
         if (!profile?.whatsapp && formData.whatsapp) { updates.whatsapp = formData.whatsapp; needsSync = true; }
-        if (!profile?.email && (formData.email || user.email)) { updates.email = formData.email || user.email; needsSync = true; }
-        if (needsSync) await supabase.from('profiles').upsert(updates, { onConflict: 'id' });
+        if (needsSync) {
+          try {
+            if (profile) {
+              await supabase.from('profiles').update(updates).eq('id', user.id);
+            } else {
+              await supabase.from('profiles').insert(updates);
+            }
+          } catch (syncErr) {
+            console.warn('Profile sync warning:', syncErr);
+          }
+        }
       }
       if (profile && (!formData.name || !formData.whatsapp)) {
         setFormData(prev => ({
@@ -758,12 +767,43 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         status: 'pending_payment'
       };
 
-      let { error: insertError } = await supabase.from('bookings').upsert(payload, { onConflict: 'readable_id' });
+      // Check if a booking record already exists with this readable_id
+      const { data: existingBooking } = await supabase
+        .from('bookings')
+        .select('id, readable_id')
+        .eq('readable_id', bookingId)
+        .maybeSingle();
+
+      let insertError: any = null;
+
+      if (existingBooking) {
+        const { error } = await supabase
+          .from('bookings')
+          .update(payload)
+          .eq('readable_id', bookingId);
+        insertError = error;
+      } else {
+        const { error } = await supabase
+          .from('bookings')
+          .insert(payload);
+        insertError = error;
+      }
+
       if (insertError && (insertError.message?.includes('foreign key') || insertError.message?.includes('fkey')) && payload.user_id) {
         console.warn('Booking user_id foreign key constraint encountered, retrying with guest payload:', insertError.message);
         const retryPayload = { ...payload, user_id: null };
-        const { error: retryError } = await supabase.from('bookings').upsert(retryPayload, { onConflict: 'readable_id' });
-        insertError = retryError;
+        if (existingBooking) {
+          const { error: retryError } = await supabase
+            .from('bookings')
+            .update(retryPayload)
+            .eq('readable_id', bookingId);
+          insertError = retryError;
+        } else {
+          const { error: retryError } = await supabase
+            .from('bookings')
+            .insert(retryPayload);
+          insertError = retryError;
+        }
       }
       if (insertError) throw insertError;
 

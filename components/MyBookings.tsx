@@ -520,7 +520,20 @@ export const MyBookings: React.FC = () => {
               </p>
             </div>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="px-8 py-3 bg-white/5 text-white/40 font-black uppercase text-[10px] tracking-widest rounded-full border border-white/10 hover:text-red-500 transition-all">Sign Out</button>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={async () => {
+                await supabase.auth.signOut();
+                localStorage.removeItem('rydeit_is_admin');
+                window.location.hash = '#/login';
+              }} 
+              className="px-6 py-2.5 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 font-bold uppercase text-xs tracking-wider rounded-xl border border-rose-500/30 transition-all cursor-pointer flex items-center gap-2"
+              title="Sign out of current account"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 p-2 bg-brand-gray-dark border border-white/5 rounded-full mb-12 w-fit mx-auto lg:mx-0 overflow-x-auto no-scrollbar">

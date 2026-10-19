@@ -139,37 +139,59 @@
 /* ==============================================================================
    ADMIN PANEL LIGHT THEME (WHITE BACKGROUND, NATURAL CONTRAST & ERGONOMIC FONTS)
    ============================================================================== */
-.admin-panel-white {
+.admin-panel-white,
+body.admin-panel-white {
   font-family: 'Plus Jakarta Sans', 'Inter', 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif !important;
   background-color: #f8fafc !important; /* slate-50 canvas */
   color: #1e293b !important; /* slate-800 natural contrast text */
 }
 
-/* Card & Container Backgrounds */
-.admin-panel-white .bg-black:not(.keep-dark),
-.admin-panel-white .bg-neutral-950:not(.keep-dark),
-.admin-panel-white .bg-\[\#0a0a0a\],
-.admin-panel-white .bg-\[\#121212\],
-.admin-panel-white .bg-brand-black {
+/* Modal backdrop overlays must remain semi-transparent dark (slate-900) so dialogs float prominently */
+.admin-panel-white .fixed.inset-0,
+.admin-panel-white [class*="fixed"][class*="inset-0"] {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Primary Surface Backgrounds (Cards, Tables, Modals, Dialogs, Drawers - NOT full-screen backdrops) */
+.admin-panel-white .bg-black:not(.fixed):not(button):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-brand-orange"]):not([class*="bg-brand-teal"]),
+.admin-panel-white [class*="bg-black/"]:not(.fixed):not(button):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]),
+.admin-panel-white .bg-neutral-950:not(.fixed):not(button),
+.admin-panel-white [class*="bg-neutral-950/"]:not(.fixed):not(button),
+.admin-panel-white [class*="bg-[#0"]:not(.fixed):not(button),
+.admin-panel-white [class*="bg-[#1"]:not(.fixed):not(button),
+.admin-panel-white .bg-brand-black:not(.fixed):not(button),
+.admin-panel-white [class*="bg-brand-black/"]:not(.fixed):not(button),
+.admin-panel-white .bg-brand-gray-dark:not(.fixed):not(button),
+.admin-panel-white [class*="bg-brand-gray-dark/"]:not(.fixed):not(button) {
   background-color: #ffffff !important;
 }
 
-/* Secondary Panels & Table Headers */
-.admin-panel-white .bg-neutral-900:not(button):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]) {
-  background-color: #f1f5f9 !important; /* slate-100 */
+/* Nested Sub-Cards, Inner Sections, Form Panels & Table Containers */
+.admin-panel-white .bg-neutral-900:not(button):not(.fixed):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]),
+.admin-panel-white [class*="bg-neutral-900/"]:not(button):not(.fixed):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]),
+.admin-panel-white .bg-neutral-800:not(button):not(.fixed):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]),
+.admin-panel-white [class*="bg-neutral-800/"]:not(button):not(.fixed):not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]) {
+  background-color: #f8fafc !important; /* slate-50 / slate-100 */
 }
 
 /* Subtle Hover states */
-.admin-panel-white tr:hover {
-  background-color: #f8fafc !important;
+.admin-panel-white tr:hover,
+.admin-panel-white [class*="hover:bg-neutral-900"]:hover,
+.admin-panel-white [class*="hover:bg-neutral-800"]:hover {
+  background-color: #f1f5f9 !important;
 }
 
 /* Natural, eye-comforting borders */
-.admin-panel-white .border-neutral-900,
-.admin-panel-white .border-neutral-800,
-.admin-panel-white .border-white\/10,
-.admin-panel-white .border-white\/5 {
-  border-color: #e2e8f0 !important; /* slate-200 */
+.admin-panel-white [class*="border-neutral-"],
+.admin-panel-white [class*="border-white/"],
+.admin-panel-white [class*="border-white"],
+.admin-panel-white [class*="border-black"] {
+  border-color: #cbd5e1 !important; /* slate-300 for crisp visible outlines */
+}
+
+.admin-panel-white [class*="divide-neutral-"],
+.admin-panel-white [class*="divide-white/"] {
+  border-color: #e2e8f0 !important;
 }
 
 /* High Natural Contrast Typography */
@@ -177,45 +199,234 @@
 .admin-panel-white h2, 
 .admin-panel-white h3, 
 .admin-panel-white h4,
-.admin-panel-white .text-white:not([class*="bg-orange"]):not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]):not(.keep-white) {
+.admin-panel-white h5,
+.admin-panel-white h6,
+.admin-panel-white th,
+.admin-panel-white strong,
+.admin-panel-white b {
   color: #0f172a !important; /* slate-900 bold clarity */
+}
+
+.admin-panel-white label {
+  color: #334155 !important; /* slate-700 label contrast */
+  font-weight: 700 !important;
+}
+
+/* All Table Headers in Admin */
+.admin-panel-white thead,
+.admin-panel-white thead tr,
+.admin-panel-white thead th {
+  background-color: #f8fafc !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Text white overrides on light backgrounds (excluding protected keep-white) */
+.admin-panel-white .text-white:not(.keep-white):not(button[class*="bg-"]):not([class*="bg-orange"]):not([class*="bg-brand-orange"]):not([class*="bg-rose"]):not([class*="bg-red"]):not([class*="bg-emerald"]):not([class*="bg-brand-teal"]):not([class*="bg-sky"]):not([class*="bg-slate-900"]) {
+  color: #0f172a !important;
+}
+
+/* Any white opacity text (text-white/40, text-white/50, text-white/30, text-white/20, text-white/10, etc.) */
+.admin-panel-white [class*="text-white/"]:not(.keep-white) {
+  color: #334155 !important; /* slate-700 readable secondary */
+}
+
+.admin-panel-white [class*="text-white/1"]:not(.keep-white),
+.admin-panel-white [class*="text-white/2"]:not(.keep-white),
+.admin-panel-white [class*="text-white/3"]:not(.keep-white),
+.admin-panel-white [class*="text-white/4"]:not(.keep-white),
+.admin-panel-white [class*="text-white/5"]:not(.keep-white),
+.admin-panel-white [class*="text-white/6"]:not(.keep-white) {
+  color: #475569 !important; /* slate-600 clear text */
+}
+
+.admin-panel-white [class*="text-white/7"]:not(.keep-white),
+.admin-panel-white [class*="text-white/8"]:not(.keep-white),
+.admin-panel-white [class*="text-white/9"]:not(.keep-white) {
+  color: #0f172a !important; /* slate-900 high contrast */
+}
+
+/* Neutral text colors */
+.admin-panel-white .text-neutral-100,
+.admin-panel-white .text-neutral-200,
+.admin-panel-white .text-neutral-300,
+.admin-panel-white .text-slate-100,
+.admin-panel-white .text-slate-200,
+.admin-panel-white .text-slate-300,
+.admin-panel-white .text-gray-100,
+.admin-panel-white .text-gray-200,
+.admin-panel-white .text-gray-300,
+.admin-panel-white .text-brand-gray-light {
+  color: #1e293b !important;
 }
 
 .admin-panel-white .text-neutral-400,
 .admin-panel-white .text-neutral-500,
+.admin-panel-white .text-neutral-600,
 .admin-panel-white .text-slate-400,
-.admin-panel-white .text-white\/40,
-.admin-panel-white .text-white\/50,
-.admin-panel-white .text-white\/60 {
-  color: #64748b !important; /* slate-500 readable secondary */
+.admin-panel-white .text-slate-500,
+.admin-panel-white .text-gray-400,
+.admin-panel-white .text-gray-500 {
+  color: #475569 !important; /* slate-600 readable secondary */
 }
 
-.admin-panel-white .text-neutral-300,
-.admin-panel-white .text-neutral-200,
-.admin-panel-white .text-white\/70,
-.admin-panel-white .text-white\/80 {
-  color: #334155 !important; /* slate-700 body text */
+/* Eye-comforting status badges & text with rich contrast (never light pastel or invisible yellow) */
+.admin-panel-white .text-amber-300,
+.admin-panel-white .text-amber-400,
+.admin-panel-white .text-amber-500,
+.admin-panel-white .text-brand-yellow {
+  color: #92400e !important; /* amber-800 */
+}
+.admin-panel-white [class*="border-amber-500/"],
+.admin-panel-white [class*="border-brand-yellow"] {
+  border-color: #fcd34d !important;
+}
+.admin-panel-white [class*="bg-amber-500/"],
+.admin-panel-white [class*="bg-brand-yellow/"] {
+  background-color: #fef3c7 !important;
 }
 
-/* Protect white text on colored action buttons */
-.admin-panel-white .bg-orange-600,
-.admin-panel-white .bg-orange-500,
-.admin-panel-white .bg-rose-600,
-.admin-panel-white .bg-emerald-600,
-.admin-panel-white .bg-sky-500,
-.admin-panel-white .bg-sky-600 {
+.admin-panel-white .text-sky-300,
+.admin-panel-white .text-sky-400,
+.admin-panel-white .text-blue-400 {
+  color: #0369a1 !important; /* sky-700 */
+}
+.admin-panel-white [class*="border-sky-500/"] {
+  border-color: #7dd3fc !important;
+}
+.admin-panel-white [class*="bg-sky-500/"] {
+  background-color: #f0f9ff !important;
+}
+
+.admin-panel-white .text-emerald-300,
+.admin-panel-white .text-emerald-400,
+.admin-panel-white .text-teal-300,
+.admin-panel-white .text-teal-400,
+.admin-panel-white .text-brand-teal {
+  color: #065f46 !important; /* emerald-800 */
+}
+.admin-panel-white [class*="border-emerald-500/"],
+.admin-panel-white [class*="border-brand-teal/"] {
+  border-color: #6ee7b7 !important;
+}
+.admin-panel-white [class*="bg-emerald-500/"],
+.admin-panel-white [class*="bg-brand-teal/"] {
+  background-color: #ecfdf5 !important;
+}
+
+.admin-panel-white .text-rose-300,
+.admin-panel-white .text-rose-400,
+.admin-panel-white .text-red-400 {
+  color: #be123c !important; /* rose-700 */
+}
+.admin-panel-white [class*="border-rose-500/"],
+.admin-panel-white [class*="border-red-500/"] {
+  border-color: #fecdd3 !important;
+}
+.admin-panel-white [class*="bg-rose-500/"],
+.admin-panel-white [class*="bg-red-500/"] {
+  background-color: #fff1f2 !important;
+}
+
+.admin-panel-white .text-orange-400,
+.admin-panel-white .text-orange-500,
+.admin-panel-white .text-brand-orange {
+  color: #c2410c !important; /* orange-700 */
+}
+
+/* Modals inside admin */
+.admin-panel-white .bg-brand-gray-dark {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+.admin-panel-white .bg-brand-gray-dark h2 {
+  color: #ea580c !important;
+}
+
+/* Solid Action Buttons: ensure bright, visible text and backgrounds */
+.admin-panel-white button.bg-brand-teal,
+.admin-panel-white button[class*="bg-brand-teal"] {
+  background-color: #0d9488 !important; /* teal-600 */
   color: #ffffff !important;
 }
-.admin-panel-white .bg-orange-600 *,
-.admin-panel-white .bg-orange-500 *,
-.admin-panel-white .bg-rose-600 *,
-.admin-panel-white .bg-emerald-600 *,
-.admin-panel-white .bg-sky-500 *,
-.admin-panel-white .bg-sky-600 * {
+.admin-panel-white button.bg-brand-teal *,
+.admin-panel-white button[class*="bg-brand-teal"] * {
   color: #ffffff !important;
 }
 
-/* Inputs, Textareas, Selects */
+.admin-panel-white button.bg-brand-orange,
+.admin-panel-white button[class*="bg-brand-orange"],
+.admin-panel-white button[class*="bg-orange-600"],
+.admin-panel-white button[class*="bg-orange-500"] {
+  background-color: #ea580c !important; /* orange-600 */
+  color: #ffffff !important;
+}
+.admin-panel-white button.bg-brand-orange *,
+.admin-panel-white button[class*="bg-brand-orange"] *,
+.admin-panel-white button[class*="bg-orange-600"] *,
+.admin-panel-white button[class*="bg-orange-500"] * {
+  color: #ffffff !important;
+}
+
+.admin-panel-white button[class*="bg-rose"],
+.admin-panel-white button[class*="bg-red"] {
+  background-color: #e11d48 !important; /* rose-600 */
+  color: #ffffff !important;
+}
+.admin-panel-white button[class*="bg-rose"] *,
+.admin-panel-white button[class*="bg-red"] * {
+  color: #ffffff !important;
+}
+
+.admin-panel-white button[class*="bg-sky"],
+.admin-panel-white button[class*="bg-blue"] {
+  background-color: #0284c7 !important; /* sky-600 */
+  color: #ffffff !important;
+}
+.admin-panel-white button[class*="bg-sky"] *,
+.admin-panel-white button[class*="bg-blue"] * {
+  color: #ffffff !important;
+}
+
+.admin-panel-white button[class*="bg-emerald"] {
+  background-color: #059669 !important; /* emerald-600 */
+  color: #ffffff !important;
+}
+.admin-panel-white button[class*="bg-emerald"] * {
+  color: #ffffff !important;
+}
+
+/* Secondary outline / neutral buttons */
+.admin-panel-white button.bg-black,
+.admin-panel-white button[class*="bg-black/"],
+.admin-panel-white button[class*="bg-neutral-800"],
+.admin-panel-white button[class*="bg-neutral-900"],
+.admin-panel-white button[class*="bg-white/5"],
+.admin-panel-white button[class*="bg-white/10"] {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+.admin-panel-white button.bg-black:hover,
+.admin-panel-white button[class*="bg-black/"]:hover,
+.admin-panel-white button[class*="bg-neutral-800"]:hover,
+.admin-panel-white button[class*="bg-neutral-900"]:hover,
+.admin-panel-white button[class*="bg-white/5"]:hover,
+.admin-panel-white button[class*="bg-white/10"]:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+.admin-panel-white button.bg-black *,
+.admin-panel-white button[class*="bg-black/"] *,
+.admin-panel-white button[class*="bg-neutral-800"] *,
+.admin-panel-white button[class*="bg-neutral-900"] *,
+.admin-panel-white button[class*="bg-white/5"] *,
+.admin-panel-white button[class*="bg-white/10"] * {
+  color: #1e293b !important;
+}
+
+/* Form Controls: Inputs, Textareas, Selects */
 .admin-panel-white input:not([type="checkbox"]):not([type="radio"]),
 .admin-panel-white select,
 .admin-panel-white textarea {
@@ -225,8 +436,10 @@
 }
 
 .admin-panel-white input::placeholder,
-.admin-panel-white textarea::placeholder {
-  color: #94a3b8 !important; /* slate-400 */
+.admin-panel-white textarea::placeholder,
+.admin-panel-white [class*="placeholder:text-white"]::placeholder {
+  color: #64748b !important; /* slate-500 clearly readable placeholder */
+  opacity: 1 !important;
 }
 
 .admin-panel-white input:focus,
@@ -239,7 +452,12 @@
 
 /* Soft shadows for elevation */
 .admin-panel-white .shadow-sm,
-.admin-panel-white .shadow {
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04) !important;
+.admin-panel-white .shadow,
+.admin-panel-white .shadow-md,
+.admin-panel-white .shadow-lg,
+.admin-panel-white .shadow-xl,
+.admin-panel-white .shadow-2xl {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05) !important;
 }
+
 

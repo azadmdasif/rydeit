@@ -121,6 +121,12 @@ export interface FollowUpComment {
   status_after?: LeadStatus;
 }
 
+export interface RequestedVehicleItem {
+  preference: LeadVehiclePreference;
+  specific_vehicle_id?: number | null;
+  specific_vehicle_name?: string;
+}
+
 export interface Lead {
   id: string;
   created_at: string;
@@ -130,6 +136,7 @@ export interface Lead {
   vehicle_preference: LeadVehiclePreference;
   specific_vehicle_id?: number | null;
   specific_vehicle_name?: string;
+  requested_vehicles?: RequestedVehicleItem[];
   pickup_date: string;
   return_date: string;
   rental_duration_days: number;

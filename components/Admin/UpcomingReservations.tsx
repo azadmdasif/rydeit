@@ -243,11 +243,30 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
     try {
       const updates: any = { status };
       if (reason) updates.admin_notes = reason;
+      if (status === 'ongoing') updates.start_timestamp = new Date().toISOString();
+      if (status === 'completed') updates.end_timestamp = new Date().toISOString();
 
-      const { error } = await supabase.from('bookings').update(updates).eq('id', id);
-      if (error) throw error;
+      let updateError: any = null;
+      const numericId = !isNaN(Number(id)) ? Number(id) : id;
+      const { data, error } = await supabase.from('bookings').update(updates).eq('id', numericId).select();
+      
+      if (error || !data || data.length === 0) {
+        // Fallback: try by readable_id
+        const { error: readErr } = await supabase.from('bookings').update(updates).eq('readable_id', id);
+        updateError = readErr;
+      }
 
-      showToast(`Reservation status updated: ${status.replace('_', ' ')}`, 'success');
+      if (updateError) throw updateError;
+
+      const actionTitle = 
+        status === 'ongoing' ? 'Ride Dispatch' :
+        status === 'completed' ? 'Ride Completion' :
+        status === 'cancelled' ? 'Booking Cancellation' :
+        status === 'booking_confirmed' ? 'Payment Confirmation' :
+        status === 'pending_payment' ? 'Set to Pending Payment' :
+        `Status change to ${status.replace(/_/g, ' ').toUpperCase()}`;
+
+      showToast(`${actionTitle} successfully done!`, 'success');
 
       if (status === 'completed' && selectedBooking) {
         const message = `Hi ${selectedBooking.customer_name}, thank you for riding with Rydeit! Please leave us a review on Google Maps: ${GOOGLE_MAPS_REVIEW_LINK}`;
@@ -262,18 +281,17 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
         if (status === 'ongoing' || status === 'completed' || status === 'cancelled') {
           setSelectedBooking(null);
         } else {
-          const { data } = await supabase.from('bookings').select('*').eq('id', id).single();
-          setSelectedBooking(data);
+          const { data: refreshed } = await supabase.from('bookings').select('*').eq('id', numericId).maybeSingle();
+          if (refreshed) setSelectedBooking(refreshed);
         }
       }
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err.message || 'Failed to update reservation status', 'error');
     }
   };
 
   const handleQuickDispatch = async (booking: any) => {
     await updateStatus(booking.id, 'ongoing');
-    showToast(`Machine handed over to ${booking.customer_name}. Ride is now ONGOING!`, 'success');
   };
 
   const handleOpenConfirmPaymentModal = (booking: any) => {
@@ -342,7 +360,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({ onRe
       if (error) throw error;
 
       const tagText = diff < 0 ? ` (Discount: ₹${Math.abs(diff)})` : diff > 0 ? ` (Premium: ₹${diff})` : '';
-      showToast(`Payment confirmed! Advance: ₹${advancePaid}, Agreed Rent: ₹${agreedRent}${tagText}`, 'success');
+      showToast(`Payment Confirmation successfully done! Advance: ₹${advancePaid}, Agreed Rent: ₹${agreedRent}${tagText}`, 'success');
 
       setShowConfirmPaymentModal(false);
       await fetchUpcomingReservations();

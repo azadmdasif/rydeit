@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Lead, LeadStatus, LeadVehiclePreference, LeadSource, RentalPurpose, FollowUpComment } from '../../types';
+import { Lead, LeadStatus, LeadVehiclePreference, LeadSource, RentalPurpose, FollowUpComment, RequestedVehicleItem } from '../../types';
 import { 
   getStoredLeads, 
   fetchLeadsFromSupabase, 
@@ -24,8 +24,8 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
   const [leads, setLeads] = useState<Lead[]>(getStoredLeads);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  // Filters - Default to 'follow_up' tab as requested
+  const [statusFilter, setStatusFilter] = useState<string>('follow_up');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -78,13 +78,14 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     admin_notes: ''
   });
 
-  // Fast Add/Edit Lead Form state
+  // Fast Add/Edit Lead Form state (Supports any number of bikes with individual preferences)
   const [leadForm, setLeadForm] = useState<{
     customer_name: string;
     customer_phone: string;
     source: LeadSource;
     vehicle_preference: LeadVehiclePreference;
     specific_vehicle_id: number | null;
+    requested_vehicles: RequestedVehicleItem[];
     pickup_date: string;
     return_date: string;
     rental_duration_days: number;
@@ -99,6 +100,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     source: 'whatsapp',
     vehicle_preference: 'scooty',
     specific_vehicle_id: null,
+    requested_vehicles: [{ preference: 'scooty', specific_vehicle_id: null }],
     pickup_date: new Date().toISOString().split('T')[0],
     return_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     rental_duration_days: 1,
@@ -131,6 +133,74 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     return allFleetBikes.filter(b => b.category === targetCategory);
   }, [allFleetBikes, leadForm.vehicle_preference]);
 
+  // Helper for multi-bike category filtering
+  const getBikesForPreference = (pref: LeadVehiclePreference) => {
+    if (pref === 'flexible') return allFleetBikes;
+    const categoryMap: Record<string, string> = {
+      scooty: 'Scooter',
+      bike: 'Bikes',
+      bullet: 'Royal Enfield',
+      sports: 'Sports'
+    };
+    const targetCategory = categoryMap[pref];
+    return allFleetBikes.filter(b => b.category === targetCategory);
+  };
+
+  // Multi-bike handlers for the lead form
+  const handleAddBike = () => {
+    setLeadForm(prev => {
+      const current = prev.requested_vehicles && prev.requested_vehicles.length > 0 
+        ? [...prev.requested_vehicles] 
+        : [{ preference: prev.vehicle_preference, specific_vehicle_id: prev.specific_vehicle_id }];
+      current.push({ preference: 'scooty', specific_vehicle_id: null });
+      return { ...prev, requested_vehicles: current };
+    });
+  };
+
+  const handleRemoveBike = (index: number) => {
+    setLeadForm(prev => {
+      const current = prev.requested_vehicles && prev.requested_vehicles.length > 0 
+        ? [...prev.requested_vehicles] 
+        : [{ preference: prev.vehicle_preference, specific_vehicle_id: prev.specific_vehicle_id }];
+      if (current.length <= 1) return prev;
+      const updated = current.filter((_, idx) => idx !== index);
+      return { 
+        ...prev, 
+        requested_vehicles: updated,
+        vehicle_preference: updated[0].preference,
+        specific_vehicle_id: updated[0].specific_vehicle_id || null
+      };
+    });
+  };
+
+  const handleUpdateBikePreference = (index: number, pref: LeadVehiclePreference) => {
+    setLeadForm(prev => {
+      const current = prev.requested_vehicles && prev.requested_vehicles.length > 0 
+        ? [...prev.requested_vehicles] 
+        : [{ preference: prev.vehicle_preference, specific_vehicle_id: prev.specific_vehicle_id }];
+      current[index] = { ...current[index], preference: pref, specific_vehicle_id: null };
+      return {
+        ...prev,
+        requested_vehicles: current,
+        ...(index === 0 ? { vehicle_preference: pref, specific_vehicle_id: null } : {})
+      };
+    });
+  };
+
+  const handleUpdateBikeSpecificVehicle = (index: number, vehicleId: number | null) => {
+    setLeadForm(prev => {
+      const current = prev.requested_vehicles && prev.requested_vehicles.length > 0 
+        ? [...prev.requested_vehicles] 
+        : [{ preference: prev.vehicle_preference, specific_vehicle_id: prev.specific_vehicle_id }];
+      current[index] = { ...current[index], specific_vehicle_id: vehicleId };
+      return {
+        ...prev,
+        requested_vehicles: current,
+        ...(index === 0 ? { specific_vehicle_id: vehicleId } : {})
+      };
+    });
+  };
+
   // Load leads on mount
   useEffect(() => {
     const load = async () => {
@@ -156,6 +226,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       source: 'whatsapp',
       vehicle_preference: 'scooty',
       specific_vehicle_id: null,
+      requested_vehicles: [{ preference: 'scooty', specific_vehicle_id: null }],
       pickup_date: today,
       return_date: tomorrow,
       rental_duration_days: 1,
@@ -171,12 +242,17 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
   // Handle open edit modal
   const handleOpenEditModal = (lead: Lead) => {
     setEditingLead(lead);
+    const initialRequested: RequestedVehicleItem[] = (lead.requested_vehicles && lead.requested_vehicles.length > 0)
+      ? lead.requested_vehicles
+      : [{ preference: lead.vehicle_preference, specific_vehicle_id: lead.specific_vehicle_id ?? null, specific_vehicle_name: lead.specific_vehicle_name }];
+
     setLeadForm({
       customer_name: lead.customer_name,
       customer_phone: lead.customer_phone,
       source: lead.source,
       vehicle_preference: lead.vehicle_preference,
       specific_vehicle_id: lead.specific_vehicle_id ?? null,
+      requested_vehicles: initialRequested,
       pickup_date: lead.pickup_date,
       return_date: lead.return_date,
       rental_duration_days: lead.rental_duration_days,
@@ -260,7 +336,22 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       return;
     }
 
-    const specificBike = allFleetBikes.find(b => b.id === Number(leadForm.specific_vehicle_id));
+    const reqVehicles = (leadForm.requested_vehicles && leadForm.requested_vehicles.length > 0)
+      ? leadForm.requested_vehicles
+      : [{ preference: leadForm.vehicle_preference, specific_vehicle_id: leadForm.specific_vehicle_id ? Number(leadForm.specific_vehicle_id) : null }];
+
+    const firstBike = allFleetBikes.find(b => b.id === Number(reqVehicles[0]?.specific_vehicle_id));
+    
+    // Generate clean descriptive summary
+    let vehicleSummary = '';
+    if (reqVehicles.length > 1) {
+      vehicleSummary = `${reqVehicles.length} Bikes: ` + reqVehicles.map(v => {
+        const b = allFleetBikes.find(bike => bike.id === Number(v.specific_vehicle_id));
+        return b ? b.name : v.preference.toUpperCase();
+      }).join(', ');
+    } else {
+      vehicleSummary = firstBike ? firstBike.name : `${(reqVehicles[0]?.preference || 'scooty').toUpperCase()} (Any model)`;
+    }
 
     const leadPayload: Lead = {
       id: editingLead ? editingLead.id : `lead_${Date.now()}`,
@@ -268,9 +359,17 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       customer_name: leadForm.customer_name.trim(),
       customer_phone: leadForm.customer_phone.trim(),
       source: leadForm.source,
-      vehicle_preference: leadForm.vehicle_preference,
-      specific_vehicle_id: leadForm.specific_vehicle_id ? Number(leadForm.specific_vehicle_id) : null,
-      specific_vehicle_name: specificBike ? specificBike.name : (leadForm.specific_vehicle_id ? undefined : 'Flexible / Any model'),
+      vehicle_preference: reqVehicles[0]?.preference || leadForm.vehicle_preference,
+      specific_vehicle_id: reqVehicles[0]?.specific_vehicle_id ? Number(reqVehicles[0].specific_vehicle_id) : null,
+      specific_vehicle_name: vehicleSummary,
+      requested_vehicles: reqVehicles.map(v => {
+        const b = allFleetBikes.find(bike => bike.id === Number(v.specific_vehicle_id));
+        return {
+          preference: v.preference,
+          specific_vehicle_id: v.specific_vehicle_id ? Number(v.specific_vehicle_id) : null,
+          specific_vehicle_name: b ? b.name : undefined
+        };
+      }),
       pickup_date: leadForm.pickup_date,
       return_date: leadForm.return_date,
       rental_duration_days: Math.max(1, Number(leadForm.rental_duration_days) || 1),
@@ -288,6 +387,14 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     const updated = await fetchLeadsFromSupabase();
     setLeads(updated);
     setIsAddModalOpen(false);
+
+    // If status is Booked, immediately open the manual booking form to ask relevant entries before moving to bookings tab
+    if (leadForm.status === 'booked') {
+      showToast('Lead saved! Complete manual booking entries to move to bookings ledger.', 'info');
+      handleOpenConvertModal(leadPayload);
+      return;
+    }
+
     showToast(editingLead ? 'Lead updated successfully' : 'New inquiry logged successfully', 'success');
   };
 
@@ -300,6 +407,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
   };
 
   // Quick status update inline: If set to follow up, prompt to enter follow up date!
+  // If set to booked, open the manual booking form to ask relevant entries before moving to bookings tab!
   const handleQuickStatusChange = async (leadId: string, newStatus: LeadStatus) => {
     const target = leads.find(l => l.id === leadId);
     if (!target) return;
@@ -307,6 +415,12 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     if (newStatus === 'need_follow_up') {
       // Prompt user to enter follow up date & details
       handleOpenScheduleFollowUpModal(target);
+      return;
+    }
+
+    if (newStatus === 'booked') {
+      // Open create manual booking form
+      handleOpenConvertModal(target);
       return;
     }
 
@@ -691,6 +805,11 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       setConvertingLead(null);
       showToast(`Success! Converted lead to booking ${readableId} with confirmed rider profile.`, 'success');
 
+      // Navigate to bookings tab as requested
+      if (onNavigateToBooking) {
+        onNavigateToBooking(readableId);
+      }
+
       // WhatsApp booking confirmation
       const phone = convertForm.customer_phone.replace(/\D/g, '');
       const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
@@ -752,10 +871,20 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     showToast('Leads CSV exported successfully', 'success');
   };
 
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Compute urgent immediate follow-ups (need_follow_up and date <= today or unset)
+  const immediateFollowUps = useMemo(() => {
+    return leads.filter(l => l.status === 'need_follow_up' && (!l.follow_up_date || l.follow_up_date <= todayStr));
+  }, [leads, todayStr]);
+
   // Filtered leads
   const filteredLeads = useMemo(() => {
-    return leads.filter(lead => {
+    const list = leads.filter(lead => {
       if (statusFilter !== 'all') {
+        if (statusFilter === 'immediate_follow_up') {
+          return lead.status === 'need_follow_up' && (!lead.follow_up_date || lead.follow_up_date <= todayStr);
+        }
         if (statusFilter === 'follow_up' && lead.status !== 'need_follow_up') return false;
         if (statusFilter === 'booked' && lead.status !== 'booked') return false;
         if (statusFilter === 'contacted' && lead.status !== 'contacted') return false;
@@ -776,17 +905,32 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
       return true;
     });
-  }, [leads, statusFilter, categoryFilter, sourceFilter, searchQuery]);
+
+    // When viewing follow-ups, sort immediate/overdue follow-ups to the top
+    if (statusFilter === 'follow_up' || statusFilter === 'immediate_follow_up') {
+      return [...list].sort((a, b) => {
+        const aIsImmediate = !a.follow_up_date || a.follow_up_date <= todayStr;
+        const bIsImmediate = !b.follow_up_date || b.follow_up_date <= todayStr;
+        if (aIsImmediate && !bIsImmediate) return -1;
+        if (!aIsImmediate && bIsImmediate) return 1;
+        const aDate = a.follow_up_date || '9999-99-99';
+        const bDate = b.follow_up_date || '9999-99-99';
+        return aDate.localeCompare(bDate);
+      });
+    }
+
+    return list;
+  }, [leads, statusFilter, categoryFilter, sourceFilter, searchQuery, todayStr]);
 
   return (
-    <div className="space-y-6 animate-fade-in p-2 sm:p-4 text-slate-100">
+    <div className="space-y-6 animate-fade-in p-2 sm:p-4 text-slate-800">
       
       {/* Top Banner & Fast Action Bar */}
-      <div className="flex items-center justify-between gap-3 bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
         <div className="flex items-center gap-2.5">
           <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-          <h2 className="text-xl font-bold tracking-tight text-white uppercase">
-            Log Lead
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 uppercase">
+            Inquiry & Leads Manager
           </h2>
         </div>
 
@@ -794,10 +938,10 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
           <button
             type="button"
             onClick={handleExportCSV}
-            className="px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
             title="Download CSV"
           >
-            <svg className="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>Export</span>
@@ -816,116 +960,157 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
         </div>
       </div>
 
+      {/* IMMEDIATE FOLLOW-UP ALERT BANNER (Highlight urgent leads) */}
+      {immediateFollowUps.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400 flex items-center justify-center shrink-0">
+              <span className="text-lg">⚡</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-amber-950 text-sm">
+                  {immediateFollowUps.length} {immediateFollowUps.length === 1 ? 'Inquiry Needs' : 'Inquiries Need'} Immediate Follow-Up
+                </h4>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+              </div>
+              <p className="text-xs text-amber-800 mt-0.5">
+                These leads are scheduled for today or past due. Contact them promptly to convert into bookings.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'immediate_follow_up' ? 'follow_up' : 'immediate_follow_up')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                statusFilter === 'immediate_follow_up'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-100'
+              }`}
+            >
+              {statusFilter === 'immediate_follow_up' ? 'Show All Follow-Ups' : 'View Immediate Only'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Market Demand & Insights Grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {/* Total Inquiries */}
-        <div className="bg-[#0a0a0a] border border-neutral-800 p-3.5 rounded-2xl flex flex-col justify-between">
-          <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">Total Leads</span>
+        <div className="bg-white border border-slate-200 p-3.5 rounded-2xl flex flex-col justify-between shadow-sm">
+          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Leads</span>
           <div className="mt-1.5 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-white">{analytics.totalLeads}</span>
+            <span className="text-2xl font-black text-slate-900">{analytics.totalLeads}</span>
           </div>
         </div>
 
-        {/* Needs Follow-up */}
+        {/* Needs Follow-up (Default Tab Indicator) */}
         <div 
-          onClick={() => setStatusFilter(statusFilter === 'follow_up' ? 'all' : 'follow_up')}
-          className={`border p-3.5 rounded-2xl flex flex-col justify-between cursor-pointer transition-all ${
-            statusFilter === 'follow_up'
-              ? 'bg-amber-500/10 border-amber-500/40 shadow-lg' 
-              : 'bg-[#0a0a0a] border-neutral-800 hover:border-neutral-700'
+          onClick={() => setStatusFilter('follow_up')}
+          className={`border p-3.5 rounded-2xl flex flex-col justify-between cursor-pointer transition-all shadow-sm ${
+            statusFilter === 'follow_up' || statusFilter === 'immediate_follow_up'
+              ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30' 
+              : 'bg-white border-slate-200 hover:border-slate-300'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">Follow-Up</span>
+            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider">Follow-Up (Active)</span>
             {analytics.needFollowUpCount > 0 && (
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
             )}
           </div>
           <div className="mt-1.5 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-amber-300">{analytics.needFollowUpCount}</span>
+            <span className="text-2xl font-black text-amber-900">{analytics.needFollowUpCount}</span>
+            {immediateFollowUps.length > 0 && (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                {immediateFollowUps.length} due now
+              </span>
+            )}
           </div>
         </div>
 
         {/* Converted Bookings */}
         <div 
-          onClick={() => setStatusFilter(statusFilter === 'booked' ? 'all' : 'booked')}
-          className={`border p-3.5 rounded-2xl flex flex-col justify-between cursor-pointer transition-all ${
+          onClick={() => setStatusFilter('booked')}
+          className={`border p-3.5 rounded-2xl flex flex-col justify-between cursor-pointer transition-all shadow-sm ${
             statusFilter === 'booked'
-              ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg' 
-              : 'bg-[#0a0a0a] border-neutral-800 hover:border-neutral-700'
+              ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/30' 
+              : 'bg-white border-slate-200 hover:border-slate-300'
           }`}
         >
-          <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Booked</span>
+          <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Booked</span>
           <div className="mt-1.5 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-emerald-300">{analytics.bookedCount}</span>
+            <span className="text-2xl font-black text-emerald-900">{analytics.bookedCount}</span>
             {analytics.bookedCount > 0 && (
-              <span className="text-[10px] font-bold text-emerald-400">{analytics.conversionRate}%</span>
+              <span className="text-[10px] font-bold text-emerald-700">{analytics.conversionRate}%</span>
             )}
           </div>
         </div>
 
         {/* Lost to Availability */}
-        <div className="bg-[#0a0a0a] border border-neutral-800 p-3.5 rounded-2xl flex flex-col justify-between">
-          <span className="text-[10px] uppercase font-bold text-rose-400 tracking-wider">Lost</span>
+        <div className="bg-white border border-slate-200 p-3.5 rounded-2xl flex flex-col justify-between shadow-sm">
+          <span className="text-[10px] uppercase font-bold text-rose-700 tracking-wider">Lost</span>
           <div className="mt-1.5 flex items-baseline justify-between">
-            <span className="text-2xl font-black text-rose-300">{analytics.lostDemand.availability}</span>
+            <span className="text-2xl font-black text-rose-900">{analytics.lostDemand.availability}</span>
           </div>
         </div>
 
         {/* Top Channel */}
-        <div className="bg-[#0a0a0a] border border-neutral-800 p-3.5 rounded-2xl flex flex-col justify-between col-span-2 md:col-span-1">
-          <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">Channels</span>
+        <div className="bg-white border border-slate-200 p-3.5 rounded-2xl flex flex-col justify-between col-span-2 md:col-span-1 shadow-sm">
+          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Channels</span>
           <div className="mt-1.5 flex items-baseline justify-between text-xs">
-            <span className="text-white font-medium">WA: <strong className="text-emerald-400">{analytics.sourceBreakdown.whatsapp}</strong></span>
-            <span className="text-neutral-400">Calls: <strong className="text-white">{analytics.sourceBreakdown.call}</strong></span>
+            <span className="text-slate-800 font-medium">WA: <strong className="text-emerald-700">{analytics.sourceBreakdown.whatsapp}</strong></span>
+            <span className="text-slate-500">Calls: <strong className="text-slate-800">{analytics.sourceBreakdown.call}</strong></span>
           </div>
         </div>
       </div>
 
       {/* Market Demand Breakdown Bar */}
-      <div className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
-          <span className="text-xs font-bold text-white uppercase tracking-wider">
+          <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
             Demand Share
           </span>
           <div className="flex items-center gap-3 text-xs font-semibold flex-wrap">
-            <span className="flex items-center gap-1.5 text-neutral-300">
+            <span className="flex items-center gap-1.5 text-slate-600">
               <span className="w-2 h-2 rounded-sm bg-orange-500"></span>
-              Scooty: <strong className="text-white">{analytics.categoryPercentages.scooty}%</strong>
+              Scooty: <strong className="text-slate-900">{analytics.categoryPercentages.scooty}%</strong>
             </span>
-            <span className="flex items-center gap-1.5 text-neutral-300">
+            <span className="flex items-center gap-1.5 text-slate-600">
               <span className="w-2 h-2 rounded-sm bg-sky-500"></span>
-              Bullet: <strong className="text-white">{analytics.categoryPercentages.bullet}%</strong>
+              Bullet: <strong className="text-slate-900">{analytics.categoryPercentages.bullet}%</strong>
             </span>
-            <span className="flex items-center gap-1.5 text-neutral-300">
+            <span className="flex items-center gap-1.5 text-slate-600">
               <span className="w-2 h-2 rounded-sm bg-emerald-500"></span>
-              Sports: <strong className="text-white">{analytics.categoryPercentages.sports}%</strong>
+              Sports: <strong className="text-slate-900">{analytics.categoryPercentages.sports}%</strong>
             </span>
-            <span className="flex items-center gap-1.5 text-neutral-300">
-              <span className="w-2 h-2 rounded-sm bg-neutral-400"></span>
-              Commuter: <strong className="text-white">{analytics.categoryPercentages.bike}%</strong>
+            <span className="flex items-center gap-1.5 text-slate-600">
+              <span className="w-2 h-2 rounded-sm bg-slate-400"></span>
+              Commuter: <strong className="text-slate-900">{analytics.categoryPercentages.bike}%</strong>
             </span>
           </div>
         </div>
 
         {/* Visual Progress Bar */}
-        <div className="w-full h-2.5 bg-neutral-900 rounded-full overflow-hidden flex">
+        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
           <div style={{ width: `${analytics.categoryPercentages.scooty}%` }} className="bg-orange-500 h-full transition-all" title={`Scooty: ${analytics.categoryPercentages.scooty}%`} />
           <div style={{ width: `${analytics.categoryPercentages.bullet}%` }} className="bg-sky-500 h-full transition-all" title={`Bullet: ${analytics.categoryPercentages.bullet}%`} />
           <div style={{ width: `${analytics.categoryPercentages.sports}%` }} className="bg-emerald-500 h-full transition-all" title={`Sports: ${analytics.categoryPercentages.sports}%`} />
-          <div style={{ width: `${analytics.categoryPercentages.bike}%` }} className="bg-neutral-400 h-full transition-all" title={`Commuter: ${analytics.categoryPercentages.bike}%`} />
+          <div style={{ width: `${analytics.categoryPercentages.bike}%` }} className="bg-slate-400 h-full transition-all" title={`Commuter: ${analytics.categoryPercentages.bike}%`} />
         </div>
       </div>
 
       {/* Filter & Search Segmented Controls */}
-      <div className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
         {/* Status Filters */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           {[
-            { id: 'all', label: 'All' },
-            { id: 'follow_up', label: 'Follow-Up' },
+            { id: 'follow_up', label: `Follow-Up (${analytics.needFollowUpCount})` },
+            ...(immediateFollowUps.length > 0 ? [{ id: 'immediate_follow_up', label: `⚡ Due Now (${immediateFollowUps.length})` }] : []),
+            { id: 'all', label: `All (${leads.length})` },
+            { id: 'booked', label: `Booked (${analytics.bookedCount})` },
             { id: 'contacted', label: 'Contacted' },
-            { id: 'booked', label: 'Booked' },
             { id: 'lost', label: 'Lost' }
           ].map(f => (
             <button
@@ -934,8 +1119,8 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
               onClick={() => setStatusFilter(f.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                 statusFilter === f.id
-                  ? 'bg-white text-black font-bold shadow-sm'
-                  : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'
+                  ? 'bg-slate-900 text-white font-bold shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200'
               }`}
             >
               {f.label}
@@ -943,12 +1128,12 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
           ))}
         </div>
 
-        {/* Category & Channel Dropdowns without icons */}
+        {/* Category & Channel Dropdowns */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs rounded-xl px-3 py-1.5 font-medium focus:border-orange-500 focus:outline-none"
+            className="bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-1.5 font-medium focus:border-orange-500 focus:outline-none"
           >
             <option value="all">All Categories</option>
             <option value="scooty">Scooty</option>
@@ -960,7 +1145,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
-            className="bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs rounded-xl px-3 py-1.5 font-medium focus:border-orange-500 focus:outline-none"
+            className="bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-1.5 font-medium focus:border-orange-500 focus:outline-none"
           >
             <option value="all">All Channels</option>
             <option value="whatsapp">WhatsApp</option>
@@ -975,13 +1160,13 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
               placeholder="Search name, phone, bike..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:border-orange-500 focus:outline-none"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white text-xs"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs"
               >
                 ✕
               </button>
@@ -993,9 +1178,9 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       {/* MOBILE-RESPONSIVE CARD VIEW (visible on small screens < md) */}
       <div className="md:hidden space-y-3">
         {filteredLeads.length === 0 ? (
-          <div className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-8 text-center text-neutral-500">
-            <p className="font-semibold text-white">No inquiries found</p>
-            <p className="text-xs text-neutral-400 mt-1">Try resetting filters or click Log New Inquiry.</p>
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 shadow-sm">
+            <p className="font-bold text-slate-900">No inquiries found</p>
+            <p className="text-xs text-slate-500 mt-1">Try resetting filters or click Log Lead.</p>
           </div>
         ) : (
           filteredLeads.map(lead => {
@@ -1004,21 +1189,23 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
             const latestComment = lead.follow_up_comments && lead.follow_up_comments.length > 0 
               ? lead.follow_up_comments[0] 
               : null;
+            const isOverdue = lead.follow_up_date && lead.follow_up_date < todayStr;
+            const isToday = lead.follow_up_date === todayStr;
 
             return (
-              <div key={lead.id} className="bg-[#0a0a0a] border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-md">
+              <div key={lead.id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm text-slate-800">
                 {/* Header: Name, Phone & Source */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-bold text-white text-sm truncate">{lead.customer_name}</h4>
-                      <span className="text-[10px] text-neutral-400 uppercase px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono shrink-0">
+                      <h4 className="font-bold text-slate-900 text-sm truncate">{lead.customer_name}</h4>
+                      <span className="text-[10px] text-slate-600 uppercase px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono shrink-0">
                         {lead.source}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-neutral-400 mt-1">
-                      <a href={`tel:${lead.customer_phone}`} className="hover:text-sky-400 font-mono flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="flex items-center gap-3 text-xs text-slate-600 mt-1">
+                      <a href={`tel:${lead.customer_phone}`} className="hover:text-sky-600 font-mono flex items-center gap-1 font-semibold">
+                        <svg className="w-3.5 h-3.5 text-sky-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                         </svg>
                         <span>{lead.customer_phone}</span>
@@ -1031,11 +1218,11 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                     value={lead.status}
                     onChange={(e) => handleQuickStatusChange(lead.id, e.target.value as LeadStatus)}
                     className={`text-xs font-bold rounded-lg px-2.5 py-1.5 border transition-all cursor-pointer focus:outline-none shrink-0 ${
-                      lead.status === 'booked' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' :
-                      lead.status === 'need_follow_up' ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' :
-                      lead.status === 'contacted' ? 'bg-sky-500/15 border-sky-500/30 text-sky-300' :
-                      lead.status === 'lost_to_availability' ? 'bg-rose-500/15 border-rose-500/30 text-rose-300' :
-                      'bg-neutral-900 border-neutral-800 text-neutral-400'
+                      lead.status === 'booked' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' :
+                      lead.status === 'need_follow_up' ? 'bg-amber-50 border-amber-300 text-amber-900' :
+                      lead.status === 'contacted' ? 'bg-sky-50 border-sky-300 text-sky-800' :
+                      lead.status === 'lost_to_availability' ? 'bg-rose-50 border-rose-300 text-rose-800' :
+                      'bg-slate-100 border-slate-200 text-slate-700'
                     }`}
                   >
                     <option value="need_follow_up">Need Follow-Up</option>
@@ -1049,16 +1236,27 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                 </div>
 
                 {/* Machine Preference & Dates */}
-                <div className="bg-black/60 p-3 rounded-xl border border-neutral-800/80 grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-[10px] text-neutral-500 uppercase font-semibold block">Vehicle</span>
-                    <span className="font-semibold text-white truncate block">
-                      {lead.specific_vehicle_name || lead.vehicle_preference.toUpperCase()}
-                    </span>
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Vehicle</span>
+                    {lead.requested_vehicles && lead.requested_vehicles.length > 1 ? (
+                      <div>
+                        <span className="font-bold text-slate-900 block truncate">
+                          {lead.requested_vehicles.length} Bikes
+                        </span>
+                        <div className="text-[10px] text-slate-600 truncate mt-0.5">
+                          {lead.requested_vehicles.map(v => v.specific_vehicle_name || v.preference).join(', ')}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-slate-900 truncate block">
+                        {lead.specific_vehicle_name || lead.vehicle_preference.toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <div>
-                    <span className="text-[10px] text-neutral-500 uppercase font-semibold block">Dates</span>
-                    <span className="font-semibold text-white block">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Dates</span>
+                    <span className="font-bold text-slate-900 block">
                       {lead.pickup_date} ({lead.rental_duration_days}D)
                     </span>
                   </div>
@@ -1066,23 +1264,33 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
                 {/* Follow-Up Details & Date Bar (Clickable to edit details) */}
                 {lead.status === 'need_follow_up' && (
-                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 space-y-1.5">
+                  <div className="bg-amber-50 border border-amber-300 rounded-xl p-2.5 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 text-amber-300 font-bold text-[11px]">
-                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                      <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px]">
+                        {isOverdue ? (
+                          <span className="text-[10px] font-bold text-rose-700 bg-rose-100 border border-rose-300 px-1.5 py-0.5 rounded">
+                            ⚠️ Overdue
+                          </span>
+                        ) : isToday ? (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded">
+                            ⚡ Today
+                          </span>
+                        ) : (
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                        )}
                         <span>Follow-Up: {lead.follow_up_date || 'Date Not Set'}</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleOpenScheduleFollowUpModal(lead)}
-                        className="text-[10px] font-bold text-amber-400 hover:text-white px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/40 border border-amber-500/30 transition-all cursor-pointer"
+                        className="text-[10px] font-bold text-amber-900 hover:text-amber-950 px-2 py-0.5 rounded bg-amber-200/70 hover:bg-amber-200 border border-amber-300 transition-all cursor-pointer"
                         title="Edit follow-up schedule and details"
                       >
-                        ✎ Edit Details
+                        ✎ Details
                       </button>
                     </div>
                     {lead.notes && (
-                      <p className="text-[11px] text-neutral-300 italic line-clamp-1">
+                      <p className="text-[11px] text-slate-700 italic line-clamp-1">
                         "{lead.notes}"
                       </p>
                     )}
@@ -1091,26 +1299,26 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
                 {/* Latest Follow-Up Comment Snippet (if followed up later) */}
                 {latestComment && (
-                  <div className="bg-neutral-900/70 p-2.5 rounded-xl border border-neutral-800 text-[11px] space-y-0.5">
-                    <div className="flex items-center justify-between text-[10px] text-neutral-400 font-semibold">
-                      <span className="flex items-center gap-1 text-sky-400">
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] space-y-0.5">
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold">
+                      <span className="flex items-center gap-1 text-sky-700">
                         <span>💬</span> Latest Note
                       </span>
                       <span>{new Date(latestComment.timestamp).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-neutral-200 line-clamp-2">
+                    <p className="text-slate-800 line-clamp-2">
                       {latestComment.comment}
                     </p>
                   </div>
                 )}
 
                 {/* Mobile Action Buttons Bar */}
-                <div className="pt-2 border-t border-neutral-800 flex items-center justify-between gap-2 flex-wrap">
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-1.5">
                     {/* Call Customer */}
                     <a
                       href={`tel:${lead.customer_phone}`}
-                      className="px-2.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-sky-400 border border-neutral-800 text-xs font-semibold flex items-center gap-1 transition-colors"
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-sky-700 border border-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors"
                       title="Call customer"
                     >
                       <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1124,7 +1332,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                       href={getWhatsAppFollowUpUrl(lead)}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500 hover:text-black border border-emerald-500/30 text-xs font-semibold flex items-center gap-1 transition-colors"
+                      className="px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 text-xs font-semibold flex items-center gap-1 transition-colors"
                       title="WhatsApp customer"
                     >
                       <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
@@ -1137,7 +1345,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                     <button
                       type="button"
                       onClick={() => handleOpenEditModal(lead)}
-                      className="p-1.5 rounded-xl bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800 text-xs transition-colors"
+                      className="p-1.5 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs transition-colors"
                       title="Edit inquiry details"
                     >
                       ✎
@@ -1149,7 +1357,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                     <button
                       type="button"
                       onClick={() => handleOpenFollowUpCommentsModal(lead)}
-                      className="px-2.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 transition-colors"
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs text-sky-800 font-semibold flex items-center gap-1 transition-colors"
                       title="Log follow-up discussion & comments"
                     >
                       <span>💬</span>
@@ -1161,12 +1369,12 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                       <button
                         type="button"
                         onClick={() => handleOpenConvertModal(lead)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition-all active:scale-95"
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-sm"
                       >
                         Convert →
                       </button>
                     ) : (
-                      <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+                      <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-300">
                         ✓ Booked
                       </span>
                     )}
@@ -1179,10 +1387,10 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       </div>
 
       {/* DESKTOP LEADS TABLE (Hidden on small screens) */}
-      <div className="hidden md:block bg-[#0a0a0a] border border-neutral-800 rounded-3xl overflow-hidden shadow-xl">
+      <div className="hidden md:block bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-black/60 border-b border-neutral-800 text-neutral-400 text-[10px] uppercase font-bold tracking-wider">
+            <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-bold tracking-wider">
               <tr>
                 <th className="px-5 py-4">Customer & Channel</th>
                 <th className="px-5 py-4">Vehicle Preference</th>
@@ -1819,50 +2027,118 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                 </div>
               </div>
 
-              {/* Bike Category (Clean buttons without any icons or descriptive subtext) */}
-              <div className="space-y-2 bg-black p-3.5 rounded-2xl border border-neutral-800">
-                <label className="text-[10px] uppercase font-bold text-neutral-400 block">
-                  Category *
-                </label>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {[
-                    { id: 'scooty', label: 'Scooty' },
-                    { id: 'bullet', label: 'Bullet' },
-                    { id: 'bike', label: 'Bike' },
-                    { id: 'sports', label: 'Sports' },
-                    { id: 'flexible', label: 'Flexible' }
-                  ].map(cat => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setLeadForm(prev => ({ ...prev, vehicle_preference: cat.id as LeadVehiclePreference, specific_vehicle_id: null }))}
-                      className={`py-2 px-3 rounded-xl text-center border text-xs font-bold transition-all cursor-pointer ${
-                        leadForm.vehicle_preference === cat.id
-                          ? 'bg-orange-500/20 border-orange-500 text-orange-400 shadow-sm'
-                          : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
+              {/* Multi-Bike Selector & Preferences (Support any number of bikes with preference for each) */}
+              <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs uppercase font-bold text-slate-800 flex items-center gap-2">
+                      <span>🏍️ Bikes Requested ({leadForm.requested_vehicles?.length || 1})</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Select any number of bikes and specify preferences (Scooty, Bullet, Bike, Sports, Flexible)
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddBike}
+                    className="px-3 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer active:scale-95"
+                  >
+                    <span>+ Add Another Bike</span>
+                  </button>
                 </div>
 
-                {/* Specific Vehicle Dropdown */}
-                <div className="pt-1">
-                  <select
-                    value={leadForm.specific_vehicle_id || ''}
-                    onChange={(e) => setLeadForm(prev => ({ ...prev, specific_vehicle_id: e.target.value ? Number(e.target.value) : null }))}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none"
-                  >
-                    <option value="">Any {leadForm.vehicle_preference} (Flexible model)</option>
-                    {filteredVehiclesForPreference.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} — ₹{b.dailyRate}/day
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  {(leadForm.requested_vehicles && leadForm.requested_vehicles.length > 0 
+                    ? leadForm.requested_vehicles 
+                    : [{ preference: leadForm.vehicle_preference, specific_vehicle_id: leadForm.specific_vehicle_id }]
+                  ).map((veh, idx) => {
+                    const availableForThisBike = getBikesForPreference(veh.preference);
+                    return (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2.5 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-900 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-md">
+                            Bike #{idx + 1} Preference
+                          </span>
+                          {(leadForm.requested_vehicles?.length || 1) > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBike(idx)}
+                              className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold px-2 py-0.5 rounded-md transition-all cursor-pointer"
+                              title="Remove this bike"
+                            >
+                              ✕ Remove
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Category Buttons for this bike */}
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
+                            Preference / Type *
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                            {[
+                              { id: 'scooty', label: 'Scooty' },
+                              { id: 'bullet', label: 'Bullet' },
+                              { id: 'bike', label: 'Bike' },
+                              { id: 'sports', label: 'Sports' },
+                              { id: 'flexible', label: 'Flexible' }
+                            ].map(cat => (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => handleUpdateBikePreference(idx, cat.id as LeadVehiclePreference)}
+                                className={`py-1.5 px-2 rounded-lg text-center border text-xs font-bold transition-all cursor-pointer ${
+                                  veh.preference === cat.id
+                                    ? 'bg-orange-50 border-orange-500 text-orange-700 shadow-xs ring-1 ring-orange-400/40'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                }`}
+                              >
+                                {cat.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Specific Vehicle Model Dropdown for this bike */}
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
+                            Specific Machine (Optional)
+                          </label>
+                          <select
+                            value={veh.specific_vehicle_id || ''}
+                            onChange={(e) => handleUpdateBikeSpecificVehicle(idx, e.target.value ? Number(e.target.value) : null)}
+                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:border-orange-500 focus:outline-none"
+                          >
+                            <option value="">Any {veh.preference} (Flexible model)</option>
+                            {availableForThisBike.map(b => (
+                              <option key={b.id} value={b.id}>
+                                {b.name} — ₹{b.dailyRate}/day {b.rc_number ? `(${b.rc_number})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {/* Multi-bike summary badge */}
+                {(leadForm.requested_vehicles?.length || 1) > 1 && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-2.5 text-xs text-orange-900 flex items-center justify-between">
+                    <span className="font-semibold">
+                      Total {leadForm.requested_vehicles?.length} bikes selected for this inquiry
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddBike}
+                      className="text-orange-700 font-bold hover:underline text-xs cursor-pointer"
+                    >
+                      + Add another
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Dates & Duration */}
@@ -1978,6 +2254,23 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                 </div>
               </div>
 
+              {/* Booked Status Conversion Notice */}
+              {leadForm.status === 'booked' && (
+                <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 space-y-2.5 animate-fade-in shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🎉</span> Inquiry Status: Booked
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                      Step 1 of 2: Save & Open Booking Form
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    Setting status to <strong>Booked</strong> will automatically save this lead and open the <strong>Create Manual Booking & Rider Profile</strong> window. There you can confirm the assigned fleet bike, agreed daily rate, advance payment, and security deposit before moving it directly to the <strong>Bookings</strong> tab.
+                  </p>
+                </div>
+              )}
+
               {/* Follow-up Date Input (shown when status is need_follow_up) */}
               {leadForm.status === 'need_follow_up' && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5 space-y-2.5 animate-fade-in">
@@ -2074,9 +2367,15 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                  className={`px-5 py-2 rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer ${
+                    leadForm.status === 'booked'
+                      ? 'bg-emerald-600 hover:bg-emerald-500'
+                      : 'bg-orange-600 hover:bg-orange-500'
+                  }`}
                 >
-                  {editingLead ? 'Save Changes' : 'Log Lead'}
+                  {leadForm.status === 'booked' 
+                    ? 'Save & Open Booking Form →' 
+                    : (editingLead ? 'Save Changes' : 'Log Lead')}
                 </button>
               </div>
 

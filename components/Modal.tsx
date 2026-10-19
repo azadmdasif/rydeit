@@ -47,31 +47,49 @@ export const Modal: React.FC<ModalProps> = ({
 
   const widthClass = MAX_WIDTH_MAP[maxWidth] || 'max-w-2xl';
 
+  const isAdmin = typeof document !== 'undefined' && document.body.classList.contains('admin-panel-white');
+
   const modalNode = (
     <div
-      className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-sm flex justify-center items-center p-3 sm:p-6 overflow-y-auto"
+      className={`fixed inset-0 z-[9999] backdrop-blur-sm flex justify-center items-center p-3 sm:p-6 overflow-y-auto ${
+        isAdmin ? 'bg-slate-900/50 admin-panel-white' : 'bg-black/85'
+      }`}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       <div
-        className={`bg-brand-gray-dark border border-white/10 rounded-3xl shadow-2xl ${widthClass} w-full max-h-[92vh] flex flex-col my-auto overflow-hidden animate-fade-in`}
+        className={`${
+          isAdmin 
+            ? 'bg-white border border-slate-200 text-slate-800 shadow-2xl' 
+            : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light shadow-2xl'
+        } rounded-3xl ${widthClass} w-full max-h-[92vh] flex flex-col my-auto overflow-hidden animate-fade-in`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-brand-gray-dark px-6 py-4 sm:px-8 sm:py-5 border-b border-white/10 flex justify-between items-center shrink-0 z-20">
-          <h2 id="modal-title" className="text-xl sm:text-2xl font-heading text-brand-teal tracking-wide uppercase truncate mr-4">
+        <div className={`sticky top-0 px-6 py-4 sm:px-8 sm:py-5 border-b flex justify-between items-center shrink-0 z-20 ${
+          isAdmin ? 'bg-white border-slate-200' : 'bg-brand-gray-dark border-white/10'
+        }`}>
+          <h2 id="modal-title" className={`text-xl sm:text-2xl font-bold tracking-wide uppercase truncate mr-4 ${
+            isAdmin ? 'text-slate-900' : 'text-brand-teal font-heading'
+          }`}>
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center text-lg font-bold transition-all cursor-pointer shrink-0"
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-lg font-bold transition-all cursor-pointer shrink-0 ${
+              isAdmin 
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200' 
+                : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white'
+            }`}
             aria-label="Close modal"
           >
             ✕
           </button>
         </div>
-        <div className="px-6 py-6 sm:px-8 sm:py-6 text-brand-gray-light font-sans overflow-y-auto flex-1">
+        <div className={`px-6 py-6 sm:px-8 sm:py-6 font-sans overflow-y-auto flex-1 ${
+          isAdmin ? 'text-slate-800' : 'text-brand-gray-light'
+        }`}>
           {children}
         </div>
       </div>

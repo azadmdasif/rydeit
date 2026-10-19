@@ -86,6 +86,17 @@ const AppContent: React.FC = () => {
 
   const isAdminRoute = location.pathname.startsWith('/admin');
 
+  useEffect(() => {
+    if (isAdminRoute) {
+      document.body.classList.add('admin-panel-white');
+    } else {
+      document.body.classList.remove('admin-panel-white');
+    }
+    return () => {
+      document.body.classList.remove('admin-panel-white');
+    };
+  }, [isAdminRoute]);
+
   if (loading) return (
     <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center gap-6">
       <div className="w-12 h-12 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin"></div>

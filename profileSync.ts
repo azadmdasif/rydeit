@@ -80,36 +80,7 @@ export async function ensureCustomerProfile(customer: EnsureCustomerProfileParam
       };
     }
 
-    // 2. Profile does not exist yet: Try signing up user in Supabase Auth
-    // Use customer's 10-digit mobile number as default password so they can log in instantly
-    const initialPassword = cleanPhone.length === 10 ? cleanPhone : `${cleanPhone}12345`;
-    let newUserId: string | null = null;
-
-    try {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: initialPassword,
-        options: {
-          data: {
-            full_name: fullName,
-            phone: cleanPhone,
-            whatsapp: cleanPhone,
-            username: defaultUsername
-          }
-        }
-      });
-
-      if (signUpData?.user?.id) {
-        newUserId = signUpData.user.id;
-      } else if (signUpError && (signUpError.message.includes('already registered') || signUpError.message.includes('User already registered'))) {
-        // User exists in auth but missing in public.profiles
-        console.info('User exists in Auth, continuing profile generation.');
-      }
-    } catch (authErr) {
-      console.warn('Auth provision warning (handled):', authErr);
-    }
-
-    // 3. Insert into public.profiles
+    // 2. Insert fresh record into public.profiles (WITHOUT calling supabase.auth.signUp so the current admin session is never hijacked)
     const profilePayload: any = {
       email: cleanEmail,
       full_name: fullName,
@@ -127,39 +98,51 @@ export async function ensureCustomerProfile(customer: EnsureCustomerProfileParam
       updated_at: new Date().toISOString()
     };
 
-    if (newUserId) {
-      profilePayload.id = newUserId;
-    }
-
     try {
+      let resolvedId: string | null = null;
+
+      // 1. Try standard insert (does not require ON CONFLICT unique constraint)
       const { data: inserted, error: insertError } = await supabase
         .from('profiles')
-        .upsert(profilePayload, { onConflict: 'email' })
+        .insert(profilePayload)
         .select('id')
         .maybeSingle();
 
+      if (inserted?.id) {
+        resolvedId = inserted.id;
+      }
+
+      // 2. If column 'username' does not exist yet (42703), retry without username
       if (insertError && (insertError.message?.includes('username') || insertError.details?.includes('username') || insertError.code === '42703')) {
-        // Retry without username if column does not exist yet in DB
         const payloadWithoutUsername = { ...profilePayload };
         delete payloadWithoutUsername.username;
         const { data: retryInserted } = await supabase
           .from('profiles')
-          .upsert(payloadWithoutUsername, { onConflict: 'email' })
+          .insert(payloadWithoutUsername)
           .select('id')
           .maybeSingle();
-        
-        const resolvedId = retryInserted?.id || newUserId || null;
-        if (resolvedId) {
-          await linkCustomerBookings(resolvedId, cleanEmail, cleanPhone);
+        if (retryInserted?.id) {
+          resolvedId = retryInserted.id;
         }
-        return {
-          profileId: resolvedId,
-          username: defaultUsername,
-          isNew: true
-        };
       }
 
-      const resolvedId = inserted?.id || newUserId || null;
+      // 3. If duplicate key error (row with this email or id already exists), fetch existing
+      if (insertError && (insertError.message?.includes('duplicate key') || insertError.code === '23505' || insertError.message?.includes('already exists'))) {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id')
+          .or(`email.ilike.${cleanEmail},phone.eq.${cleanPhone}`)
+          .maybeSingle();
+        if (existing?.id) {
+          resolvedId = existing.id;
+          try {
+            await supabase.from('profiles').update(profilePayload).eq('id', existing.id);
+          } catch (updateErr) {
+            console.warn('Profile update notice:', updateErr);
+          }
+        }
+      }
+
       if (resolvedId) {
         await linkCustomerBookings(resolvedId, cleanEmail, cleanPhone);
       }
@@ -170,9 +153,9 @@ export async function ensureCustomerProfile(customer: EnsureCustomerProfileParam
         isNew: true
       };
     } catch (insertErr) {
-      console.warn('Profile direct insert notice:', insertErr);
+      console.warn('Profile direct insert notice (handled):', insertErr);
       return {
-        profileId: newUserId,
+        profileId: null,
         username: defaultUsername,
         isNew: true
       };
