@@ -332,7 +332,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       `_I have submitted my request on the portal. Please confirm the availability of my machine._`;
 
     const whatsappUrl = `https://wa.me/917686022245?text=${message}`;
-    window.open(whatsappUrl, '_blank');
+    const link = document.createElement('a');
+    link.href = whatsappUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   useEffect(() => {

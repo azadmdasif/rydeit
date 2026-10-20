@@ -32,7 +32,10 @@ export const Header: React.FC = () => {
   const menuItems = [
     { label: 'Home', to: '/' },
     { label: 'Fleet', to: '/bikes' },
+    { label: 'Scooters', to: '/scooters' },
+    { label: 'Motorcycles', to: '/motorcycles' },
     { label: 'Rates', to: '/rates' },
+    { label: 'FAQs', to: '/faqs' },
     { label: 'About', to: '/about' },
     { label: 'Contact', to: '/contact' },
   ];

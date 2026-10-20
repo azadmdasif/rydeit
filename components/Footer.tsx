@@ -1,7 +1,8 @@
-
 import React from 'react';
+import { Link } from 'react-router-dom';
 import type { LegalContent } from '../types';
 import { PRIVACY_POLICY, REFUND_POLICY, TERMS_AND_CONDITIONS } from '../legal';
+import { GARAGE_ADDRESS } from '../constants';
 
 interface FooterProps {
   onShowPolicy: (policy: LegalContent) => void;
@@ -9,36 +10,76 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({ onShowPolicy }) => {
   return (
-    <footer className="bg-brand-gray-dark py-12 border-t border-white/5">
-      <div className="container mx-auto px-4 text-center text-brand-gray-light">
-        <div className="flex flex-col items-center mb-10">
-          <div className="font-heading text-4xl text-white mb-2 uppercase">
+    <footer className="bg-brand-gray-dark py-14 border-t border-white/5 text-brand-gray-light">
+      <div className="container mx-auto px-4 text-center space-y-8">
+        <div className="flex flex-col items-center">
+          <Link to="/" className="font-heading text-4xl text-white mb-2 uppercase group">
             RYDE<span className="text-brand-orange">IT</span>
-          </div>
-          <p className="text-xs font-bold tracking-[0.5em] text-brand-teal uppercase">Ride The Wild. Live Free.</p>
+          </Link>
+          <p className="text-xs font-bold tracking-[0.4em] text-brand-teal uppercase">
+            Kolkata's Premier Bike &amp; Scooter Rental Hub
+          </p>
         </div>
 
-        <div className="flex justify-center flex-wrap gap-6 md:gap-12 mb-8">
-            <button onClick={() => onShowPolicy(PRIVACY_POLICY)} className="text-sm font-bold uppercase tracking-widest hover:text-brand-yellow transition-colors">Privacy Policy</button>
-            <button onClick={() => onShowPolicy(REFUND_POLICY)} className="text-sm font-bold uppercase tracking-widest hover:text-brand-yellow transition-colors">Refund Policy</button>
-            <button onClick={() => onShowPolicy(TERMS_AND_CONDITIONS)} className="text-sm font-bold uppercase tracking-widest hover:text-brand-yellow transition-colors">Terms & Conditions</button>
+        {/* Clean Internal SEO Links */}
+        <nav aria-label="Footer Navigation" className="flex justify-center flex-wrap gap-4 sm:gap-8 text-xs font-bold uppercase tracking-widest text-neutral-300">
+          <Link to="/" className="hover:text-brand-orange transition-colors">Home</Link>
+          <Link to="/bikes" className="hover:text-brand-orange transition-colors">All Fleet</Link>
+          <Link to="/scooters" className="hover:text-brand-orange transition-colors">Scooters for Rent</Link>
+          <Link to="/motorcycles" className="hover:text-brand-orange transition-colors">Motorcycles &amp; Cruisers</Link>
+          <Link to="/rates" className="hover:text-brand-orange transition-colors">Pricing &amp; Rates</Link>
+          <Link to="/faqs" className="hover:text-brand-orange transition-colors">FAQs</Link>
+          <Link to="/about" className="hover:text-brand-orange transition-colors">About Us</Link>
+          <Link to="/contact" className="hover:text-brand-orange transition-colors">Garage Location</Link>
+          <Link to="/book" className="hover:text-brand-orange text-brand-orange transition-colors">Book Online</Link>
+        </nav>
+
+        {/* Legal Policies */}
+        <div className="flex justify-center flex-wrap gap-6 text-xs text-neutral-400">
+          <button 
+            type="button" 
+            onClick={() => onShowPolicy(PRIVACY_POLICY)} 
+            className="hover:text-brand-yellow uppercase tracking-wider transition-colors cursor-pointer"
+          >
+            Privacy Policy
+          </button>
+          <span>•</span>
+          <button 
+            type="button" 
+            onClick={() => onShowPolicy(REFUND_POLICY)} 
+            className="hover:text-brand-yellow uppercase tracking-wider transition-colors cursor-pointer"
+          >
+            Refund Policy
+          </button>
+          <span>•</span>
+          <button 
+            type="button" 
+            onClick={() => onShowPolicy(TERMS_AND_CONDITIONS)} 
+            className="hover:text-brand-yellow uppercase tracking-wider transition-colors cursor-pointer"
+          >
+            Terms &amp; Conditions
+          </button>
         </div>
 
-        <div className="mb-8">
+        {/* WhatsApp & Phone Support */}
+        <div>
           <a 
             href="https://wa.me/917686022245"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-xs text-neutral-400 hover:text-white transition-colors duration-200"
+            className="inline-flex items-center gap-2 text-xs text-neutral-300 hover:text-white transition-colors duration-200 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            <span>Need help? Chat with us on WhatsApp</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>Need help or outstation advice? Chat with us on WhatsApp (+91 7686022245)</span>
           </a>
         </div>
 
-        <div className="pt-10 border-t border-white/5 opacity-50 space-y-2">
-          <p className="text-sm">© {new Date().getFullYear()} Rydeit Rentals. Adventure starts here.</p>
-          <p className="text-[10px] uppercase tracking-widest">Kolkata, West Bengal</p>
+        {/* NAP & Copyright */}
+        <div className="pt-8 border-t border-white/5 text-neutral-500 text-xs space-y-1.5">
+          <p>© {new Date().getFullYear()} Rydeit Rentals. All rights reserved.</p>
+          <address className="not-italic text-[11px] text-neutral-400">
+            {GARAGE_ADDRESS} • Daily 06:00 AM - 10:00 PM
+          </address>
         </div>
       </div>
     </footer>

@@ -1,8 +1,8 @@
 
 import React from 'react';
-// Fix: Use namespace import for react-router-dom to resolve "no exported member" errors
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Bike, BikeCategory } from '../types';
+import { SEOHead } from './SEOHead';
 
 const { useNavigate, Link } = ReactRouterDOM;
 
@@ -122,7 +122,22 @@ export const BikeCollection: React.FC<BikeCollectionProps> = ({ bikes }) => {
 
   return (
     <section className="py-20 bg-brand-black">
+      <SEOHead
+        title="Two-Wheeler Rental Fleet in Kolkata - Bikes & Scooters | Rydeit"
+        description="Explore the full self-drive fleet in Kolkata: Activa, Burgman, Jupiter, Pulsar, Apache 160, RE Classic 350, Hunter 350, Duke 390 & Yamaha R15. Transparent rates from ₹700/day."
+        canonicalPath="/bikes"
+      />
       <div className="container mx-auto px-4">
+        {/* Breadcrumb Navigation */}
+        <nav aria-label="Breadcrumb" className="mb-8 text-xs uppercase tracking-widest text-neutral-400">
+          <ol className="flex items-center gap-2">
+            <li>
+              <Link to="/" className="hover:text-brand-orange transition-colors">Home</Link>
+            </li>
+            <li>/</li>
+            <li className="text-brand-orange font-bold">Two-Wheeler Fleet</li>
+          </ol>
+        </nav>
         <div className="text-center mb-16">
           <h2 className="text-5xl md:text-6xl font-heading mb-4 uppercase text-brand-yellow tracking-tighter">Our Fleet</h2>
           <div className="w-24 h-1 bg-brand-orange mx-auto mb-6"></div>

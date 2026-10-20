@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Bike, BikeCategory, AdditionalCharge } from '../types';
+import { SEOHead } from './SEOHead';
 
 const { useNavigate, Link } = ReactRouterDOM;
 
@@ -68,7 +69,22 @@ export const Rates: React.FC<RatesProps> = ({ bikes, additionalCharges }) => {
 
   return (
     <section className="py-20 bg-brand-black min-h-screen">
+      <SEOHead
+        title="Bike & Scooter Rental Rates in Kolkata - Pricing Sheet | Rydeit"
+        description="Transparent bike & scooter rental rates in Kolkata. Scooters from ₹700/day, Royal Enfield from ₹1,500/day. Hourly rates, weekly discounts, ₹1,000 flat deposit."
+        canonicalPath="/rates"
+      />
       <div className="container mx-auto px-4">
+        {/* Breadcrumb Navigation */}
+        <nav aria-label="Breadcrumb" className="mb-8 text-xs uppercase tracking-widest text-neutral-400">
+          <ol className="flex items-center gap-2">
+            <li>
+              <Link to="/" className="hover:text-brand-orange transition-colors">Home</Link>
+            </li>
+            <li>/</li>
+            <li className="text-brand-orange font-bold">Rates &amp; Pricing</li>
+          </ol>
+        </nav>
         <div className="text-center mb-16">
           <h2 className="text-5xl font-heading mb-4 uppercase text-brand-teal tracking-tighter">Fleet & Rates</h2>
           <p className="text-brand-gray-light font-sans opacity-60 max-w-2xl mx-auto uppercase text-xs tracking-[0.4em]">
