@@ -200,8 +200,15 @@ ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS aadhaar_url TEXT;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS dl_url TEXT;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS dl_number TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS has_pillion BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_name TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_phone TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_aadhaar_number TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_aadhaar_url TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_bookings_readable_id ON public.bookings (readable_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_has_pillion ON public.bookings (has_pillion);
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON public.bookings (user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_customer_email ON public.bookings (customer_email);
 CREATE INDEX IF NOT EXISTS idx_bookings_customer_phone ON public.bookings (customer_phone);

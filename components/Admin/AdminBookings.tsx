@@ -58,12 +58,47 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     saving: false
   });
 
+  // Pillion & Emergency contact modal state
+  const [pillionModalOpen, setPillionModalOpen] = useState(false);
+  const [pillionForm, setPillionForm] = useState({
+    pillion_name: '',
+    pillion_phone: '',
+    pillion_aadhaar_number: '',
+    emergency_contact_phone: '',
+    pillion_aadhaar_file: null as File | null,
+    pillion_aadhaar_url: '',
+    saving: false
+  });
+
+  // Local storage helpers for instant pillion caching & cross-device preparation
+  const getLocalPillionData = (id: string | number) => {
+    try {
+      const raw = localStorage.getItem(`rydeit_pillion_${id}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const saveLocalPillionData = (id: string | number, data: any) => {
+    try {
+      localStorage.setItem(`rydeit_pillion_${id}`, JSON.stringify(data));
+    } catch (e) {
+      console.error('Failed to save to local storage', e);
+    }
+  };
+
   // Edit Booking details modal state (Admin can edit name, dates, vehicle, phone, rent, etc.)
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     customer_name: '',
     customer_phone: '',
     customer_email: '',
+    has_pillion: false,
+    pillion_name: '',
+    pillion_phone: '',
+    pillion_aadhaar_number: '',
+    emergency_contact_phone: '',
     bike_id: 15,
     pickup_date: '',
     pickup_time: '10:00',
@@ -84,6 +119,11 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     customer_name: '',
     customer_phone: '',
     customer_email: '',
+    has_pillion: false,
+    pillion_name: '',
+    pillion_phone: '',
+    pillion_aadhaar_number: '',
+    emergency_contact_phone: '',
     pickup_date: new Date().toISOString().split('T')[0],
     pickup_time: '10:00',
     return_date: new Date().toISOString().split('T')[0],
@@ -162,19 +202,63 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     if (error) {
       showToast(error.message, 'error');
     } else if (data) {
+      const enriched = data.map((b: any) => {
+        const local = getLocalPillionData(b.readable_id || b.id);
+        const hasPillion = b.has_pillion !== undefined && b.has_pillion !== null
+          ? Boolean(b.has_pillion)
+          : (local.has_pillion !== undefined && local.has_pillion !== null
+              ? Boolean(local.has_pillion)
+              : Boolean(b.pillion_name || local.pillion_name));
+        return {
+          ...b,
+          has_pillion: hasPillion,
+          pillion_name: b.pillion_name || local.pillion_name || null,
+          pillion_phone: b.pillion_phone || local.pillion_phone || null,
+          pillion_aadhaar_number: b.pillion_aadhaar_number || local.pillion_aadhaar_number || null,
+          pillion_aadhaar_url: b.pillion_aadhaar_url || local.pillion_aadhaar_url || null,
+          emergency_contact_phone: b.emergency_contact_phone || local.emergency_contact_phone || null
+        };
+      });
+
       if (statusFilter === 'overdue') {
         const currentNow = new Date();
-        const overdue = data.filter(b => {
+        const overdue = enriched.filter(b => {
           if (b.status !== 'ongoing') return false;
           const returnDate = new Date(`${b.return_date}T${b.return_time}`);
           return returnDate < currentNow;
         });
         setBookings(overdue);
       } else {
-        setBookings(data);
+        setBookings(enriched);
       }
+
+      // If a booking is currently selected in Operations modal, keep it fresh
+      setSelectedBooking((prev: any) => {
+        if (!prev) return null;
+        const matching = enriched.find(b => b.id === prev.id || (b.readable_id && b.readable_id === prev.readable_id));
+        return matching ? { ...prev, ...matching } : prev;
+      });
     }
     setLoading(false);
+  };
+
+  // Pillion completeness check: if customer requested a pillion, name, mobile, aadhaar and emergency contact are mandatory before dispatch
+  const isPillionIncomplete = (booking: any) => {
+    if (!booking?.has_pillion) return false;
+    const hasName = Boolean(booking.pillion_name && booking.pillion_name.trim());
+    const hasPhone = Boolean(booking.pillion_phone && booking.pillion_phone.trim());
+    const hasAadhaar = Boolean((booking.pillion_aadhaar_number && booking.pillion_aadhaar_number.trim()) || booking.pillion_aadhaar_url);
+    const hasEmergency = Boolean(booking.emergency_contact_phone && booking.emergency_contact_phone.trim());
+    return !hasName || !hasPhone || !hasAadhaar || !hasEmergency;
+  };
+
+  const getMissingPillionFields = (booking: any) => {
+    const missing: string[] = [];
+    if (!booking?.pillion_name?.trim()) missing.push('Pillion Name');
+    if (!booking?.pillion_phone?.trim()) missing.push('Mobile Number');
+    if (!booking?.pillion_aadhaar_number?.trim() && !booking?.pillion_aadhaar_url) missing.push('Aadhaar Document / Number');
+    if (!booking?.emergency_contact_phone?.trim()) missing.push('Emergency Contact Number');
+    return missing;
   };
 
   const getStatusSuccessMessage = (status: string, bookingRef: string, customerName?: string) => {
@@ -199,6 +283,18 @@ export const AdminBookings: React.FC<AdminBookingsProps> = ({ initialFilter = 'a
     const target = (selectedBooking && (String(selectedBooking.id) === String(id) || selectedBooking.readable_id === id))
       ? selectedBooking
       : bookings.find(b => String(b.id) === String(id) || b.readable_id === id);
+
+    // BLOCK DISPATCH IF CUSTOMER HAS A PILLION BUT DETAILS ARE MISSING
+    if (status === 'ongoing' && target) {
+      if (isPillionIncomplete(target)) {
+        const missing = getMissingPillionFields(target);
+        showToast(`Cannot dispatch: Customer has a pillion co-rider. Please add missing details first: ${missing.join(', ')}.`, 'error');
+        if (target) {
+          handleOpenPillionModal(target);
+        }
+        return;
+      }
+    }
 
     const readableId = target?.readable_id || String(id);
     const customerName = target?.customer_name;
@@ -495,6 +591,11 @@ Team Rydeit Rentals`;
       customer_name: '',
       customer_phone: '',
       customer_email: '',
+      has_pillion: false,
+      pillion_name: '',
+      pillion_phone: '',
+      pillion_aadhaar_number: '',
+      emergency_contact_phone: '',
       pickup_date: today,
       pickup_time: '10:00',
       return_date: today,
@@ -677,7 +778,24 @@ Team Rydeit Rentals`;
         admin_notes: combinedNotes || 'Manual walk-in / direct booking'
       };
 
-      const { error } = await supabase.from('bookings').insert(bookingPayload);
+      const pillionExtra = {
+        pillion_name: manualBooking.pillion_name.trim() || null,
+        pillion_phone: manualBooking.pillion_phone.trim() || null,
+        pillion_aadhaar_number: manualBooking.pillion_aadhaar_number.trim() || null,
+        emergency_contact_phone: manualBooking.emergency_contact_phone.trim() || null
+      };
+
+      if (manualBooking.pillion_name.trim() || manualBooking.pillion_phone.trim() || manualBooking.emergency_contact_phone.trim() || manualBooking.pillion_aadhaar_number.trim()) {
+        saveLocalPillionData(readableId, pillionExtra);
+      }
+
+      // Try insert with pillion fields first
+      let { error } = await supabase.from('bookings').insert({ ...bookingPayload, ...pillionExtra });
+      if (error && (error.code === '42703' || error.message?.includes('column') || error.code === 'PGRST204')) {
+        console.warn('Pillion columns not yet in Supabase schema, inserting booking and saving pillion locally');
+        const fallback = await supabase.from('bookings').insert(bookingPayload);
+        error = fallback.error;
+      }
       if (error) throw error;
 
       // Ensure each payment-confirmed or registered booking gets a profile in public.profiles
@@ -771,12 +889,119 @@ Team Rydeit Rentals`;
     }
   };
 
+  const handleOpenPillionModal = (booking?: any) => {
+    const b = booking || selectedBooking;
+    if (!b) return;
+    const local = getLocalPillionData(b.readable_id || b.id);
+    setPillionForm({
+      pillion_name: b.pillion_name || local.pillion_name || '',
+      pillion_phone: b.pillion_phone || local.pillion_phone || '',
+      pillion_aadhaar_number: b.pillion_aadhaar_number || local.pillion_aadhaar_number || '',
+      emergency_contact_phone: b.emergency_contact_phone || local.emergency_contact_phone || '',
+      pillion_aadhaar_file: null,
+      pillion_aadhaar_url: b.pillion_aadhaar_url || local.pillion_aadhaar_url || '',
+      saving: false
+    });
+    setPillionModalOpen(true);
+  };
+
+  const handleSavePillionForSelectedBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking) return;
+    setPillionForm(p => ({ ...p, saving: true }));
+
+    try {
+      let pillion_aadhaar_url = pillionForm.pillion_aadhaar_url || selectedBooking.pillion_aadhaar_url || '';
+
+      if (pillionForm.pillion_aadhaar_file) {
+        const file = pillionForm.pillion_aadhaar_file;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `pillion_aadhaar_${selectedBooking.readable_id}_${Date.now()}.${fileExt}`;
+        const filePath = `manual-docs/${fileName}`;
+        const { error: uploadError } = await supabase.storage.from('booking-docs').upload(filePath, file);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from('booking-docs').getPublicUrl(filePath);
+          pillion_aadhaar_url = publicUrl;
+        } else {
+          // Base64 fallback if storage bucket or policy isn't configured yet
+          pillion_aadhaar_url = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+        }
+      }
+
+      const pillionPayload: any = {
+        has_pillion: true,
+        pillion_name: pillionForm.pillion_name.trim() || null,
+        pillion_phone: pillionForm.pillion_phone.trim() || null,
+        pillion_aadhaar_number: pillionForm.pillion_aadhaar_number.trim() || null,
+        pillion_aadhaar_url: pillion_aadhaar_url || null,
+        emergency_contact_phone: pillionForm.emergency_contact_phone.trim() || null
+      };
+
+      // Always save locally immediately for cross-device preparation & offline resilience
+      saveLocalPillionData(selectedBooking.readable_id || selectedBooking.id, pillionPayload);
+
+      // Try updating in Supabase
+      const { error } = await supabase
+        .from('bookings')
+        .update(pillionPayload)
+        .eq('id', selectedBooking.id);
+
+      if (error) {
+        console.warn('Supabase pillion update notice:', error);
+        if (error.code === '42703' || error.message?.includes('column') || error.code === 'PGRST204') {
+          showToast('Pillion details saved locally! Run the provided SQL migration in Supabase to sync across all devices.', 'warning');
+        } else {
+          throw error;
+        }
+      } else {
+        showToast('Pillion & emergency contact details saved and synced across devices!', 'success');
+      }
+
+      const updated = {
+        ...selectedBooking,
+        ...pillionPayload
+      };
+      setSelectedBooking(updated);
+      setBookings(prev => prev.map(b => (b.id === selectedBooking.id ? { ...b, ...pillionPayload } : b)));
+      setPillionModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save pillion details', 'error');
+    } finally {
+      setPillionForm(p => ({ ...p, saving: false }));
+    }
+  };
+
+  const handleCopySupabaseSql = () => {
+    const sql = `-- RYDEIT: PILLION DETAILS & EMERGENCY CONTACT BACKEND MIGRATION
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS customer_email TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS has_pillion BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_name TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_phone TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_aadhaar_number TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pillion_aadhaar_url TEXT;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT;
+CREATE INDEX IF NOT EXISTS idx_bookings_has_pillion ON public.bookings (has_pillion);
+NOTIFY pgrst, 'reload schema';`;
+    navigator.clipboard.writeText(sql);
+    showToast('Supabase SQL copied to clipboard! Paste and Run in Supabase SQL Editor.', 'success');
+  };
+
   const handleOpenEditModal = (booking: any) => {
     setEditingBooking(booking);
+    const local = getLocalPillionData(booking.readable_id || booking.id);
     setEditForm({
       customer_name: booking.customer_name || '',
       customer_phone: booking.customer_phone || '',
       customer_email: booking.customer_email || '',
+      has_pillion: booking.has_pillion !== undefined ? Boolean(booking.has_pillion) : Boolean(local.has_pillion),
+      pillion_name: booking.pillion_name || local.pillion_name || '',
+      pillion_phone: booking.pillion_phone || local.pillion_phone || '',
+      pillion_aadhaar_number: booking.pillion_aadhaar_number || local.pillion_aadhaar_number || '',
+      emergency_contact_phone: booking.emergency_contact_phone || local.emergency_contact_phone || '',
       bike_id: Number(booking.bike_id) || fleetBikes[0]?.id || 15,
       pickup_date: booking.pickup_date || '',
       pickup_time: booking.pickup_time || '10:00',
@@ -842,7 +1067,7 @@ Team Rydeit Rentals`;
 
     setSavingEdit(true);
     try {
-      const updates = {
+      const updates: any = {
         customer_name: editForm.customer_name.trim(),
         customer_phone: editForm.customer_phone.trim(),
         customer_email: editForm.customer_email.trim(),
@@ -857,13 +1082,33 @@ Team Rydeit Rentals`;
         status: editForm.status,
         needs_delivery: editForm.needs_delivery,
         address: editForm.address.trim(),
-        admin_notes: editForm.admin_notes.trim()
+        admin_notes: editForm.admin_notes.trim(),
+        has_pillion: Boolean(editForm.has_pillion)
       };
 
-      const { error } = await supabase
+      const pillionData = {
+        has_pillion: Boolean(editForm.has_pillion),
+        pillion_name: editForm.has_pillion ? (editForm.pillion_name.trim() || null) : null,
+        pillion_phone: editForm.has_pillion ? (editForm.pillion_phone.trim() || null) : null,
+        pillion_aadhaar_number: editForm.has_pillion ? (editForm.pillion_aadhaar_number.trim() || null) : null,
+        emergency_contact_phone: editForm.has_pillion ? (editForm.emergency_contact_phone.trim() || null) : null
+      };
+
+      // Cache locally immediately
+      saveLocalPillionData(editingBooking.readable_id || editingBooking.id, pillionData);
+
+      // Attempt update with pillion columns first
+      let { error } = await supabase
         .from('bookings')
-        .update(updates)
+        .update({ ...updates, ...pillionData })
         .eq('id', editingBooking.id);
+
+      // If columns don't exist in Supabase yet, retry with base updates so user is not blocked
+      if (error && (error.code === '42703' || error.message?.includes('column') || error.code === 'PGRST204')) {
+        console.warn('Pillion columns not yet in Supabase schema, saving base booking and caching pillion locally');
+        const fallback = await supabase.from('bookings').update(updates).eq('id', editingBooking.id);
+        error = fallback.error;
+      }
 
       if (error) throw error;
 
@@ -871,7 +1116,7 @@ Team Rydeit Rentals`;
       setEditingBooking(null);
       await fetchBookings();
       if (selectedBooking?.id === editingBooking.id) {
-        setSelectedBooking((prev: any) => prev ? { ...prev, ...updates } : null);
+        setSelectedBooking((prev: any) => prev ? { ...prev, ...updates, ...pillionData } : null);
       }
     } catch (err: any) {
       console.error("Error updating booking:", err);
@@ -1241,6 +1486,21 @@ Team Rydeit Rentals`;
                             <div className="text-sm font-bold text-slate-900">{booking.customer_name}</div>
                             <div className="text-xs text-slate-700 font-semibold mt-0.5">{bike?.name}</div>
                             <div className="text-xs font-mono font-medium text-slate-500 mt-0.5">{booking.customer_phone}</div>
+                            {booking.customer_email && (
+                              <div className="text-[11px] text-slate-500 font-medium truncate max-w-[180px]" title={booking.customer_email}>
+                                ✉ {booking.customer_email}
+                              </div>
+                            )}
+                            {booking.has_pillion ? (
+                              <div className="text-[10px] text-orange-600 font-bold mt-0.5 flex items-center gap-1">
+                                <span>👥</span>
+                                <span>Pillion: {booking.pillion_name || (isPillionIncomplete(booking) ? 'KYC Required' : 'Co-Rider')}</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                <span>👤 Solo Rider</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -1291,10 +1551,18 @@ Team Rydeit Rentals`;
                             <button
                               type="button"
                               onClick={() => updateStatus(booking.id, 'ongoing')}
-                              className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer"
-                              title="Dispatch machine and start rental"
+                              className={`px-3 py-1.5 rounded-lg text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 whitespace-nowrap cursor-pointer ${
+                                booking.has_pillion && isPillionIncomplete(booking)
+                                  ? 'bg-rose-600 hover:bg-rose-700'
+                                  : 'bg-teal-600 hover:bg-teal-700'
+                              }`}
+                              title={
+                                booking.has_pillion && isPillionIncomplete(booking)
+                                  ? 'Dispatch locked: Pillion and emergency contact required'
+                                  : 'Dispatch machine and start rental'
+                              }
                             >
-                              <span>🚀 Dispatch</span>
+                              <span>{booking.has_pillion && isPillionIncomplete(booking) ? '⚠️ Pillion KYC & Dispatch' : '🚀 Dispatch'}</span>
                             </button>
                           )}
 
@@ -1447,6 +1715,63 @@ Team Rydeit Rentals`;
                   </div>
                   <p className="text-white font-bold text-3xl uppercase tracking-tighter">{selectedBooking.customer_name}</p>
                   
+                  {/* Rider Contact Info: Email & Mobile & Emergency */}
+                  <div className="flex flex-wrap items-center gap-y-2 gap-x-4 mt-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase text-brand-teal tracking-wider">Email:</span>
+                      {selectedBooking.customer_email ? (
+                        <a 
+                          href={`mailto:${selectedBooking.customer_email}`} 
+                          className="text-white hover:text-brand-teal font-medium text-xs underline decoration-brand-teal/40 hover:decoration-brand-teal transition-colors"
+                          title="Click to email rider"
+                        >
+                          {selectedBooking.customer_email}
+                        </a>
+                      ) : (
+                        <span className="text-white/40 italic text-xs">Email not provided</span>
+                      )}
+                    </div>
+
+                    <div className="h-3 w-[1px] bg-white/20 hidden sm:block"></div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase text-brand-teal tracking-wider">Mobile:</span>
+                      <a 
+                        href={`tel:${selectedBooking.customer_phone}`} 
+                        className="text-white hover:text-brand-teal font-mono font-medium text-xs underline decoration-brand-teal/40 hover:decoration-brand-teal transition-colors"
+                      >
+                        {selectedBooking.customer_phone}
+                      </a>
+                    </div>
+
+                    {selectedBooking.emergency_contact_phone && (
+                      <>
+                        <div className="h-3 w-[1px] bg-white/20 hidden sm:block"></div>
+                        <div className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1 rounded-lg">
+                          <span className="text-[10px]">🚨</span>
+                          <span className="text-[9px] font-bold text-rose-300 uppercase">Emergency:</span>
+                          <a href={`tel:${selectedBooking.emergency_contact_phone}`} className="text-xs font-mono font-bold text-white hover:underline">
+                            {selectedBooking.emergency_contact_phone}
+                          </a>
+                        </div>
+                      </>
+                    )}
+                    <div className="h-3 w-[1px] bg-white/20 hidden sm:block"></div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase text-brand-teal tracking-wider">Pillion:</span>
+                      {selectedBooking.has_pillion ? (
+                        <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase bg-brand-orange/20 text-brand-orange border border-brand-orange/30">
+                          Yes {selectedBooking.pillion_name ? `(${selectedBooking.pillion_name})` : (isPillionIncomplete(selectedBooking) ? '(KYC Needed)' : '')}
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase bg-white/5 text-white/50 border border-white/10">
+                          No (Solo Rider)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Rider Communication Actions */}
                   <div className="flex flex-wrap items-center gap-2.5 mt-4">
                     <a 
@@ -1456,6 +1781,19 @@ Team Rydeit Rentals`;
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                       <span>{selectedBooking.customer_phone}</span>
                     </a>
+
+                    {selectedBooking.customer_email && (
+                      <a 
+                        href={`mailto:${selectedBooking.customer_email}`} 
+                        className="inline-flex items-center gap-2 bg-sky-500/10 border border-sky-500/20 px-4 py-2.5 rounded-xl text-sky-300 text-xs font-bold hover:bg-sky-500 hover:text-black transition-all"
+                        title="Compose email to rider"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span>{selectedBooking.customer_email}</span>
+                      </a>
+                    )}
 
                     <button
                       type="button"
@@ -1687,6 +2025,197 @@ Team Rydeit Rentals`;
               )}
             </div>
 
+            {/* PILLION RIDER & EMERGENCY CONTACT SECTION */}
+            {/* Rule 1: If customer has NO pillion, do not display this section */}
+            {/* Rule 2: If customer has pillion, only give admin the option to add pillion & emergency details AFTER booking is confirmed */}
+            {selectedBooking.has_pillion && (
+              isPaymentPending(selectedBooking.status) ? (
+                /* Unconfirmed / Pending Payment: Notice only, no add option before booking confirmed */
+                <div className="bg-brand-black/40 p-8 rounded-[2.5rem] border border-amber-500/20 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">👥</span>
+                      <div>
+                        <h4 className="text-amber-300 font-heading text-xs uppercase tracking-widest flex items-center gap-2">
+                          <span>Pillion Co-Rider Requested</span>
+                          <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500/20 text-amber-300 uppercase">Awaiting Confirmation</span>
+                        </h4>
+                        <p className="text-[11px] text-neutral-300 mt-1 leading-relaxed">
+                          Customer selected <strong>Yes (With Pillion)</strong> during booking. Pillion KYC documents, Aadhaar upload & 24x7 emergency contact details will unlock for admin entry once the booking payment is confirmed.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[9px] font-black uppercase tracking-wider shrink-0">
+                      Unlocks After Payment Confirm
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Booking is Confirmed / Ongoing: Admin has full option to add pillion & emergency details */
+                <div className="bg-brand-black/40 p-10 rounded-[3rem] border border-white/5 space-y-6">
+                  {/* Warning banner if pillion details are incomplete */}
+                  {isPillionIncomplete(selectedBooking) && (
+                    <div className="bg-rose-500/15 border-2 border-rose-500/40 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl shadow-rose-950/40">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl shrink-0">🚨</span>
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-wider text-rose-300">
+                            Dispatch Locked — Mandatory Pillion & Emergency Details Missing
+                          </p>
+                          <p className="text-[11px] text-neutral-200 mt-0.5">
+                            Customer has a pillion co-rider. Missing: <strong className="text-rose-200 underline">{getMissingPillionFields(selectedBooking).join(', ')}</strong>. This machine cannot be dispatched until these are recorded.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPillionModal(selectedBooking)}
+                        className="px-4 py-2.5 bg-rose-500 hover:bg-rose-400 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg shrink-0"
+                      >
+                        Complete Details Now
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">👥</span>
+                        <h4 className="text-brand-teal font-heading text-sm uppercase tracking-widest">
+                          Pillion Details & Emergency Contact
+                        </h4>
+                      </div>
+                      <p className="text-[9px] text-white/40 uppercase mt-0.5">
+                        Co-rider verification, Aadhaar card document, and 24x7 emergency rescue contact
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopySupabaseSql}
+                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 rounded-xl text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Copy SQL for Supabase to enable cross-device sync"
+                      >
+                        <svg className="w-3.5 h-3.5 text-brand-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                        <span>Copy Supabase SQL</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPillionModal(selectedBooking)}
+                        className="px-4 py-2 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-brand-orange/20"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <span>{(selectedBooking.pillion_name || selectedBooking.emergency_contact_phone) ? 'Update Pillion Info' : '+ Add Pillion & Emergency'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                    {/* 1. Pillion Rider Card */}
+                    <div className="bg-brand-black/60 p-6 rounded-2xl border border-white/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-brand-teal tracking-wider">Pillion Rider Name</span>
+                        {selectedBooking.pillion_name ? (
+                          <span className="px-2 py-0.5 rounded text-[8px] font-black bg-brand-teal/20 text-brand-teal uppercase">Registered</span>
+                        ) : (
+                          <span className="text-[9px] text-rose-400 font-bold uppercase">Required</span>
+                        )}
+                      </div>
+                      <p className="text-base font-bold text-white uppercase tracking-tight">
+                        {selectedBooking.pillion_name || 'No Pillion Added'}
+                      </p>
+                      {selectedBooking.pillion_phone ? (
+                        <div className="flex items-center gap-2 pt-1">
+                          <a
+                            href={`tel:${selectedBooking.pillion_phone}`}
+                            className="inline-flex items-center gap-1.5 text-xs text-brand-teal hover:underline font-mono"
+                            title="Call Pillion"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            <span>{selectedBooking.pillion_phone}</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-rose-400 font-medium">Mobile: Required before dispatch</p>
+                      )}
+                    </div>
+
+                    {/* 2. Emergency Contact Card */}
+                    <div className="bg-brand-black/60 p-6 rounded-2xl border border-rose-500/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-rose-400 tracking-wider flex items-center gap-1">
+                          <span>🚨</span> Emergency Contact
+                        </span>
+                        {selectedBooking.emergency_contact_phone ? (
+                          <span className="px-2 py-0.5 rounded text-[8px] font-black bg-rose-500/20 text-rose-300 uppercase">Priority</span>
+                        ) : (
+                          <span className="text-[9px] text-rose-400 font-bold uppercase">Required</span>
+                        )}
+                      </div>
+                      {selectedBooking.emergency_contact_phone ? (
+                        <div className="space-y-2">
+                          <p className="text-lg font-mono font-bold text-rose-300">
+                            {selectedBooking.emergency_contact_phone}
+                          </p>
+                          <a
+                            href={`tel:${selectedBooking.emergency_contact_phone}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white text-xs font-bold transition-all"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            <span>Call Emergency Number</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs text-rose-400/90 font-medium">Emergency contact not recorded</p>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPillionModal(selectedBooking)}
+                            className="text-[10px] text-rose-400 font-bold hover:underline cursor-pointer"
+                          >
+                            + Set Emergency Contact
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 3. Pillion Aadhaar Card */}
+                    <div className="bg-brand-black/60 p-6 rounded-2xl border border-white/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-brand-yellow tracking-wider">Pillion Aadhaar</span>
+                        {selectedBooking.pillion_aadhaar_url && (
+                          <a
+                            href={selectedBooking.pillion_aadhaar_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[8px] font-black text-brand-teal uppercase hover:underline"
+                          >
+                            View Full ↗
+                          </a>
+                        )}
+                      </div>
+                      {selectedBooking.pillion_aadhaar_url ? (
+                        <div className="aspect-video bg-brand-black rounded-xl overflow-hidden border border-white/5">
+                          <img src={selectedBooking.pillion_aadhaar_url} className="w-full h-full object-cover" alt="Pillion Aadhaar" />
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-brand-black/40 rounded-xl border border-white/5 text-center text-white/30 text-xs">
+                          Aadhaar photo pending
+                        </div>
+                      )}
+                      <div className="text-[10px] text-white/70 font-mono">
+                        No: {selectedBooking.pillion_aadhaar_number || 'Not provided'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
+
             {/* PAYMENT PROOF SECTION */}
             {selectedBooking.payment_screenshot_url && (
               <div className="bg-brand-black/40 p-10 rounded-[3rem] border-2 border-brand-yellow/30 space-y-6">
@@ -1794,9 +2323,22 @@ Team Rydeit Rentals`;
                     <button 
                       onClick={() => updateStatus(selectedBooking.id, 'ongoing')} 
                       disabled={selectedBooking.status === 'cancelled'}
-                      className={`py-4 bg-brand-teal text-black text-[9px] font-black uppercase rounded-xl hover:bg-brand-teal/80 transition-colors ${selectedBooking.status === 'cancelled' ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
+                      className={`py-4 text-[9px] font-black uppercase rounded-xl transition-all ${
+                        selectedBooking.status === 'cancelled'
+                          ? 'bg-neutral-800 text-white/30 opacity-30 cursor-not-allowed'
+                          : selectedBooking.has_pillion && isPillionIncomplete(selectedBooking)
+                            ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/20 cursor-pointer'
+                            : 'bg-brand-teal text-black hover:bg-brand-teal/80 cursor-pointer'
+                      }`}
+                      title={
+                        selectedBooking.has_pillion && isPillionIncomplete(selectedBooking)
+                          ? 'Dispatch locked: Pillion and emergency contact required before starting rental'
+                          : 'Dispatch machine and start rental'
+                      }
                     >
-                      Dispatch / Start
+                      {selectedBooking.has_pillion && isPillionIncomplete(selectedBooking)
+                        ? '⚠️ Dispatch Locked (Pillion Details Required)'
+                        : 'Dispatch / Start'}
                     </button>
                     <button 
                       onClick={() => updateStatus(selectedBooking.id, 'completed')} 
@@ -2420,6 +2962,124 @@ Team Rydeit Rentals`;
         </Modal>
       )}
 
+      {/* PILLION & EMERGENCY DETAILS MODAL */}
+      {pillionModalOpen && selectedBooking && (
+        <Modal 
+          isOpen={pillionModalOpen} 
+          onClose={() => setPillionModalOpen(false)} 
+          title={`PILLION & EMERGENCY CONTACT: ${selectedBooking.readable_id}`} 
+          maxWidth="xl"
+        >
+          <form onSubmit={handleSavePillionForSelectedBooking} className="space-y-6 py-2">
+            <div className="bg-brand-black/60 p-4 rounded-2xl border border-white/10 text-xs text-white/80 space-y-1">
+              <p className="font-bold text-white flex items-center gap-2">
+                <span className="text-brand-teal">✓</span> Rider: {selectedBooking.customer_name} ({selectedBooking.customer_phone})
+              </p>
+              <p className="text-[11px] text-white/50">
+                Register pillion co-rider info, Aadhaar document, and an emergency contact phone for customer safety and roadside support.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/60 uppercase tracking-widest">
+                  Pillion Full Name
+                </label>
+                <input 
+                  type="text"
+                  placeholder="e.g. Priya Sharma"
+                  value={pillionForm.pillion_name}
+                  onChange={(e) => setPillionForm(p => ({ ...p, pillion_name: e.target.value }))}
+                  className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal font-bold"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/60 uppercase tracking-widest">
+                  Pillion Mobile Number
+                </label>
+                <input 
+                  type="tel"
+                  placeholder="e.g. +91 98765 43210"
+                  value={pillionForm.pillion_phone}
+                  onChange={(e) => setPillionForm(p => ({ ...p, pillion_phone: e.target.value }))}
+                  className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-teal font-mono font-medium"
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <label className="text-[9px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <span>🚨</span> Emergency Contact Number (Mandatory for Support)
+                </label>
+                <input 
+                  type="tel"
+                  placeholder="e.g. +91 98123 45678 (Parent / Spouse / Friend)"
+                  value={pillionForm.emergency_contact_phone}
+                  onChange={(e) => setPillionForm(p => ({ ...p, emergency_contact_phone: e.target.value }))}
+                  className="w-full bg-brand-black border border-rose-500/30 rounded-xl p-3 text-xs text-white outline-none focus:border-rose-400 font-mono font-bold"
+                />
+                <p className="text-[10px] text-white/40">
+                  This contact will be called immediately by operations if any breakdown, emergency, or accident occurs.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/60 uppercase tracking-widest">
+                  Pillion Aadhaar Card Number
+                </label>
+                <input 
+                  type="text"
+                  placeholder="e.g. 1234 5678 9012"
+                  value={pillionForm.pillion_aadhaar_number}
+                  onChange={(e) => setPillionForm(p => ({ ...p, pillion_aadhaar_number: e.target.value }))}
+                  className="w-full bg-brand-black border border-white/15 rounded-xl p-3 text-xs text-white font-mono outline-none focus:border-brand-teal"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-white/60 uppercase tracking-widest">
+                  Pillion Aadhaar Card Upload
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-dashed border-white/10 rounded-xl p-3 hover:border-brand-teal transition-all">
+                  <svg className="w-4 h-4 text-brand-teal shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  </svg>
+                  <span className="text-[9px] font-bold text-white/60 truncate">
+                    {pillionForm.pillion_aadhaar_file ? pillionForm.pillion_aadhaar_file.name : (selectedBooking.pillion_aadhaar_url ? 'Replace Aadhaar Image' : 'Upload Aadhaar Image')}
+                  </span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => e.target.files?.[0] && setPillionForm(p => ({ ...p, pillion_aadhaar_file: e.target.files![0] }))} 
+                  />
+                </label>
+                {selectedBooking.pillion_aadhaar_url && !pillionForm.pillion_aadhaar_file && (
+                  <p className="text-[9px] text-brand-teal font-semibold">✓ Current Aadhaar on file</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-2">
+              <button
+                type="button"
+                onClick={() => setPillionModalOpen(false)}
+                className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-black uppercase rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={pillionForm.saving}
+                className="flex-1 py-3.5 bg-brand-orange hover:bg-brand-orange/90 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-brand-orange/20 cursor-pointer disabled:opacity-50"
+              >
+                {pillionForm.saving ? 'Saving Details...' : 'Save Pillion & Emergency Details'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {/* EDIT BOOKING DETAILS MODAL (Name, Phone, Dates, Vehicle, Rent, Logistics) */}
       {editingBooking && (
         <Modal
@@ -2513,6 +3173,99 @@ Team Rydeit Rentals`;
                   />
                 </div>
               </div>
+            </div>
+
+            {/* PILLION DETAILS & EMERGENCY CONTACT */}
+            <div className="bg-brand-black/40 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-brand-orange flex items-center gap-2">
+                    <span>👥</span> Pillion Details & Emergency Contact
+                  </h4>
+                  <p className="text-[10px] text-white/40 mt-0.5">Specify if rider travels with a passenger</p>
+                </div>
+
+                <div className="flex items-center gap-2 bg-brand-black p-1 rounded-xl border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, has_pillion: false }))}
+                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer ${
+                      !editForm.has_pillion ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white'
+                    }`}
+                  >
+                    No (Solo)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, has_pillion: true }))}
+                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer ${
+                      editForm.has_pillion ? 'bg-brand-orange text-white' : 'text-white/40 hover:text-white'
+                    }`}
+                  >
+                    Yes (With Pillion)
+                  </button>
+                </div>
+              </div>
+
+              {editForm.has_pillion ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                      Pillion Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Priya Sharma"
+                      value={editForm.pillion_name}
+                      onChange={(e) => setEditForm(p => ({ ...p, pillion_name: e.target.value }))}
+                      className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium outline-none focus:border-brand-orange"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                      Pillion Mobile Number *
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={editForm.pillion_phone}
+                      onChange={(e) => setEditForm(p => ({ ...p, pillion_phone: e.target.value }))}
+                      className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-medium outline-none focus:border-brand-orange"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-white/60">
+                      Pillion Aadhaar Number *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="1234 5678 9012"
+                      value={editForm.pillion_aadhaar_number}
+                      onChange={(e) => setEditForm(p => ({ ...p, pillion_aadhaar_number: e.target.value }))}
+                      className="w-full bg-brand-black border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-medium outline-none focus:border-brand-orange"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-rose-400">
+                      🚨 Emergency Contact No. *
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98123 45678"
+                      value={editForm.emergency_contact_phone}
+                      onChange={(e) => setEditForm(p => ({ ...p, emergency_contact_phone: e.target.value }))}
+                      className="w-full bg-brand-black border border-rose-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold outline-none focus:border-rose-400"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-brand-black/60 rounded-xl border border-white/5 text-[11px] text-white/40 italic">
+                  Solo Rider selected. Pillion & emergency contact fields are inactive.
+                </div>
+              )}
             </div>
 
             {/* 2. VEHICLE SELECTION */}
@@ -3363,7 +4116,65 @@ Team Rydeit Rentals`;
               </div>
             </div>
 
-            {/* 6. RIDE STATUS & IMMEDIATE DISPATCH */}
+            {/* 6. PILLION DETAILS & EMERGENCY CONTACT (OPTIONAL) */}
+            <div className="bg-brand-black/50 p-6 rounded-2xl border border-white/5 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <h4 className="text-[10px] font-black text-brand-orange uppercase tracking-widest flex items-center gap-1.5">
+                  <span>👥</span> 6. Pillion Details & Emergency Contact (Optional)
+                </h4>
+                <span className="text-[8px] text-brand-orange/80 uppercase font-bold bg-brand-orange/10 px-2 py-0.5 rounded border border-brand-orange/20">
+                  Can be added now or during trip operation
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Pillion Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Priya Sharma"
+                    value={manualBooking.pillion_name}
+                    onChange={(e) => setManualBooking(p => ({ ...p, pillion_name: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-orange"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Pillion Mobile</label>
+                  <input 
+                    type="tel" 
+                    placeholder="+91 98765 43210"
+                    value={manualBooking.pillion_phone}
+                    onChange={(e) => setManualBooking(p => ({ ...p, pillion_phone: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-orange font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-white/60 uppercase">Pillion Aadhaar No.</label>
+                  <input 
+                    type="text" 
+                    placeholder="12-digit Aadhaar"
+                    value={manualBooking.pillion_aadhaar_number}
+                    onChange={(e) => setManualBooking(p => ({ ...p, pillion_aadhaar_number: e.target.value }))}
+                    className="w-full bg-brand-black border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-brand-orange font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-rose-400 uppercase">🚨 Emergency Contact No.</label>
+                  <input 
+                    type="tel" 
+                    placeholder="+91 98123 45678"
+                    value={manualBooking.emergency_contact_phone}
+                    onChange={(e) => setManualBooking(p => ({ ...p, emergency_contact_phone: e.target.value }))}
+                    className="w-full bg-brand-black border border-rose-500/30 rounded-xl p-3 text-xs text-white outline-none focus:border-rose-400 font-mono font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 7. RIDE STATUS & IMMEDIATE DISPATCH */}
             <div className="bg-brand-black/50 p-6 rounded-2xl border border-white/5 space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="text-[10px] font-black text-brand-teal uppercase tracking-widest flex items-center gap-1.5">

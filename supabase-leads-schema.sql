@@ -25,9 +25,10 @@ CREATE TABLE IF NOT EXISTS public.leads (
     converted_at TIMESTAMPTZ
 );
 
--- Ensure follow_up_comments column exists if table was previously created
+-- Ensure newer columns exist if table was previously created
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS follow_up_comments JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS follow_up_date DATE;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS requested_vehicles JSONB DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON public.leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_vehicle_preference ON public.leads(vehicle_preference);

@@ -10,7 +10,7 @@ import { UpcomingReservations } from './UpcomingReservations';
 import { AdminLeads } from './AdminLeads';
 import { AvailabilityCalendar } from '../AvailabilityCalendar';
 import { getFleetBikes } from '../../fleetStorage';
-import { getStoredLeads } from '../../leadsStorage';
+import { getStoredLeads, fetchLeadsFromSupabase } from '../../leadsStorage';
 
 type AdminTab = 'overview' | 'leads' | 'calendar' | 'upcoming' | 'bookings' | 'fleet' | 'users' | 'finance' | 'reports';
 
@@ -74,7 +74,7 @@ export const AdminDashboard: React.FC = () => {
         ['booking_confirmed', 'ongoing'].includes(b.status) && b.return_date >= todayStr
       );
 
-      const currentLeads = getStoredLeads();
+      const currentLeads = await fetchLeadsFromSupabase();
       const followUpCount = currentLeads.filter(l => l.status === 'need_follow_up').length;
 
       setStats({

@@ -117,7 +117,8 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       email: '',
       whatsapp: '',
       pickupMethod: 'garage',
-      dropMethod: 'garage'
+      dropMethod: 'garage',
+      has_pillion: false
     };
 
     if (initialData.deliveryAddress === undefined) initialData.deliveryAddress = initialData.address || '';
@@ -747,13 +748,14 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     setIsSubmitting(true);
     setSubmitStatus('loading');
     try {
-      const payload = {
+      const payload: any = {
         readable_id: bookingId,
         user_id: user?.id || null, 
         bike_id: parseInt(formData.bikeId),
         customer_name: formData.name,
         customer_phone: formData.whatsapp,
         customer_email: formData.email,
+        has_pillion: Boolean(formData.has_pillion),
         pickup_date: formData.fromDate,
         pickup_time: formData.fromTime,
         return_date: formData.toDate,
@@ -766,6 +768,18 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         address: combinedAddress,
         status: 'pending_payment'
       };
+
+      // Always cache pillion preference locally for instant admin visibility
+      try {
+        const existingLocal = localStorage.getItem(`rydeit_pillion_${bookingId}`);
+        const parsed = existingLocal ? JSON.parse(existingLocal) : {};
+        localStorage.setItem(`rydeit_pillion_${bookingId}`, JSON.stringify({
+          ...parsed,
+          has_pillion: Boolean(formData.has_pillion)
+        }));
+      } catch (e) {
+        console.warn('Local pillion storage save skipped:', e);
+      }
 
       // Check if a booking record already exists with this readable_id
       const { data: existingBooking } = await supabase
@@ -789,9 +803,29 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         insertError = error;
       }
 
+      // If has_pillion column does not exist yet in Supabase schema, retry safely without it
+      if (insertError && (insertError.message?.includes('has_pillion') || insertError.message?.includes('column "has_pillion"'))) {
+        console.warn('has_pillion column not found in Supabase schema, retrying without has_pillion');
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.has_pillion;
+        if (existingBooking) {
+          const { error: retryError } = await supabase
+            .from('bookings')
+            .update(fallbackPayload)
+            .eq('readable_id', bookingId);
+          insertError = retryError;
+        } else {
+          const { error: retryError } = await supabase
+            .from('bookings')
+            .insert(fallbackPayload);
+          insertError = retryError;
+        }
+      }
+
       if (insertError && (insertError.message?.includes('foreign key') || insertError.message?.includes('fkey')) && payload.user_id) {
         console.warn('Booking user_id foreign key constraint encountered, retrying with guest payload:', insertError.message);
         const retryPayload = { ...payload, user_id: null };
+        delete retryPayload.has_pillion; // safe retry
         if (existingBooking) {
           const { error: retryError } = await supabase
             .from('bookings')
@@ -831,6 +865,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
             advance_to_pay: `₹${charges?.advance}`,
             security_deposit: `₹${charges?.security}`,
             travel_zone: formData.outstation ? 'OUTSTATION' : 'LOCAL',
+            pillion_rider: formData.has_pillion ? 'YES (With Pillion)' : 'NO (Solo Rider)',
             pickup_method: formData.pickupMethod,
             drop_method: formData.dropMethod,
             delivery_address: deliveryAddr || 'Garage Self-Pickup (6C, Mohammadan Burial Ground Lane)',
@@ -1129,6 +1164,50 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Field 4: Do You Have Pillion: Yes or No */}
+                  <div className="space-y-2 pt-2 border-t border-white/[0.08]">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-neutral-200 tracking-normal ml-0.5">
+                        Do you have a pillion rider?
+                      </label>
+                      <span className="text-[11px] text-neutral-400 font-medium">Co-rider / Passenger</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(p => ({ ...p, has_pillion: false }))}
+                        className={`py-3 px-4 rounded-xl border text-center font-bold text-xs sm:text-sm tracking-wide transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 ${
+                          !formData.has_pillion
+                            ? 'bg-neutral-800 border-white/40 text-white shadow-md'
+                            : 'bg-black/40 border-white/10 text-neutral-400 hover:text-white hover:border-white/20'
+                        }`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${!formData.has_pillion ? 'bg-neutral-200' : 'bg-transparent border border-neutral-600'}`}></span>
+                        <span>No (Solo Rider)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData(p => ({ ...p, has_pillion: true }))}
+                        className={`py-3 px-4 rounded-xl border text-center font-bold text-xs sm:text-sm tracking-wide transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 ${
+                          formData.has_pillion
+                            ? 'bg-brand-orange/20 border-brand-orange text-brand-orange shadow-md shadow-brand-orange/10'
+                            : 'bg-black/40 border-white/10 text-neutral-400 hover:text-white hover:border-white/20'
+                        }`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${formData.has_pillion ? 'bg-brand-orange' : 'bg-transparent border border-neutral-600'}`}></span>
+                        <span>Yes (With Pillion)</span>
+                      </button>
+                    </div>
+
+                    {formData.has_pillion && (
+                      <p className="text-[11px] text-brand-orange/90 ml-0.5 animate-fade-in flex items-center gap-1.5 font-medium">
+                        <span>ℹ️</span> Pillion verification documents & emergency contact will be collected after booking confirmation.
+                      </p>
+                    )}
                   </div>
 
                   {/* 4. TRUST, DONE QUIETLY */}

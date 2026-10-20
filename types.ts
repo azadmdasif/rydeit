@@ -87,6 +87,21 @@ export interface BookingDetails {
   whatsapp: string;
   pickupMethod: 'garage' | 'home';
   dropMethod: 'garage' | 'home';
+  has_pillion?: boolean;
+  pillion_name?: string;
+  pillion_phone?: string;
+  pillion_aadhaar_number?: string;
+  pillion_aadhaar_url?: string;
+  emergency_contact_phone?: string;
+}
+
+export interface PillionDetails {
+  has_pillion?: boolean | null;
+  pillion_name?: string | null;
+  pillion_phone?: string | null;
+  pillion_aadhaar_number?: string | null;
+  pillion_aadhaar_url?: string | null;
+  emergency_contact_phone?: string | null;
 }
 
 export type LeadVehiclePreference = 'scooty' | 'bike' | 'bullet' | 'sports' | 'flexible';

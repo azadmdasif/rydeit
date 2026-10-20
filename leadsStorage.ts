@@ -140,6 +140,67 @@ export const saveStoredLeads = (leads: Lead[]): void => {
   }
 };
 
+export const sanitizeLeadForSupabase = (lead: Lead) => {
+  const sanitized: any = { ...lead };
+
+  // Handle dates: ensure null instead of empty string to avoid Postgres error 22007
+  if (!sanitized.follow_up_date || typeof sanitized.follow_up_date !== 'string' || !sanitized.follow_up_date.trim()) {
+    sanitized.follow_up_date = null;
+  }
+  if (!sanitized.converted_at || typeof sanitized.converted_at !== 'string' || !sanitized.converted_at.trim()) {
+    sanitized.converted_at = null;
+  }
+  if (!sanitized.converted_booking_id || typeof sanitized.converted_booking_id !== 'string' || !sanitized.converted_booking_id.trim()) {
+    sanitized.converted_booking_id = null;
+  }
+  if (
+    sanitized.specific_vehicle_id === null ||
+    sanitized.specific_vehicle_id === undefined ||
+    sanitized.specific_vehicle_id === '' ||
+    isNaN(Number(sanitized.specific_vehicle_id)) ||
+    Number(sanitized.specific_vehicle_id) <= 0
+  ) {
+    sanitized.specific_vehicle_id = null;
+  } else {
+    sanitized.specific_vehicle_id = Number(sanitized.specific_vehicle_id);
+  }
+
+  // Ensure follow_up_comments is a valid array
+  if (!Array.isArray(sanitized.follow_up_comments)) {
+    sanitized.follow_up_comments = [];
+  }
+
+  return sanitized;
+};
+
+export const saveLeadToSupabaseBackend = async (lead: Lead): Promise<boolean> => {
+  const sanitized = sanitizeLeadForSupabase(lead);
+  try {
+    // Attempt 1: Try with full payload (if column requested_vehicles exists in DB)
+    const res = await supabase.from('leads').upsert(sanitized);
+    if (!res.error) {
+      return true;
+    }
+
+    // Attempt 2: If DB schema does not yet have requested_vehicles column, omit it and retry
+    if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('requested_vehicles'))) {
+      const { requested_vehicles, ...fallbackPayload } = sanitized;
+      const retryRes = await supabase.from('leads').upsert(fallbackPayload);
+      if (!retryRes.error) {
+        return true;
+      }
+      console.error('Supabase retry upsert failed:', retryRes.error);
+      return false;
+    }
+
+    console.error('Supabase upsert lead failed:', res.error);
+    return false;
+  } catch (err) {
+    console.error('Unexpected error while syncing lead to Supabase:', err);
+    return false;
+  }
+};
+
 export const fetchLeadsFromSupabase = async (): Promise<Lead[]> => {
   const local = getStoredLeads();
   try {
@@ -148,14 +209,48 @@ export const fetchLeadsFromSupabase = async (): Promise<Lead[]> => {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data && data.length > 0) {
-      // Merge with local storage
-      saveStoredLeads(data);
-      return data as Lead[];
+    if (!error && Array.isArray(data)) {
+      // Build a map of existing local leads to preserve local fields like requested_vehicles
+      const localMap = new Map<string, Lead>();
+      local.forEach(l => localMap.set(l.id, l));
+
+      const mergedList: Lead[] = [];
+      const dbIds = new Set<string>();
+
+      for (const dbLead of data as Lead[]) {
+        dbIds.add(dbLead.id);
+        const existingLocal = localMap.get(dbLead.id);
+        const mergedLead: Lead = {
+          ...dbLead,
+          // Preserve requested_vehicles if present locally but not in DB
+          requested_vehicles: (dbLead.requested_vehicles && dbLead.requested_vehicles.length > 0)
+            ? dbLead.requested_vehicles
+            : existingLocal?.requested_vehicles,
+          // Preserve follow-up comments if local has newer entries
+          follow_up_comments: (dbLead.follow_up_comments && dbLead.follow_up_comments.length > 0)
+            ? dbLead.follow_up_comments
+            : (existingLocal?.follow_up_comments || [])
+        };
+        mergedList.push(mergedLead);
+      }
+
+      // Preserve any leads created locally that haven't reached DB yet
+      for (const localLead of local) {
+        if (!dbIds.has(localLead.id)) {
+          mergedList.push(localLead);
+          // Sync missing lead to Supabase in background
+          saveLeadToSupabaseBackend(localLead).catch(console.error);
+        }
+      }
+
+      // Sort newest first
+      mergedList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      saveStoredLeads(mergedList);
+      return mergedList;
     }
   } catch (err) {
-    // If table doesn't exist yet, gracefully use local storage
-    console.info('Supabase leads table not available, using local persistent storage');
+    console.info('Supabase leads table not available, using local persistent storage', err);
   }
   return local;
 };
@@ -172,12 +267,8 @@ export const saveLead = async (lead: Lead): Promise<Lead> => {
   }
   saveStoredLeads(updated);
 
-  // Try background sync to Supabase
-  try {
-    await supabase.from('leads').upsert(lead);
-  } catch (err) {
-    // Silent fail if table not yet created
-  }
+  // Sync to Supabase backend
+  await saveLeadToSupabaseBackend(lead);
 
   return lead;
 };
@@ -233,9 +324,12 @@ export const deleteLead = async (leadId: string): Promise<boolean> => {
   saveStoredLeads(updated);
 
   try {
-    await supabase.from('leads').delete().eq('id', leadId);
+    const { error } = await supabase.from('leads').delete().eq('id', leadId);
+    if (error) {
+      console.warn('Supabase delete lead error:', error);
+    }
   } catch (err) {
-    // Ignore Supabase error
+    console.error('Error deleting lead from Supabase:', err);
   }
   return true;
 };
