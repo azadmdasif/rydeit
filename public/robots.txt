@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
-Disallow: /book
 Disallow: /admin/
 Disallow: /my-bookings
 

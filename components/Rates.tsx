@@ -1,8 +1,8 @@
+
 import React, { useState, useMemo } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Bike, BikeCategory, AdditionalCharge } from '../types';
 import { SEOHead } from './SEOHead';
-import { getBikeSlugById } from '../bikeDetailsData';
 
 const { useNavigate, Link } = ReactRouterDOM;
 
@@ -13,22 +13,19 @@ interface RatesProps {
 
 const RateBikeCard: React.FC<{ bike: Bike, onBook: (id: number) => void }> = ({ bike, onBook }) => {
   const isMaintenance = bike.status === 'Maintenance';
-  const slug = getBikeSlugById(bike.id);
   
   return (
     <div className="bg-brand-gray-dark rounded-2xl overflow-hidden border border-white/5 transition-all duration-300 hover:border-brand-teal/50 group relative flex flex-col justify-between">
       <div>
-        <Link to={`/bikes/${slug}`} className="relative h-48 overflow-hidden block">
+        <div className="relative h-48 overflow-hidden">
           <img src={bike.imageUrl} alt={bike.name} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isMaintenance ? 'grayscale opacity-50' : ''}`} />
           <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest z-10 ${!isMaintenance ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
             {!isMaintenance ? 'Available' : 'Under Service'}
           </div>
-        </Link>
+        </div>
         <div className="p-6 pb-2 space-y-4">
           <div className="flex justify-between items-start">
-            <Link to={`/bikes/${slug}`} className="hover:text-brand-orange transition-colors">
-              <h3 className="text-xl font-bold text-white uppercase tracking-tight">{bike.name}</h3>
-            </Link>
+            <h3 className="text-xl font-bold text-white uppercase tracking-tight">{bike.name}</h3>
             <div className="text-right">
               <p className="text-brand-yellow font-heading text-xl">₹{bike.dailyRate}</p>
               <p className="text-[10px] text-brand-gray-light opacity-50 uppercase font-black tracking-widest">/ day</p>
@@ -36,19 +33,13 @@ const RateBikeCard: React.FC<{ bike: Bike, onBook: (id: number) => void }> = ({ 
           </div>
         </div>
       </div>
-      <div className="p-6 pt-0 grid grid-cols-2 gap-2">
-        <Link
-          to={`/bikes/${slug}`}
-          className="text-center py-3 rounded-xl font-heading text-xs tracking-wider uppercase font-bold bg-white/10 hover:bg-white/20 text-white transition-all flex items-center justify-center"
-        >
-          Specs
-        </Link>
+      <div className="p-6 pt-0">
         <button 
           onClick={() => onBook(bike.id)}
           disabled={isMaintenance}
-          className={`font-heading tracking-widest py-3 rounded-xl text-xs uppercase transition-all ${!isMaintenance ? 'bg-brand-teal text-brand-black hover:bg-brand-yellow cursor-pointer font-bold' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
+          className={`w-full font-heading tracking-widest py-3 rounded-xl transition-all ${!isMaintenance ? 'bg-brand-teal text-brand-black hover:bg-brand-yellow cursor-pointer' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
         >
-          {!isMaintenance ? 'BOOK NOW' : 'SERVICE'}
+          {!isMaintenance ? 'BOOK NOW' : 'UNDER SERVICE'}
         </button>
       </div>
     </div>
@@ -80,9 +71,8 @@ export const Rates: React.FC<RatesProps> = ({ bikes, additionalCharges }) => {
     <section className="py-20 bg-brand-black min-h-screen">
       <SEOHead
         title="Bike & Scooter Rental Rates in Kolkata - Pricing Sheet | Rydeit"
-        description="Transparent bike & scooter rental rates in Kolkata. Scooters from ₹700/day, Royal Enfield from ₹1,500/day, starting at ₹599/day. Flat ₹1,000 refundable deposit."
+        description="Transparent bike & scooter rental rates in Kolkata. Scooters from ₹700/day, Royal Enfield from ₹1,500/day. Hourly rates, weekly discounts, ₹1,000 flat deposit."
         canonicalPath="/rates"
-        image="/images/re-classic-350.jpg"
       />
       <div className="container mx-auto px-4">
         {/* Breadcrumb Navigation */}
@@ -96,9 +86,9 @@ export const Rates: React.FC<RatesProps> = ({ bikes, additionalCharges }) => {
           </ol>
         </nav>
         <div className="text-center mb-16">
-          <h2 className="text-5xl font-heading mb-4 uppercase text-brand-teal tracking-tighter">Fleet &amp; Rates</h2>
+          <h2 className="text-5xl font-heading mb-4 uppercase text-brand-teal tracking-tighter">Fleet & Rates</h2>
           <p className="text-brand-gray-light font-sans opacity-60 max-w-2xl mx-auto uppercase text-xs tracking-[0.4em]">
-            Transparent Pricing • Verified Availability • Delivered in Minutes
+            Transparent Pricing • Verified Availability
           </p>
         </div>
 
@@ -136,36 +126,23 @@ export const Rates: React.FC<RatesProps> = ({ bikes, additionalCharges }) => {
           {displayedBike && (
             <div className="mt-10 p-6 bg-brand-black/50 rounded-2xl border border-brand-teal/20 animate-fade-in">
               <div className="flex flex-col md:flex-row items-center gap-8">
-                <Link to={`/bikes/${getBikeSlugById(displayedBike.id)}`} className="relative block shrink-0">
+                <div className="relative">
                   <img src={displayedBike.imageUrl} alt={displayedBike.name} className={`w-32 h-32 object-cover rounded-xl shadow-lg ${displayedBike.status === 'Maintenance' ? 'grayscale opacity-50' : ''}`} />
                   <div className={`absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ${displayedBike.status !== 'Maintenance' ? 'bg-brand-teal text-brand-black' : 'bg-brand-orange text-white'}`}>
                     {displayedBike.status !== 'Maintenance' ? 'Available' : 'Under Service'}
                   </div>
-                </Link>
-                <div className="flex-grow text-center md:text-left space-y-1">
-                  <Link to={`/bikes/${getBikeSlugById(displayedBike.id)}`} className="hover:text-brand-orange transition-colors">
-                    <h4 className="text-2xl font-bold text-white uppercase tracking-tight">{displayedBike.name}</h4>
-                  </Link>
+                </div>
+                <div className="flex-grow text-center md:text-left">
+                  <h4 className="text-2xl font-bold text-white mb-1 uppercase tracking-tight">{displayedBike.name}</h4>
                   <p className="text-brand-teal font-heading text-3xl">₹{displayedBike.dailyRate} <span className="text-xs text-brand-gray-light font-sans opacity-50 uppercase tracking-widest">/ Day</span></p>
-                  <Link to={`/bikes/${getBikeSlugById(displayedBike.id)}`} className="inline-block text-xs text-brand-yellow hover:underline">
-                    View Specifications &amp; FAQs →
-                  </Link>
                 </div>
-                <div className="flex flex-col gap-2 shrink-0">
-                  <button 
-                     onClick={() => handleBook(displayedBike.id)}
-                     disabled={displayedBike.status === 'Maintenance'}
-                     className={`px-10 py-4 font-heading tracking-widest rounded-full transition-all shadow-xl ${displayedBike.status !== 'Maintenance' ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-brand-orange/20 cursor-pointer font-bold' : 'bg-brand-gray-dark text-brand-gray-light opacity-30 cursor-not-allowed'}`}
-                  >
-                    {displayedBike.status !== 'Maintenance' ? 'BOOK THIS BIKE' : 'UNDER SERVICE'}
-                  </button>
-                  <Link
-                    to={`/bikes/${getBikeSlugById(displayedBike.id)}`}
-                    className="text-center text-xs text-neutral-400 hover:text-white uppercase tracking-wider py-1"
-                  >
-                    View Model Page
-                  </Link>
-                </div>
+                <button 
+                   onClick={() => handleBook(displayedBike.id)}
+                   disabled={displayedBike.status === 'Maintenance'}
+                   className={`px-10 py-4 font-heading tracking-widest rounded-full transition-all shadow-xl ${displayedBike.status !== 'Maintenance' ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-brand-orange/20 cursor-pointer' : 'bg-brand-gray-dark text-brand-gray-light opacity-30 cursor-not-allowed'}`}
+                >
+                  {displayedBike.status !== 'Maintenance' ? 'BOOK THIS BIKE' : 'UNDER SERVICE'}
+                </button>
               </div>
             </div>
           )}
@@ -201,17 +178,17 @@ export const Rates: React.FC<RatesProps> = ({ bikes, additionalCharges }) => {
                   <div className="space-y-3">
                       <div className="text-brand-teal flex justify-center"><svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>
                       <p className="font-bold text-white uppercase text-sm tracking-wider">Safety First</p>
-                      <p className="text-xs text-brand-gray-light opacity-70">Sanitized helmets &amp; 90-minute breakdown support included.</p>
+                      <p className="text-xs text-brand-gray-light opacity-70">Sanitized helmets & robust breakdown support included.</p>
                   </div>
                   <div className="space-y-3">
                       <div className="text-brand-teal flex justify-center"><svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
                       <p className="font-bold text-white uppercase text-sm tracking-wider">Fast Delivery</p>
-                      <p className="text-xs text-brand-gray-light opacity-70">Doorstep delivery in minutes across Kolkata city limits.</p>
+                      <p className="text-xs text-brand-gray-light opacity-70">Doorstep delivery within Kolkata city limits.</p>
                   </div>
                   <div className="space-y-3">
                       <div className="text-brand-teal flex justify-center"><svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg></div>
                       <p className="font-bold text-white uppercase text-sm tracking-wider">Best Rates</p>
-                      <p className="text-xs text-brand-gray-light opacity-70">Premium machines starting as low as ₹599/day.</p>
+                      <p className="text-xs text-brand-gray-light opacity-70">Premium machines starting as low as ₹99/day.</p>
                   </div>
               </div>
           </div>

@@ -5,8 +5,6 @@ interface SEOHeadProps {
   title: string;
   description: string;
   canonicalPath?: string;
-  image?: string;
-  robots?: string;
   schema?: Record<string, any> | Array<Record<string, any>>;
 }
 
@@ -14,14 +12,11 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
   title,
   description,
   canonicalPath,
-  image = '/images/re-hunter-350.jpg',
-  robots = 'index, follow',
   schema
 }) => {
   const location = useLocation();
   const currentPath = canonicalPath || location.pathname;
   const canonicalUrl = `https://rydeit.in${currentPath === '/' ? '' : currentPath}`;
-  const fullImageUrl = image.startsWith('http') ? image : `https://rydeit.in${image.startsWith('/') ? '' : '/'}${image}`;
 
   useEffect(() => {
     // 1. Update Document Title
@@ -40,15 +35,11 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
 
     // 3. Update Standard & Social Meta
     setMetaTag('name', 'description', description);
-    setMetaTag('name', 'robots', robots);
     setMetaTag('property', 'og:title', title);
     setMetaTag('property', 'og:description', description);
     setMetaTag('property', 'og:url', canonicalUrl);
-    setMetaTag('property', 'og:site_name', 'Rydeit');
-    setMetaTag('property', 'og:image', fullImageUrl);
     setMetaTag('name', 'twitter:title', title);
     setMetaTag('name', 'twitter:description', description);
-    setMetaTag('name', 'twitter:image', fullImageUrl);
 
     // 4. Update Canonical Link
     let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
@@ -72,7 +63,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     } else if (scriptTag) {
       scriptTag.remove();
     }
-  }, [title, description, canonicalUrl, fullImageUrl, robots, schema]);
+  }, [title, description, canonicalUrl, schema]);
 
   return null;
 };

@@ -3,7 +3,6 @@ import React from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Bike, BikeCategory } from '../types';
 import { SEOHead } from './SEOHead';
-import { getBikeSlugById } from '../bikeDetailsData';
 
 const { useNavigate, Link } = ReactRouterDOM;
 
@@ -25,7 +24,6 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
   };
 
   const isMaintenance = bike.status === 'Maintenance';
-  const slug = getBikeSlugById(bike.id);
 
   return (
     <div className={`bg-brand-gray-dark rounded-lg overflow-hidden border-b-4 ${colorClasses[bike.color]} transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl flex flex-col relative group`}>
@@ -34,7 +32,7 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
         {!isMaintenance ? 'Available' : 'Under Service'}
       </div>
       
-      <Link to={`/bikes/${slug}`} className="relative h-60 overflow-hidden block">
+      <div className="relative h-60 overflow-hidden">
         <img 
           src={bike.imageUrl} 
           alt={bike.name} 
@@ -43,33 +41,25 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
           className={`w-full h-full object-cover transition-transform duration-500 ${!isMaintenance ? 'group-hover:scale-110' : 'grayscale opacity-60'}`} 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
-           <span className="text-white text-xs font-bold uppercase tracking-widest">View Specs &amp; FAQs →</span>
+           <span className="text-white text-xs font-bold uppercase tracking-widest">View Details</span>
         </div>
-      </Link>
+      </div>
 
       <div className="p-6 flex flex-col flex-grow">
-        <Link to={`/bikes/${slug}`} className="hover:text-brand-orange transition-colors">
-          <h3 className="text-2xl font-bold text-white mb-2 uppercase tracking-tight">{bike.name}</h3>
-        </Link>
+        <h3 className="text-2xl font-bold text-white mb-2 uppercase tracking-tight">{bike.name}</h3>
         <div className="flex items-center gap-2 mb-2">
             <p className="text-brand-yellow font-heading text-lg">₹{bike.dailyRate}</p>
             <span className="text-[10px] text-brand-gray-light opacity-50 uppercase font-bold tracking-widest">/ day</span>
         </div>
         <p className="text-brand-gray-light font-sans text-xs flex-grow mb-6 opacity-70 leading-relaxed uppercase tracking-wider">{bike.description}</p>
         
-        <div className="mt-auto grid grid-cols-2 gap-2">
-          <Link
-            to={`/bikes/${slug}`}
-            className="text-center py-2.5 px-2 rounded-xl text-[11px] font-heading font-bold uppercase tracking-wider bg-white/10 hover:bg-white/20 text-white transition-all"
-          >
-            Specs &amp; FAQs
-          </Link>
+        <div className="mt-auto">
           <button 
             onClick={() => onBook(bike.id)}
             disabled={isMaintenance}
-            className={`font-heading tracking-wider py-2.5 px-2 rounded-xl text-[11px] font-bold uppercase transition-all duration-300 ${!isMaintenance ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-lg shadow-brand-orange/20 cursor-pointer' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
+            className={`font-heading tracking-widest py-3 px-4 rounded-xl transition-all duration-300 w-full ${!isMaintenance ? 'bg-brand-orange text-white hover:bg-brand-yellow hover:text-brand-black shadow-lg shadow-brand-orange/20 cursor-pointer' : 'bg-brand-gray-dark border border-white/10 text-brand-gray-light cursor-not-allowed opacity-30'}`}
           >
-            {!isMaintenance ? 'Rent Now' : 'Under Service'}
+            {!isMaintenance ? 'BOOK THIS BIKE' : 'UNDER SERVICE'}
           </button>
         </div>
       </div>
@@ -136,7 +126,6 @@ export const BikeCollection: React.FC<BikeCollectionProps> = ({ bikes }) => {
         title="Two-Wheeler Rental Fleet in Kolkata - Bikes & Scooters | Rydeit"
         description="Explore the full self-drive fleet in Kolkata: Activa, Burgman, Jupiter, Pulsar, Apache 160, RE Classic 350, Hunter 350, Duke 390 & Yamaha R15. Transparent rates from ₹700/day."
         canonicalPath="/bikes"
-        image="/images/hero-xtreme-125r.jpg"
       />
       <div className="container mx-auto px-4">
         {/* Breadcrumb Navigation */}

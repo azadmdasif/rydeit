@@ -244,40 +244,49 @@ export function mapDbBike(row: any): Bike {
   };
 }
 
-// Synchronous reader for fast component renders - strictly restricted to the fleet section
+// Synchronous reader for fast component renders
 export function getFleetBikes(): Bike[] {
   const deletedIds = getDeletedBikeIds();
   const customMap = getCustomFleetMap();
 
-  // Exactly and only the canonical bikes from the fleet section (BIKES in constants.ts),
-  // customized with any persisted rate/status/odometer overrides
+  // Combine default bikes and custom map, filtering out any deleted bikes
   const result: Bike[] = [];
+  const processedIds = new Set<number>();
 
-  BIKES.forEach(base => {
-    if (deletedIds.includes(base.id)) return;
-    const custom = customMap[base.id];
+  // 1. Process custom entries first
+  Object.keys(customMap).forEach(key => {
+    const id = Number(key);
+    if (deletedIds.includes(id)) return;
+    const base = BIKES.find(b => b.id === id);
+    const custom = customMap[id];
+    processedIds.add(id);
     result.push({
-      ...base,
-      ...(custom ? {
-        name: custom.name || base.name,
-        description: custom.description || base.description,
-        imageUrl: custom.imageUrl || base.imageUrl,
-        color: custom.color || base.color,
-        category: custom.category || base.category,
-        dailyRate: custom.dailyRate !== undefined ? Number(custom.dailyRate) : base.dailyRate,
-        status: custom.status || base.status,
-        rc_number: custom.rc_number || base.rc_number,
-        purchase_date: custom.purchase_date || base.purchase_date,
-        purchase_cost: custom.purchase_cost !== undefined ? Number(custom.purchase_cost) : base.purchase_cost,
-        odometer_reading: custom.odometer_reading !== undefined ? Number(custom.odometer_reading) : base.odometer_reading
-      } : {})
-    });
+      ...(base || {}),
+      id,
+      name: custom.name || base?.name || 'Machine',
+      description: custom.description || base?.description || '',
+      imageUrl: custom.imageUrl || base?.imageUrl || '/images/ather-450x.jpg',
+      color: custom.color || base?.color || 'black',
+      category: custom.category || base?.category || 'Bikes',
+      dailyRate: custom.dailyRate !== undefined ? Number(custom.dailyRate) : (base?.dailyRate || 700),
+      status: custom.status || base?.status || 'Available',
+      rc_number: custom.rc_number || base?.rc_number || `WB-02-${1000 + id}`,
+      purchase_date: custom.purchase_date || base?.purchase_date || '2024-01-01',
+      purchase_cost: custom.purchase_cost !== undefined ? Number(custom.purchase_cost) : (base?.purchase_cost || 0),
+      odometer_reading: custom.odometer_reading !== undefined ? Number(custom.odometer_reading) : (base?.odometer_reading || 0)
+    } as Bike);
+  });
+
+  // 2. Add remaining default bikes
+  BIKES.forEach(b => {
+    if (deletedIds.includes(b.id) || processedIds.has(b.id)) return;
+    result.push(b);
   });
 
   return result;
 }
 
-// Asynchronous sync with Supabase bikes table - strictly aligned with the canonical fleet
+// Asynchronous sync with Supabase bikes table
 export async function syncFleetWithSupabase(): Promise<{ bikes: Bike[]; source: 'supabase' | 'local' }> {
   try {
     const { data, error } = await supabase
@@ -287,26 +296,14 @@ export async function syncFleetWithSupabase(): Promise<{ bikes: Bike[]; source: 
       .order('id', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      const canonicalIds = new Set(BIKES.map(b => b.id));
-      const dbBikes = data
-        .filter(row => canonicalIds.has(Number(row.id)))
-        .map(mapDbBike);
-
-      // Update local storage cache only for canonical fleet bikes
+      const dbBikes = data.map(mapDbBike);
+      // Update local storage cache
       const customMap: Record<number, Partial<Bike>> = {};
       dbBikes.forEach(b => {
         customMap[b.id] = b;
       });
       localStorage.setItem(LOCAL_STORAGE_FLEET_KEY, JSON.stringify(customMap));
-
-      // Merge with base BIKES ensuring all canonical fleet items exist
-      const deletedIds = getDeletedBikeIds();
-      const merged: Bike[] = BIKES.filter(b => !deletedIds.includes(b.id)).map(base => {
-        const found = dbBikes.find(db => db.id === base.id);
-        return found ? { ...base, ...found } : base;
-      });
-
-      return { bikes: merged, source: 'supabase' };
+      return { bikes: dbBikes, source: 'supabase' };
     }
   } catch (err) {
     console.warn('Supabase bikes query returned error, using local storage cache:', err);

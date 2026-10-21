@@ -22,18 +22,16 @@ export const Footer: React.FC<FooterProps> = ({ onShowPolicy }) => {
         </div>
 
         {/* Clean Internal SEO Links */}
-        <nav aria-label="Footer Navigation" className="flex justify-center flex-wrap gap-4 sm:gap-6 text-xs font-bold uppercase tracking-widest text-neutral-300">
+        <nav aria-label="Footer Navigation" className="flex justify-center flex-wrap gap-4 sm:gap-8 text-xs font-bold uppercase tracking-widest text-neutral-300">
           <Link to="/" className="hover:text-brand-orange transition-colors">Home</Link>
           <Link to="/bikes" className="hover:text-brand-orange transition-colors">All Fleet</Link>
-          <Link to="/scooters" className="hover:text-brand-orange transition-colors">Scooters</Link>
-          <Link to="/motorcycles" className="hover:text-brand-orange transition-colors">Motorcycles</Link>
-          <Link to="/pickup-kolkata" className="hover:text-brand-orange transition-colors text-brand-teal">Airport/Station</Link>
-          <Link to="/outstation-bike-rentals" className="hover:text-brand-orange transition-colors text-brand-yellow">Outstation</Link>
-          <Link to="/delivery-bike-rentals" className="hover:text-brand-orange transition-colors text-brand-orange">Gig Delivery</Link>
-          <Link to="/rates" className="hover:text-brand-orange transition-colors">Rates</Link>
+          <Link to="/scooters" className="hover:text-brand-orange transition-colors">Scooters for Rent</Link>
+          <Link to="/motorcycles" className="hover:text-brand-orange transition-colors">Motorcycles &amp; Cruisers</Link>
+          <Link to="/rates" className="hover:text-brand-orange transition-colors">Pricing &amp; Rates</Link>
           <Link to="/faqs" className="hover:text-brand-orange transition-colors">FAQs</Link>
           <Link to="/about" className="hover:text-brand-orange transition-colors">About Us</Link>
-          <Link to="/contact" className="hover:text-brand-orange transition-colors">Contact</Link>
+          <Link to="/contact" className="hover:text-brand-orange transition-colors">Garage Location</Link>
+          <Link to="/book" className="hover:text-brand-orange text-brand-orange transition-colors">Book Online</Link>
         </nav>
 
         {/* Legal Policies */}

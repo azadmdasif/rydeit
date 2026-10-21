@@ -34,10 +34,8 @@ export const Header: React.FC = () => {
     { label: 'Fleet', to: '/bikes' },
     { label: 'Scooters', to: '/scooters' },
     { label: 'Motorcycles', to: '/motorcycles' },
-    { label: 'Pickup', to: '/pickup-kolkata' },
-    { label: 'Outstation', to: '/outstation-bike-rentals' },
-    { label: 'Delivery', to: '/delivery-bike-rentals' },
     { label: 'Rates', to: '/rates' },
+    { label: 'FAQs', to: '/faqs' },
     { label: 'About', to: '/about' },
     { label: 'Contact', to: '/contact' },
   ];
@@ -62,7 +60,7 @@ export const Header: React.FC = () => {
                 <span className="font-heading text-xl md:text-3xl text-white tracking-tighter group-hover:text-brand-yellow transition-colors uppercase">
                   RYDE<span className="text-brand-orange">IT</span>
                 </span>
-                <span className="text-[7px] md:text-[9px] font-bold tracking-[0.2em] text-brand-teal uppercase">Bike Rentals</span>
+                <span className="text-[7px] md:text-[9px] font-bold tracking-[0.2em] text-brand-teal uppercase">Premium Rentals</span>
               </div>
             </Link>
           </div>
