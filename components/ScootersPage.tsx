@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Bike } from '../types';
 import { SEOHead } from './SEOHead';
+import { getBikeSlugById } from '../bikeDetailsData';
 
 interface ScootersPageProps {
   bikes: Bike[];
@@ -47,6 +48,7 @@ export const ScootersPage: React.FC<ScootersPageProps> = ({ bikes }) => {
         title="Scooter Rentals in Kolkata - Honda Activa, Burgman, Jupiter | Rydeit"
         description="Rent self-drive scooters in Kolkata starting at ₹700/day. Honda Activa 125, Suzuki Burgman & TVS Jupiter with complimentary helmet, doorstep delivery & instant booking."
         canonicalPath="/scooters"
+        image="/images/honda-activa-125.jpg"
         schema={scooterSchema}
       />
 
@@ -109,12 +111,13 @@ export const ScootersPage: React.FC<ScootersPageProps> = ({ bikes }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {scooters.map(scooter => {
               const isMaintenance = scooter.status === 'Maintenance';
+              const slug = getBikeSlugById(scooter.id, scooter.name);
               return (
                 <article
                   key={scooter.id}
                   className="bg-brand-gray-dark rounded-2xl overflow-hidden border border-white/10 hover:border-brand-orange/50 transition-all duration-300 flex flex-col group shadow-xl"
                 >
-                  <div className="relative h-56 overflow-hidden bg-neutral-900">
+                  <Link to={`/bikes/${slug}`} className="relative h-56 overflow-hidden bg-neutral-900 block">
                     <img
                       src={scooter.imageUrl}
                       alt={`${scooter.name} for rent in Kolkata`}
@@ -127,11 +130,13 @@ export const ScootersPage: React.FC<ScootersPageProps> = ({ bikes }) => {
                     <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur-md text-[11px] font-mono font-bold text-white">
                       125cc Automatic
                     </div>
-                  </div>
+                  </Link>
 
                   <div className="p-6 flex flex-col flex-grow space-y-4">
                     <div>
-                      <h3 className="text-xl font-heading uppercase text-white font-bold">{scooter.name}</h3>
+                      <Link to={`/bikes/${slug}`} className="hover:text-brand-orange transition-colors">
+                        <h3 className="text-xl font-heading uppercase text-white font-bold">{scooter.name}</h3>
+                      </Link>
                       <p className="text-xs text-neutral-400 mt-1 line-clamp-2">{scooter.description}</p>
                     </div>
 
@@ -152,18 +157,24 @@ export const ScootersPage: React.FC<ScootersPageProps> = ({ bikes }) => {
                       </li>
                     </ul>
 
-                    <div className="pt-2 mt-auto">
+                    <div className="pt-2 mt-auto grid grid-cols-2 gap-2">
+                      <Link
+                        to={`/bikes/${slug}`}
+                        className="text-center py-3 rounded-xl font-heading text-xs tracking-wider uppercase font-bold bg-white/10 hover:bg-white/20 text-white transition-all"
+                      >
+                        Specs &amp; FAQs
+                      </Link>
                       <button
                         type="button"
                         onClick={() => navigate(`/book?bikeId=${scooter.id}`)}
                         disabled={isMaintenance}
-                        className={`w-full py-3.5 rounded-xl font-heading text-xs tracking-widest uppercase transition-all duration-200 cursor-pointer shadow-lg ${
+                        className={`py-3 rounded-xl font-heading text-xs tracking-widest uppercase transition-all duration-200 cursor-pointer shadow-lg ${
                           !isMaintenance
                             ? 'bg-brand-orange hover:bg-brand-yellow hover:text-neutral-950 text-white font-bold shadow-brand-orange/20 active:scale-[0.98]'
                             : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
                         }`}
                       >
-                        {!isMaintenance ? `Book ${scooter.name}` : 'Currently Under Service'}
+                        {!isMaintenance ? 'Rent' : 'Service'}
                       </button>
                     </div>
                   </div>

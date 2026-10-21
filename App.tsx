@@ -27,7 +27,11 @@ import { Testimonials } from './components/Testimonials';
 import { Auth } from './components/Auth';
 import { Toast, ToastType } from './components/Toast';
 import { SEOHead } from './components/SEOHead';
-import { BIKES, ADDITIONAL_CHARGES, TESTIMONIALS } from './constants';
+import { BikeDetailPage } from './components/BikeDetailPage';
+import { TransitPickupPage } from './components/TransitPickupPage';
+import { OutstationGuidesPage } from './components/OutstationGuidesPage';
+import { GigDeliveryPage } from './components/GigDeliveryPage';
+import { ADDITIONAL_CHARGES, TESTIMONIALS } from './constants';
 import { useFleetBikes } from './fleetStorage';
 import { supabase } from './supabase';
 import type { LegalContent } from './types';
@@ -108,9 +112,10 @@ const homeSchema = {
 const Home: React.FC = () => (
   <div className="animate-fade-in bg-brand-black w-full min-h-screen">
     <SEOHead
-      title="Rydeit | Bike & Scooter Rentals in Kolkata - From ₹99/hr"
-      description="Kolkata's most reliable bike and scooter rental service. Activa, Burgman, Royal Enfield Classic 350 & Duke 390. Doorstep delivery across Kolkata. Free ISI helmet."
+      title="Rydeit | Bike & Scooter Rentals in Kolkata - Starting ₹599/day"
+      description="Rental Bikes. Delivered in minutes. Kolkata's most reliable bike and scooter rental service. Activa, Burgman, Royal Enfield Classic 350 & Duke 390. Doorstep delivery across Kolkata. Free ISI helmet."
       canonicalPath="/"
+      image="/images/re-hunter-350.jpg"
       schema={homeSchema}
     />
     <Hero />
@@ -131,6 +136,7 @@ const BookingPageWrapper: React.FC<{
         title="Book a Bike or Scooter Online - Instant Confirmation | Rydeit"
         description="Reserve your two-wheeler online in Kolkata with Rydeit. Real-time availability, instant price calculation, paperless KYC, and doorstep delivery options."
         canonicalPath="/book"
+        robots="noindex, follow"
       />
       <BookingForm bikes={bikes} additionalCharges={additionalCharges} onShowPolicy={onShowPolicy} />
     </>
@@ -149,9 +155,10 @@ const LoginPage: React.FC = () => {
   return (
     <div className="py-24 bg-brand-black min-h-[80vh] flex items-center justify-center px-4">
       <SEOHead
-        title="Sign In - Customer Account | Rydeit Rentals"
+        title="Sign In - Customer Account | Rydeit"
         description="Sign in to your Rydeit customer account to manage your active bookings, rental invoices, and KYC documents."
         canonicalPath="/login"
+        robots="noindex, follow"
       />
       <div className="max-w-md w-full">
         <Auth onSuccess={handleAuthSuccess} />
@@ -195,8 +202,12 @@ const AppContent: React.FC = () => {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/bikes" element={<BikeCollection bikes={fleetBikes} />} />
+          <Route path="/bikes/:slug" element={<BikeDetailPage />} />
           <Route path="/scooters" element={<ScootersPage bikes={fleetBikes} />} />
           <Route path="/motorcycles" element={<MotorcyclesPage bikes={fleetBikes} />} />
+          <Route path="/pickup-kolkata" element={<TransitPickupPage />} />
+          <Route path="/outstation-bike-rentals" element={<OutstationGuidesPage />} />
+          <Route path="/delivery-bike-rentals" element={<GigDeliveryPage />} />
           <Route path="/rates" element={<Rates bikes={fleetBikes} additionalCharges={ADDITIONAL_CHARGES || []} />} />
           <Route path="/faqs" element={<FAQsPage />} />
           <Route path="/availability" element={isAdmin ? <AvailabilityCalendar bikes={fleetBikes} isAdminMode={true} /> : <Navigate to="/" replace />} />

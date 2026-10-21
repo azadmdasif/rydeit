@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Bike, BikeCategory } from '../types';
 import { SEOHead } from './SEOHead';
+import { getBikeSlugById } from '../bikeDetailsData';
 
 interface MotorcyclesPageProps {
   bikes: Bike[];
@@ -53,6 +54,7 @@ export const MotorcyclesPage: React.FC<MotorcyclesPageProps> = ({ bikes }) => {
         title="Motorcycle Rentals in Kolkata - Royal Enfield, KTM, Yamaha | Rydeit"
         description="Rent self-drive motorcycles in Kolkata. Royal Enfield Classic 350, Hunter 350, KTM Duke 390 & Yamaha R15 V4. Complimentary helmet, outstation permitted & doorstep delivery."
         canonicalPath="/motorcycles"
+        image="/images/ktm-duke-390.jpg"
         schema={motorcycleSchema}
       />
 
@@ -144,59 +146,74 @@ export const MotorcyclesPage: React.FC<MotorcyclesPageProps> = ({ bikes }) => {
                   key={bike.id}
                   className="bg-brand-gray-dark rounded-2xl overflow-hidden border border-white/10 hover:border-brand-orange/50 transition-all duration-300 flex flex-col group shadow-xl"
                 >
-                  <div className="relative h-60 overflow-hidden bg-neutral-900">
-                    <img
-                      src={bike.imageUrl}
-                      alt={`${bike.name} motorcycle rental in Kolkata`}
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute top-3 right-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-brand-teal text-neutral-950 shadow-md">
-                      {!isMaintenance ? 'Available' : 'Under Service'}
-                    </div>
-                    <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur-md text-[11px] font-mono font-bold text-brand-orange">
-                      {bike.category}
-                    </div>
-                  </div>
+                  {(() => {
+                    const slug = getBikeSlugById(bike.id, bike.name);
+                    return (
+                      <>
+                        <Link to={`/bikes/${slug}`} className="relative h-60 overflow-hidden bg-neutral-900 block">
+                          <img
+                            src={bike.imageUrl}
+                            alt={`${bike.name} motorcycle rental in Kolkata`}
+                            loading="lazy"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute top-3 right-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-brand-teal text-neutral-950 shadow-md">
+                            {!isMaintenance ? 'Available' : 'Under Service'}
+                          </div>
+                          <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur-md text-[11px] font-mono font-bold text-brand-orange">
+                            {bike.category}
+                          </div>
+                        </Link>
 
-                  <div className="p-6 flex flex-col flex-grow space-y-4">
-                    <div>
-                      <h3 className="text-xl font-heading uppercase text-white font-bold">{bike.name}</h3>
-                      <p className="text-xs text-neutral-400 mt-1 line-clamp-2">{bike.description}</p>
-                    </div>
+                        <div className="p-6 flex flex-col flex-grow space-y-4">
+                          <div>
+                            <Link to={`/bikes/${slug}`} className="hover:text-brand-orange transition-colors">
+                              <h3 className="text-xl font-heading uppercase text-white font-bold">{bike.name}</h3>
+                            </Link>
+                            <p className="text-xs text-neutral-400 mt-1 line-clamp-2">{bike.description}</p>
+                          </div>
 
-                    <div className="flex items-baseline gap-2 py-2 border-y border-white/5">
-                      <span className="text-2xl font-heading text-brand-yellow font-extrabold">₹{bike.dailyRate}</span>
-                      <span className="text-xs text-neutral-400 uppercase font-semibold">/ 24 Hours</span>
-                    </div>
+                          <div className="flex items-baseline gap-2 py-2 border-y border-white/5">
+                            <span className="text-2xl font-heading text-brand-yellow font-extrabold">₹{bike.dailyRate}</span>
+                            <span className="text-xs text-neutral-400 uppercase font-semibold">/ 24 Hours</span>
+                          </div>
 
-                    <ul className="text-xs text-neutral-300 space-y-1.5 font-sans">
-                      <li className="flex items-center gap-2">
-                        <span className="text-emerald-400">✓</span> Front &amp; rear disc brakes / ABS
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="text-emerald-400">✓</span> Highway &amp; outstation permitted
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="text-emerald-400">✓</span> Fully serviced with fresh engine oil
-                      </li>
-                    </ul>
+                          <ul className="text-xs text-neutral-300 space-y-1.5 font-sans">
+                            <li className="flex items-center gap-2">
+                              <span className="text-emerald-400">✓</span> Front &amp; rear disc brakes / ABS
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-emerald-400">✓</span> Highway &amp; outstation permitted
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-emerald-400">✓</span> Fully serviced with fresh engine oil
+                            </li>
+                          </ul>
 
-                    <div className="pt-2 mt-auto">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/book?bikeId=${bike.id}`)}
-                        disabled={isMaintenance}
-                        className={`w-full py-3.5 rounded-xl font-heading text-xs tracking-widest uppercase transition-all duration-200 cursor-pointer shadow-lg ${
-                          !isMaintenance
-                            ? 'bg-brand-orange hover:bg-brand-yellow hover:text-neutral-950 text-white font-bold shadow-brand-orange/20 active:scale-[0.98]'
-                            : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {!isMaintenance ? `Book ${bike.name}` : 'Currently Under Service'}
-                      </button>
-                    </div>
-                  </div>
+                          <div className="pt-2 mt-auto grid grid-cols-2 gap-2">
+                            <Link
+                              to={`/bikes/${slug}`}
+                              className="text-center py-3 rounded-xl font-heading text-xs tracking-wider uppercase font-bold bg-white/10 hover:bg-white/20 text-white transition-all"
+                            >
+                              Specs &amp; FAQs
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/book?bikeId=${bike.id}`)}
+                              disabled={isMaintenance}
+                              className={`py-3 rounded-xl font-heading text-xs tracking-widest uppercase transition-all duration-200 cursor-pointer shadow-lg ${
+                                !isMaintenance
+                                  ? 'bg-brand-orange hover:bg-brand-yellow hover:text-neutral-950 text-white font-bold shadow-brand-orange/20 active:scale-[0.98]'
+                                  : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+                              }`}
+                            >
+                              {!isMaintenance ? 'Rent' : 'Service'}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </article>
               );
             })}

@@ -10,7 +10,7 @@ export const Contact: React.FC = () => {
   const contactSchema = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
-    'name': 'Rydeit Bike Rentals Kolkata',
+    'name': 'Rydeit - Bike & Scooter Rentals in Kolkata',
     'telephone': '+917686022245',
     'email': 'hi.rydeit@gmail.com',
     'address': {
@@ -33,9 +33,10 @@ export const Contact: React.FC = () => {
     <section className="py-24 bg-brand-black relative overflow-hidden">
       {isStandalonePage && (
         <SEOHead
-          title="Contact & Garage Location in Kolkata - Rydeit Rentals"
+          title="Contact & Garage Location in Kolkata | Rydeit"
           description="Visit Rydeit at 6C, Mohammadan Burial Ground Lane, Kolkata - 700023. Call +91 7686022245 or email hi.rydeit@gmail.com. Open daily 06:00 AM - 10:00 PM."
           canonicalPath="/contact"
+          image="/images/honda-shine-125.jpg"
           schema={contactSchema}
         />
       )}

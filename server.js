@@ -10,6 +10,15 @@ const port = 3000;
 
 const distDir = path.join(__dirname, 'dist');
 
+// 301 Permanent Redirect: Canonicalize www.rydeit.in to https://rydeit.in
+app.use((req, res, next) => {
+  const host = req.headers.host || '';
+  if (host.startsWith('www.')) {
+    return res.redirect(301, `https://rydeit.in${req.originalUrl}`);
+  }
+  next();
+});
+
 // Serve static assets with appropriate caching
 app.use(express.static(distDir, {
   setHeaders: (res, filePath) => {
@@ -26,6 +35,9 @@ const publicRoutes = [
   { route: '/bikes', file: 'bikes/index.html' },
   { route: '/scooters', file: 'scooters/index.html' },
   { route: '/motorcycles', file: 'motorcycles/index.html' },
+  { route: '/pickup-kolkata', file: 'pickup-kolkata/index.html' },
+  { route: '/outstation-bike-rentals', file: 'outstation-bike-rentals/index.html' },
+  { route: '/delivery-bike-rentals', file: 'delivery-bike-rentals/index.html' },
   { route: '/rates', file: 'rates/index.html' },
   { route: '/faqs', file: 'faqs/index.html' },
   { route: '/about', file: 'about/index.html' },

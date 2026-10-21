@@ -911,7 +911,25 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     }
   };
 
-  const categories: BikeCategory[] = ['Scooter', 'Bikes', 'Royal Enfield', 'Sports'];
+  const categories = useMemo(() => {
+    const preferred: BikeCategory[] = ['Scooter', 'Bikes', 'Royal Enfield', 'Sports'];
+    const present = Array.from(new Set(bikes.map(b => b.category)));
+    const ordered: BikeCategory[] = [];
+    preferred.forEach(cat => {
+      if (present.includes(cat)) ordered.push(cat);
+    });
+    present.forEach(cat => {
+      if (!ordered.includes(cat)) ordered.push(cat);
+    });
+    return ordered.length > 0 ? ordered : preferred;
+  }, [bikes]);
+
+  useEffect(() => {
+    if (bikes.length > 0 && formData.bikeId && !bikes.some(b => b.id.toString() === formData.bikeId)) {
+      setFormData(prev => ({ ...prev, bikeId: '' }));
+      setStep('selection');
+    }
+  }, [bikes, formData.bikeId]);
 
   return (
     <section className="py-2 sm:py-4 md:py-6 bg-black min-h-screen flex flex-col justify-between">
@@ -1002,6 +1020,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                               )}
                           </div>
                           <h4 className="text-white font-bold text-xs uppercase tracking-tight">{b.name}</h4>
+                          {b.description && (
+                            <p className="text-[10px] text-neutral-400 mt-1 line-clamp-2 leading-relaxed">{b.description}</p>
+                          )}
                           <div className="flex items-center gap-2 mt-1">
                               <p className="text-brand-teal font-heading text-base">₹{b.dailyRate}</p>
                               <span className="text-[8px] text-white/60 uppercase font-black tracking-widest">/ day</span>
@@ -1020,6 +1041,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                 </div>
               );
             })}
+
+            {bikes.length === 0 && (
+              <div className="py-20 text-center">
+                <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                <p className="text-xs uppercase tracking-wider font-semibold text-neutral-400">Loading live fleet from Supabase...</p>
+              </div>
+            )}
           </div>
         )}
 
