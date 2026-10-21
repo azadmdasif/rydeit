@@ -604,12 +604,7 @@ export const BIKE_DETAILS: Record<string, BikeDetailModel> = {
   }
 };
 
-export function createBikeSlug(name: string, id?: number): string {
-  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  return base || (id ? `bike-${id}` : 'machine');
-}
-
-export const getBikeSlugById = (id: number, name?: string): string => {
+export const getBikeSlugById = (id: number): string => {
   const map: Record<number, string> = {
     15: 'suzuki-burgman',
     16: 'honda-activa-125',
@@ -626,12 +621,5 @@ export const getBikeSlugById = (id: number, name?: string): string => {
     10: 'yamaha-r15-v4',
     11: 'ktm-duke-390'
   };
-  if (map[id]) return map[id];
-  if (name) return createBikeSlug(name, id);
-  return `bike-${id}`;
+  return map[id] || 're-classic-350';
 };
-
-export const getBikeSlug = (bike: { id: number; name?: string }): string => {
-  return getBikeSlugById(bike.id, bike.name);
-};
-

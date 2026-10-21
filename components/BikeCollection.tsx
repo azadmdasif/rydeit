@@ -25,7 +25,7 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
   };
 
   const isMaintenance = bike.status === 'Maintenance';
-  const slug = getBikeSlugById(bike.id, bike.name);
+  const slug = getBikeSlugById(bike.id);
 
   return (
     <div className={`bg-brand-gray-dark rounded-lg overflow-hidden border-b-4 ${colorClasses[bike.color]} transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl flex flex-col relative group`}>
@@ -79,22 +79,11 @@ const BikeCard: React.FC<BikeCardProps> = ({ bike, onBook }) => {
 
 export const BikeCollection: React.FC<BikeCollectionProps> = ({ bikes }) => {
   const navigate = useNavigate();
-  const orderedCategories = React.useMemo(() => {
-    const defaultOrder: BikeCategory[] = ['Bikes', 'Scooter', 'Royal Enfield', 'Sports'];
-    const present = Array.from(new Set(bikes.map(b => b.category)));
-    const result: BikeCategory[] = [];
-    defaultOrder.forEach(cat => {
-      if (present.includes(cat)) result.push(cat);
-    });
-    present.forEach(cat => {
-      if (!result.includes(cat)) result.push(cat);
-    });
-    return result.length > 0 ? result : defaultOrder;
-  }, [bikes]);
+  const orderedCategories: BikeCategory[] = ['Bikes', 'Scooter', 'Royal Enfield', 'Sports'];
   
   const bikesByCategory = (category: BikeCategory) => {
     return bikes.filter(bike => bike.category === category);
-  };
+  }
 
   const handleBook = (id: number) => {
     navigate(`/book?bikeId=${id}`);
@@ -214,13 +203,6 @@ export const BikeCollection: React.FC<BikeCollectionProps> = ({ bikes }) => {
             <div className="absolute inset-0 bg-white opacity-0 group-active:opacity-20 rounded-3xl transition-opacity"></div>
           </button>
         </div>
-
-        {bikes.length === 0 && (
-          <div className="py-20 text-center">
-            <div className="w-10 h-10 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-white/60 font-mono text-xs uppercase tracking-widest">Connecting to Supabase fleet...</p>
-          </div>
-        )}
 
         {orderedCategories.map(category => {
           const catBikes = bikesByCategory(category);

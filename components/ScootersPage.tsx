@@ -111,7 +111,7 @@ export const ScootersPage: React.FC<ScootersPageProps> = ({ bikes }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {scooters.map(scooter => {
               const isMaintenance = scooter.status === 'Maintenance';
-              const slug = getBikeSlugById(scooter.id, scooter.name);
+              const slug = getBikeSlugById(scooter.id);
               return (
                 <article
                   key={scooter.id}

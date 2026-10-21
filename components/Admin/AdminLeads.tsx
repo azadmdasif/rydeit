@@ -9,6 +9,7 @@ import {
   deleteLead, 
   computeDemandAnalytics 
 } from '../../leadsStorage';
+import { BIKES } from '../../constants';
 import { getFleetBikes } from '../../fleetStorage';
 import { supabase } from '../../supabase';
 import { useToast } from '../../App';
@@ -112,9 +113,10 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
   const allFleetBikes = useMemo(() => {
     try {
-      return getFleetBikes();
+      const fleet = getFleetBikes();
+      return fleet.length > 0 ? fleet : BIKES;
     } catch {
-      return [];
+      return BIKES;
     }
   }, []);
 

@@ -13,7 +13,7 @@ interface RatesProps {
 
 const RateBikeCard: React.FC<{ bike: Bike, onBook: (id: number) => void }> = ({ bike, onBook }) => {
   const isMaintenance = bike.status === 'Maintenance';
-  const slug = getBikeSlugById(bike.id, bike.name);
+  const slug = getBikeSlugById(bike.id);
   
   return (
     <div className="bg-brand-gray-dark rounded-2xl overflow-hidden border border-white/5 transition-all duration-300 hover:border-brand-teal/50 group relative flex flex-col justify-between">

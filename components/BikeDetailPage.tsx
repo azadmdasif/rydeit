@@ -1,139 +1,33 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { BIKE_DETAILS, getBikeSlugById, createBikeSlug } from '../bikeDetailsData';
-import { useFleetBikes } from '../fleetStorage';
+import { BIKE_DETAILS } from '../bikeDetailsData';
+import { BIKES } from '../constants';
 import { SEOHead } from './SEOHead';
 import { ShieldCheck, Clock, Zap, MapPin, Phone, HelpCircle, CheckCircle2, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
 
 export const BikeDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { bikes: fleetBikes } = useFleetBikes();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  // Match requested bike against active Supabase fleet
-  const dbBike = useMemo(() => {
-    if (!slug) return null;
-    return fleetBikes.find(b => {
-      const s1 = getBikeSlugById(b.id, b.name);
-      const s2 = createBikeSlug(b.name, b.id);
-      return s1 === slug || s2 === slug || String(b.id) === slug;
-    }) || null;
-  }, [slug, fleetBikes]);
+  const bike = slug ? BIKE_DETAILS[slug] : null;
 
-  const staticDetail = slug ? BIKE_DETAILS[slug] : null;
-
-  // Build complete model using Supabase as source of truth
-  const bike = useMemo(() => {
-    if (!dbBike) return null;
-
-    const currentSlug = getBikeSlugById(dbBike.id, dbBike.name);
-    const customDescription = dbBike.description || '';
-
-    if (staticDetail) {
-      return {
-        ...staticDetail,
-        id: dbBike.id,
-        slug: currentSlug,
-        name: dbBike.name,
-        tagline: customDescription || staticDetail.tagline,
-        dailyRate: dbBike.dailyRate,
-        imageUrl: dbBike.imageUrl || staticDetail.imageUrl,
-        category: dbBike.category,
-        status: dbBike.status,
-        overview: customDescription 
-          ? `${customDescription} ${staticDetail.overview}`
-          : staticDetail.overview,
-        metaTitle: `${dbBike.name} on Rent in Kolkata - ₹${dbBike.dailyRate}/day | Rydeit`,
-        metaDescription: customDescription || staticDetail.metaDescription
-      };
-    }
-
-    // Dynamic model generator for custom bikes added in Supabase
-    return {
-      id: dbBike.id,
-      slug: currentSlug,
-      name: dbBike.name,
-      tagline: customDescription || `Premium self-drive ${dbBike.name} rental in Kolkata with instant delivery`,
-      category: dbBike.category,
-      dailyRate: dbBike.dailyRate,
-      imageUrl: dbBike.imageUrl,
-      color: dbBike.color || 'black',
-      specs: {
-        displacement: dbBike.category === 'Scooter' ? '125 cc Automatic' : 'Refined 4-Stroke Engine',
-        maxPower: dbBike.category === 'Sports' ? 'High Performance Output' : 'Smooth & Responsive',
-        maxTorque: 'Punchy City & Highway Torque',
-        mileage: dbBike.category === 'Scooter' ? '45 - 50 km/L' : '40 - 55 km/L',
-        fuelTank: 'Standard Capacity Tank',
-        transmission: dbBike.category === 'Scooter' ? 'Automatic CVT' : 'Multi-Speed Manual',
-        kerbWeight: 'Lightweight & Agile Chassis',
-        seatHeight: 'Ergonomic Comfortable Saddle',
-        braking: 'Disc / Drum Safety Brake System'
-      },
-      overview: customDescription || `Rent the ${dbBike.name} in Kolkata with Rydeit. Thoroughly serviced, sanitized, and ready for your city commute, weekend getaway, or outstation journey. Comes with complimentary ISI helmet and 24/7 road assistance.`,
-      whyRent: [
-        `Well-maintained machine in top mechanical condition.`,
-        `Includes 1x complimentary ISI-certified safety helmet.`,
-        `Paperless KYC verification and flat ₹1,000 security deposit.`,
-        `Optional doorstep delivery across Kolkata for ₹199.`
-      ],
-      faqs: [
-        {
-          question: `Can I rent the ${dbBike.name} with doorstep delivery in Kolkata?`,
-          answer: `Yes! We provide express doorstep delivery anywhere in Kolkata (Salt Lake, New Town, Howrah, Airport, etc.) for a flat ₹199 delivery fee.`
-        },
-        {
-          question: `What documents are required to rent the ${dbBike.name}?`,
-          answer: `A valid original Driving License and government ID (Aadhaar, Voter ID, or Passport). Both are verified digitally in minutes.`
-        },
-        {
-          question: `What is the security deposit for the ${dbBike.name}?`,
-          answer: `We charge a flat ₹1,000 refundable security deposit, returned immediately when the vehicle is checked back at return.`
-        }
-      ],
-      idealFor: ['Daily Commutes', 'Weekend City Tours', 'Expressway Rides'],
-      metaTitle: `${dbBike.name} on Rent in Kolkata - ₹${dbBike.dailyRate}/day | Rydeit`,
-      metaDescription: `Rent ${dbBike.name} in Kolkata starting at ₹${dbBike.dailyRate}/day. Clean machine, zero hidden charges, instant booking with Rydeit.`
-    };
-  }, [dbBike, staticDetail]);
-
-  // If bike is not found in active Supabase fleet
   if (!bike) {
-    if (fleetBikes.length === 0) {
-      return (
-        <div className="py-24 bg-brand-black min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
-          <div className="w-10 h-10 border-4 border-brand-teal/20 border-t-brand-teal rounded-full animate-spin mb-4"></div>
-          <p className="text-white/60 font-mono text-xs uppercase tracking-widest">Checking active fleet...</p>
-        </div>
-      );
-    }
-
     return (
       <div className="py-24 bg-brand-black min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
-        <span className="text-brand-orange text-xs font-bold uppercase tracking-widest mb-3">Rydeit Fleet</span>
         <h1 className="text-3xl font-heading text-white uppercase mb-4">Vehicle Model Not Found</h1>
-        <p className="text-neutral-400 text-sm max-w-md mb-8">
-          This vehicle model is currently not available in our active rental fleet in Kolkata or has been removed from inventory.
-        </p>
-        <Link to="/bikes" className="bg-brand-orange hover:bg-brand-yellow hover:text-brand-black text-white font-heading px-8 py-3.5 rounded-full text-xs uppercase tracking-widest transition-all">
+        <p className="text-neutral-400 text-sm mb-8">The requested bike model does not exist or has been updated.</p>
+        <Link to="/bikes" className="bg-brand-orange hover:bg-brand-yellow hover:text-brand-black text-white font-heading px-8 py-3 rounded-full text-xs uppercase tracking-widest transition-all">
           Browse All Fleet
         </Link>
       </div>
     );
   }
 
-  // Related machines in same category from live Supabase fleet
-  const relatedBikes = fleetBikes
-    .filter(b => b.id !== bike.id && b.category === bike.category)
-    .slice(0, 3)
-    .map(b => ({
-      id: b.id,
-      name: b.name,
-      slug: getBikeSlugById(b.id, b.name),
-      imageUrl: b.imageUrl,
-      dailyRate: b.dailyRate,
-      tagline: b.description || `${b.category} self-drive rental in Kolkata`
-    }));
+  // Related machines in same category
+  const relatedBikes = Object.values(BIKE_DETAILS)
+    .filter(b => b.slug !== bike.slug && b.category === bike.category)
+    .slice(0, 3);
 
   const schemaData = {
     '@context': 'https://schema.org',

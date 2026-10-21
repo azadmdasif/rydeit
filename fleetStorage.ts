@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { BIKES } from './constants';
 import type { Bike, MaintenanceLog } from './types';
 import { supabase } from './supabase';
 
-export const LOCAL_STORAGE_SUPABASE_FLEET_KEY = 'rydeit_supabase_bikes_cache_v3';
+const LOCAL_STORAGE_FLEET_KEY = 'rydeit_fleet_custom_v2';
+const LOCAL_STORAGE_DELETED_BIKES_KEY = 'rydeit_fleet_deleted_v2';
 const LOCAL_STORAGE_MAINT_KEY = 'rydeit_maintenance_logs_v1';
 
 export const SUPABASE_FLEET_SQL = `-- ==============================================================================
@@ -29,15 +31,7 @@ CREATE TABLE IF NOT EXISTS public.bikes (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW())
 );
 
--- 2. Ensure columns exist on existing tables
-ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
-ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS rc_number TEXT;
-ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS purchase_date DATE DEFAULT CURRENT_DATE;
-ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS purchase_cost NUMERIC(12, 2) DEFAULT 0.00;
-ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS odometer_reading NUMERIC(10, 2) DEFAULT 0.00;
-
--- 3. Indexes for fast category, status, and availability queries
+-- 2. Indexes for fast category, status, and availability queries
 CREATE INDEX IF NOT EXISTS idx_bikes_category ON public.bikes (category);
 CREATE INDEX IF NOT EXISTS idx_bikes_status ON public.bikes (status);
 CREATE INDEX IF NOT EXISTS idx_bikes_is_deleted ON public.bikes (is_deleted);
@@ -212,7 +206,27 @@ const DEFAULT_MAINTENANCE_LOGS: MaintenanceLog[] = [
   }
 ];
 
-// Map database row to Bike model (including description from Supabase)
+function getDeletedBikeIds(): number[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_DELETED_BIKES_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (err) {
+    console.error('Error reading deleted bike ids:', err);
+  }
+  return [];
+}
+
+export function getCustomFleetMap(): Record<number, Partial<Bike>> {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_FLEET_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (err) {
+    console.error('Error reading fleet custom map:', err);
+  }
+  return {};
+}
+
+// Map database row to Bike model
 export function mapDbBike(row: any): Bike {
   return {
     id: Number(row.id),
@@ -230,23 +244,40 @@ export function mapDbBike(row: any): Bike {
   };
 }
 
-// Synchronous reader for fast component renders - reads exclusively from Supabase cache
+// Synchronous reader for fast component renders - strictly restricted to the fleet section
 export function getFleetBikes(): Bike[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_SUPABASE_FLEET_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.error('Error reading Supabase fleet cache:', err);
-  }
-  return [];
+  const deletedIds = getDeletedBikeIds();
+  const customMap = getCustomFleetMap();
+
+  // Exactly and only the canonical bikes from the fleet section (BIKES in constants.ts),
+  // customized with any persisted rate/status/odometer overrides
+  const result: Bike[] = [];
+
+  BIKES.forEach(base => {
+    if (deletedIds.includes(base.id)) return;
+    const custom = customMap[base.id];
+    result.push({
+      ...base,
+      ...(custom ? {
+        name: custom.name || base.name,
+        description: custom.description || base.description,
+        imageUrl: custom.imageUrl || base.imageUrl,
+        color: custom.color || base.color,
+        category: custom.category || base.category,
+        dailyRate: custom.dailyRate !== undefined ? Number(custom.dailyRate) : base.dailyRate,
+        status: custom.status || base.status,
+        rc_number: custom.rc_number || base.rc_number,
+        purchase_date: custom.purchase_date || base.purchase_date,
+        purchase_cost: custom.purchase_cost !== undefined ? Number(custom.purchase_cost) : base.purchase_cost,
+        odometer_reading: custom.odometer_reading !== undefined ? Number(custom.odometer_reading) : base.odometer_reading
+      } : {})
+    });
+  });
+
+  return result;
 }
 
-// Asynchronous sync with Supabase bikes table - queries live Supabase database directly
+// Asynchronous sync with Supabase bikes table - strictly aligned with the canonical fleet
 export async function syncFleetWithSupabase(): Promise<{ bikes: Bike[]; source: 'supabase' | 'local' }> {
   try {
     const { data, error } = await supabase
@@ -255,48 +286,70 @@ export async function syncFleetWithSupabase(): Promise<{ bikes: Bike[]; source: 
       .eq('is_deleted', false)
       .order('id', { ascending: true });
 
-    if (!error && data) {
-      const dbBikes = data.map(mapDbBike);
-      localStorage.setItem(LOCAL_STORAGE_SUPABASE_FLEET_KEY, JSON.stringify(dbBikes));
-      return { bikes: dbBikes, source: 'supabase' };
-    }
-    if (error) {
-      console.warn('Supabase bikes query returned error, using local storage cache:', error.message);
+    if (!error && data && data.length > 0) {
+      const canonicalIds = new Set(BIKES.map(b => b.id));
+      const dbBikes = data
+        .filter(row => canonicalIds.has(Number(row.id)))
+        .map(mapDbBike);
+
+      // Update local storage cache only for canonical fleet bikes
+      const customMap: Record<number, Partial<Bike>> = {};
+      dbBikes.forEach(b => {
+        customMap[b.id] = b;
+      });
+      localStorage.setItem(LOCAL_STORAGE_FLEET_KEY, JSON.stringify(customMap));
+
+      // Merge with base BIKES ensuring all canonical fleet items exist
+      const deletedIds = getDeletedBikeIds();
+      const merged: Bike[] = BIKES.filter(b => !deletedIds.includes(b.id)).map(base => {
+        const found = dbBikes.find(db => db.id === base.id);
+        return found ? { ...base, ...found } : base;
+      });
+
+      return { bikes: merged, source: 'supabase' };
     }
   } catch (err) {
-    console.warn('Supabase bikes query exception, using local storage cache:', err);
+    console.warn('Supabase bikes query returned error, using local storage cache:', err);
   }
 
   return { bikes: getFleetBikes(), source: 'local' };
 }
 
-// Check if Supabase bikes table exists and count active records
+// Check if Supabase bikes table exists and is accessible
 export async function checkSupabaseBikesTable(): Promise<{ exists: boolean; count: number; error?: string }> {
   try {
     const { data, error, count } = await supabase
       .from('bikes')
       .select('id', { count: 'exact', head: false })
-      .eq('is_deleted', false);
+      .limit(1);
 
     if (error) {
       return { exists: false, count: 0, error: error.message };
     }
-    return { exists: true, count: count !== null && count !== undefined ? count : (data?.length || 0) };
+    return { exists: true, count: count || data?.length || 0 };
   } catch (err: any) {
     return { exists: false, count: 0, error: err.message };
   }
 }
 
-// Save or update bike in Supabase & local storage (includes custom description)
+// Save or update bike in Supabase & local storage
 export async function saveFleetBike(updatedBike: Partial<Bike> & { id: number }): Promise<void> {
   try {
-    // 1. Update in Supabase
+    // 1. Update local storage
+    const customMap = getCustomFleetMap();
+    customMap[updatedBike.id] = {
+      ...(customMap[updatedBike.id] || {}),
+      ...updatedBike
+    };
+    localStorage.setItem(LOCAL_STORAGE_FLEET_KEY, JSON.stringify(customMap));
+    window.dispatchEvent(new CustomEvent('rydeit_fleet_updated', { detail: updatedBike }));
+
+    // 2. Update Supabase if available
     try {
       const payload: any = {
         updated_at: new Date().toISOString()
       };
       if (updatedBike.name !== undefined) payload.name = updatedBike.name;
-      if (updatedBike.description !== undefined) payload.description = updatedBike.description;
       if (updatedBike.dailyRate !== undefined) payload.daily_rate = updatedBike.dailyRate;
       if (updatedBike.imageUrl !== undefined) payload.image_url = updatedBike.imageUrl;
       if (updatedBike.rc_number !== undefined) payload.rc_number = updatedBike.rc_number;
@@ -305,18 +358,12 @@ export async function saveFleetBike(updatedBike: Partial<Bike> & { id: number })
       if (updatedBike.odometer_reading !== undefined) payload.odometer_reading = updatedBike.odometer_reading;
       if (updatedBike.category !== undefined) payload.category = updatedBike.category;
       if (updatedBike.status !== undefined) payload.status = updatedBike.status;
-      if (updatedBike.color !== undefined) payload.color = updatedBike.color;
+      if (updatedBike.description !== undefined) payload.description = updatedBike.description;
 
       await supabase.from('bikes').update(payload).eq('id', updatedBike.id);
     } catch (e) {
-      console.warn('Supabase update notice:', e);
+      console.warn('Optional Supabase update notice:', e);
     }
-
-    // 2. Update local cache
-    const current = getFleetBikes();
-    const updated = current.map(b => b.id === updatedBike.id ? { ...b, ...updatedBike } : b);
-    localStorage.setItem(LOCAL_STORAGE_SUPABASE_FLEET_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('rydeit_fleet_updated', { detail: updatedBike }));
   } catch (err) {
     console.error('Error saving fleet bike customization:', err);
   }
@@ -325,30 +372,42 @@ export async function saveFleetBike(updatedBike: Partial<Bike> & { id: number })
 // Delete bike completely from website & Supabase
 export async function deleteFleetBike(bikeId: number): Promise<void> {
   try {
-    // 1. Soft-delete in Supabase
+    // 1. Mark in deleted IDs local cache
+    const deletedIds = getDeletedBikeIds();
+    if (!deletedIds.includes(bikeId)) {
+      deletedIds.push(bikeId);
+      localStorage.setItem(LOCAL_STORAGE_DELETED_BIKES_KEY, JSON.stringify(deletedIds));
+    }
+
+    // 2. Remove from custom map
+    const customMap = getCustomFleetMap();
+    if (customMap[bikeId]) {
+      delete customMap[bikeId];
+      localStorage.setItem(LOCAL_STORAGE_FLEET_KEY, JSON.stringify(customMap));
+    }
+
+    // 3. Delete / Soft-delete in Supabase
     try {
-      await supabase.from('bikes').update({ is_deleted: true, updated_at: new Date().toISOString() }).eq('id', bikeId);
+      // Soft-delete flag first (for foreign key safety with past bookings)
+      await supabase.from('bikes').update({ is_deleted: true }).eq('id', bikeId);
+      // Also attempt hard delete if no cascade constraints
+      await supabase.from('bikes').delete().eq('id', bikeId);
     } catch (dbErr) {
       console.warn('Supabase delete notice:', dbErr);
     }
 
-    // 2. Remove from local cache
-    const current = getFleetBikes();
-    const updated = current.filter(b => b.id !== bikeId);
-    localStorage.setItem(LOCAL_STORAGE_SUPABASE_FLEET_KEY, JSON.stringify(updated));
-
-    // 3. Notify app
+    // 4. Notify app
     window.dispatchEvent(new CustomEvent('rydeit_fleet_updated', { detail: { deletedBikeId: bikeId } }));
   } catch (err) {
     console.error('Error deleting fleet bike:', err);
   }
 }
 
-// Add new bike to Supabase & local storage (includes custom description)
+// Add new bike to Supabase & local storage
 export async function addFleetBike(newBike: Omit<Bike, 'id'>): Promise<Bike> {
-  let created: Bike | null = null;
+  let generatedId = Date.now() % 100000;
 
-  // Try creating in Supabase first
+  // Try creating in Supabase first to get serial ID
   try {
     const { data, error } = await supabase.from('bikes').insert({
       name: newBike.name,
@@ -358,7 +417,7 @@ export async function addFleetBike(newBike: Omit<Bike, 'id'>): Promise<Bike> {
       category: newBike.category,
       daily_rate: newBike.dailyRate,
       status: newBike.status || 'Available',
-      rc_number: newBike.rc_number || `WB-02-${Date.now() % 10000}`,
+      rc_number: newBike.rc_number || `WB-02-${1000 + generatedId}`,
       purchase_date: newBike.purchase_date || new Date().toISOString().split('T')[0],
       purchase_cost: newBike.purchase_cost || 0,
       odometer_reading: newBike.odometer_reading || 0,
@@ -366,38 +425,44 @@ export async function addFleetBike(newBike: Omit<Bike, 'id'>): Promise<Bike> {
     }).select().single();
 
     if (!error && data) {
-      created = mapDbBike(data);
-    } else if (error) {
-      console.warn('Supabase insert error:', error.message);
+      const created = mapDbBike(data);
+      const customMap = getCustomFleetMap();
+      customMap[created.id] = created;
+      localStorage.setItem(LOCAL_STORAGE_FLEET_KEY, JSON.stringify(customMap));
+      window.dispatchEvent(new CustomEvent('rydeit_fleet_updated', { detail: created }));
+      return created;
     }
   } catch (dbErr) {
-    console.warn('Supabase insert notice, creating local item:', dbErr);
+    console.warn('Supabase insert fallback to local:', dbErr);
   }
 
-  if (!created) {
-    created = {
-      ...newBike,
-      id: Date.now() % 100000
-    };
-  }
-
-  // Update local cache
-  const current = getFleetBikes();
-  const updated = [...current.filter(b => b.id !== created!.id), created];
-  localStorage.setItem(LOCAL_STORAGE_SUPABASE_FLEET_KEY, JSON.stringify(updated));
+  // Local fallback
+  const created: Bike = {
+    ...newBike,
+    id: generatedId
+  };
+  const customMap = getCustomFleetMap();
+  customMap[created.id] = created;
+  localStorage.setItem(LOCAL_STORAGE_FLEET_KEY, JSON.stringify(customMap));
   window.dispatchEvent(new CustomEvent('rydeit_fleet_updated', { detail: created }));
-
   return created;
 }
 
-// Reset single bike to latest Supabase data
-export async function resetFleetBike(bikeId: number): Promise<Bike[]> {
+// Reset single bike to default
+export function resetFleetBike(bikeId: number): Bike[] {
   try {
-    const { bikes } = await syncFleetWithSupabase();
-    return bikes;
-  } catch {
-    return getFleetBikes();
+    const customMap = getCustomFleetMap();
+    if (customMap[bikeId]) {
+      delete customMap[bikeId];
+      localStorage.setItem(LOCAL_STORAGE_FLEET_KEY, JSON.stringify(customMap));
+    }
+    const deletedIds = getDeletedBikeIds().filter(id => id !== bikeId);
+    localStorage.setItem(LOCAL_STORAGE_DELETED_BIKES_KEY, JSON.stringify(deletedIds));
+    window.dispatchEvent(new CustomEvent('rydeit_fleet_updated', { detail: { resetBikeId: bikeId } }));
+  } catch (err) {
+    console.error('Error resetting fleet bike:', err);
   }
+  return getFleetBikes();
 }
 
 // Maintenance logs helpers

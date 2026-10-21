@@ -147,7 +147,7 @@ export const MotorcyclesPage: React.FC<MotorcyclesPageProps> = ({ bikes }) => {
                   className="bg-brand-gray-dark rounded-2xl overflow-hidden border border-white/10 hover:border-brand-orange/50 transition-all duration-300 flex flex-col group shadow-xl"
                 >
                   {(() => {
-                    const slug = getBikeSlugById(bike.id, bike.name);
+                    const slug = getBikeSlugById(bike.id);
                     return (
                       <>
                         <Link to={`/bikes/${slug}`} className="relative h-60 overflow-hidden bg-neutral-900 block">

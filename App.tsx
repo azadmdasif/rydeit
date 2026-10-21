@@ -31,7 +31,7 @@ import { BikeDetailPage } from './components/BikeDetailPage';
 import { TransitPickupPage } from './components/TransitPickupPage';
 import { OutstationGuidesPage } from './components/OutstationGuidesPage';
 import { GigDeliveryPage } from './components/GigDeliveryPage';
-import { ADDITIONAL_CHARGES, TESTIMONIALS } from './constants';
+import { BIKES, ADDITIONAL_CHARGES, TESTIMONIALS } from './constants';
 import { useFleetBikes } from './fleetStorage';
 import { supabase } from './supabase';
 import type { LegalContent } from './types';
