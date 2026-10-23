@@ -30,6 +30,18 @@ interface FleetBikeItem extends Bike {
   maintenanceRecords: MaintenanceLog[];
 }
 
+export const ALTER_TABLE_DESCRIPTION_SQL = `-- ==============================================================================
+-- RYDEIT: QUICK COLUMN UPGRADE FOR EXISTING TABLE
+-- Run this in Supabase SQL Editor if public.bikes already exists
+-- ==============================================================================
+ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS rc_number TEXT;
+ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS purchase_date DATE DEFAULT CURRENT_DATE;
+ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS purchase_cost NUMERIC(12, 2) DEFAULT 0.00;
+ALTER TABLE public.bikes ADD COLUMN IF NOT EXISTS odometer_reading NUMERIC(10, 2) DEFAULT 0.00;
+`;
+
 export const AdminFleet: React.FC = () => {
   const { showToast } = useToast();
   const [fleetStats, setFleetStats] = useState<FleetBikeItem[]>([]);
@@ -45,6 +57,7 @@ export const AdminFleet: React.FC = () => {
   // Modals state
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
+  const [sqlTab, setSqlTab] = useState<'full' | 'alter'>('full');
 
   const [editingBike, setEditingBike] = useState<FleetBikeItem | null>(null);
   const [editFormData, setEditFormData] = useState({
@@ -376,9 +389,10 @@ export const AdminFleet: React.FC = () => {
 
   // Copy SQL to clipboard
   const handleCopySql = () => {
-    navigator.clipboard.writeText(SUPABASE_FLEET_SQL);
+    const textToCopy = sqlTab === 'full' ? SUPABASE_FLEET_SQL : ALTER_TABLE_DESCRIPTION_SQL;
+    navigator.clipboard.writeText(textToCopy);
     setSqlCopied(true);
-    showToast('SQL schema copied to clipboard!', 'success');
+    showToast(sqlTab === 'full' ? 'Complete Fleet Schema copied!' : 'Column upgrade SQL copied!', 'success');
     setTimeout(() => setSqlCopied(false), 3000);
   };
 
@@ -623,6 +637,11 @@ export const AdminFleet: React.FC = () => {
                     <p className="text-xs text-neutral-400 mt-0.5">
                       {Math.round(bike.currentOdometer).toLocaleString()} km odometer · {bike.futureRides?.length || 0} upcoming rides
                     </p>
+                    {bike.description && (
+                      <p className="text-[11px] text-neutral-300 italic line-clamp-2 mt-2 bg-neutral-950/80 p-2 rounded-lg border border-neutral-800 leading-snug">
+                        "{bike.description}"
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -695,7 +714,14 @@ export const AdminFleet: React.FC = () => {
                               (e.target as HTMLImageElement).src = '/images/ather-450x.jpg';
                             }}
                           />
-                          <span className="font-bold text-white text-xs">{bike.name}</span>
+                          <div>
+                            <span className="font-bold text-white text-xs block">{bike.name}</span>
+                            {bike.description && (
+                              <span className="text-[10px] text-neutral-400 italic block line-clamp-1 max-w-[200px]" title={bike.description}>
+                                {bike.description}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="py-3 px-3 font-mono text-white/70">
@@ -787,6 +813,32 @@ export const AdminFleet: React.FC = () => {
           maxWidth="2xl"
         >
           <div className="space-y-4 py-2">
+            {/* Tab Selector */}
+            <div className="flex border-b border-white/10 gap-2">
+              <button
+                type="button"
+                onClick={() => setSqlTab('full')}
+                className={`py-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                  sqlTab === 'full' 
+                    ? 'border-brand-teal text-brand-teal' 
+                    : 'border-transparent text-white/50 hover:text-white'
+                }`}
+              >
+                Complete Fleet Schema (New Table)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSqlTab('alter')}
+                className={`py-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                  sqlTab === 'alter' 
+                    ? 'border-brand-teal text-brand-teal' 
+                    : 'border-transparent text-white/50 hover:text-white'
+                }`}
+              >
+                Add Description Column (ALTER TABLE)
+              </button>
+            </div>
+
             <div className="bg-black/60 p-4 rounded-xl border border-white/10 text-xs text-white/80 space-y-2">
               <p className="font-bold text-white flex items-center gap-2">
                 <span className="text-brand-teal">✓</span> Setup Instructions:
@@ -797,13 +849,15 @@ export const AdminFleet: React.FC = () => {
                 <li>Paste into a new query and click <strong>Run</strong>.</li>
               </ol>
               <p className="text-[11px] text-white/50">
-                This provisions the <code className="text-brand-teal">public.bikes</code> table, enables RLS policies, and syncs all machines and deletions directly in your cloud database.
+                {sqlTab === 'full' 
+                  ? 'This provisions the public.bikes table, enables RLS, creates indexes, and syncs initial machines.' 
+                  : 'Safely adds the description column and tracking fields to your existing public.bikes table without modifying current rows.'}
               </p>
             </div>
 
             <div className="relative">
               <pre className="bg-black/90 p-4 rounded-xl border border-white/10 text-[10px] font-mono text-sky-400 overflow-x-auto max-h-72 leading-relaxed">
-                {SUPABASE_FLEET_SQL}
+                {sqlTab === 'full' ? SUPABASE_FLEET_SQL : ALTER_TABLE_DESCRIPTION_SQL}
               </pre>
               <button
                 type="button"
@@ -968,6 +1022,20 @@ export const AdminFleet: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider flex items-center justify-between">
+                  <span>Custom Description</span>
+                  <span className="text-[9px] text-brand-teal font-normal">Synced to Supabase backend</span>
+                </label>
+                <textarea 
+                  rows={3}
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData(p => ({ ...p, description: e.target.value }))}
+                  placeholder="Enter custom machine description..."
+                  className="w-full bg-black/60 border border-white/15 rounded-xl p-2.5 text-xs text-white placeholder:text-neutral-500 outline-none focus:border-brand-teal resize-none leading-relaxed"
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-2.5 pt-3 border-t border-white/5">
@@ -1071,6 +1139,20 @@ export const AdminFleet: React.FC = () => {
                   placeholder="/images/hero-xtreme-125r.jpg or https://..."
                   className="w-full bg-black/60 border border-white/15 rounded-xl p-2.5 text-xs font-mono text-white outline-none focus:border-brand-teal"
                   required
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider flex items-center justify-between">
+                  <span>Custom Description</span>
+                  <span className="text-[9px] text-brand-teal font-normal">Synced to Supabase backend</span>
+                </label>
+                <textarea 
+                  rows={3}
+                  value={addFormData.description}
+                  onChange={(e) => setAddFormData(p => ({ ...p, description: e.target.value }))}
+                  placeholder="e.g. Premium 125cc commuter with silent start, digital console, superb 55 kmpl fuel efficiency, and pristine condition."
+                  className="w-full bg-black/60 border border-white/15 rounded-xl p-2.5 text-xs text-white placeholder:text-neutral-500 outline-none focus:border-brand-teal resize-none leading-relaxed"
                 />
               </div>
             </div>

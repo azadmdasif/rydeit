@@ -165,3 +165,9 @@ export interface Lead {
   converted_at?: string | null;
 }
 
+declare global {
+  interface Window {
+    dataLayer: any[];
+    gtag: (...args: any[]) => void;
+  }
+}
