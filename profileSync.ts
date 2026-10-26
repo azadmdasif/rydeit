@@ -213,6 +213,111 @@ export async function linkCustomerBookings(profileId: string, email: string, pho
   }
 }
 
+export interface RiderRecordInfo {
+  email: string;
+  phone: string;
+  fullName: string;
+  hasBooking: boolean;
+  hasProfile: boolean;
+}
+
+/**
+ * Searches both public.profiles and bookings for any rider matching the given identifier
+ * (which can be an Email, a Username, or a 10-digit Phone number).
+ */
+export async function findRiderBookingOrProfile(identifier: string): Promise<RiderRecordInfo | null> {
+  const trimmed = identifier.trim();
+  if (!trimmed) return null;
+
+  const isEmail = trimmed.includes('@');
+  const cleanEmail = isEmail ? trimmed.toLowerCase() : '';
+  const digits = trimmed.replace(/\D/g, '');
+  const phone10 = digits.length >= 10 ? digits.slice(-10) : '';
+
+  let resolvedEmail = cleanEmail;
+  let resolvedPhone = phone10;
+  let resolvedName = '';
+  let hasBooking = false;
+  let hasProfile = false;
+
+  try {
+    // 1. Try public.profiles first
+    try {
+      let profileQuery = supabase.from('profiles').select('email, phone, whatsapp, full_name, username');
+      if (isEmail) {
+        profileQuery = profileQuery.ilike('email', cleanEmail);
+      } else if (phone10) {
+        profileQuery = profileQuery.or(`phone.eq.${phone10},whatsapp.eq.${phone10},phone.ilike.%${phone10}%`);
+      } else {
+        profileQuery = profileQuery.ilike('username', trimmed);
+      }
+
+      const { data: profileData } = await profileQuery.limit(1).maybeSingle();
+      if (profileData) {
+        hasProfile = true;
+        if (!resolvedEmail && profileData.email) {
+          resolvedEmail = profileData.email.trim().toLowerCase();
+        }
+        if (!resolvedPhone && (profileData.phone || profileData.whatsapp)) {
+          const raw = profileData.phone || profileData.whatsapp;
+          resolvedPhone = raw.replace(/\D/g, '').slice(-10);
+        }
+        if (!resolvedName && profileData.full_name) {
+          resolvedName = profileData.full_name.trim();
+        }
+      }
+    } catch (profileErr) {
+      console.warn('Profile search notice:', profileErr);
+    }
+
+    // 2. Query bookings table for customer records
+    try {
+      let bookingQuery = supabase
+        .from('bookings')
+        .select('customer_email, customer_phone, customer_name, status, created_at')
+        .order('created_at', { ascending: false });
+
+      if (resolvedEmail) {
+        bookingQuery = bookingQuery.ilike('customer_email', resolvedEmail);
+      } else if (phone10) {
+        bookingQuery = bookingQuery.ilike('customer_phone', `%${phone10}%`);
+      } else {
+        bookingQuery = bookingQuery.ilike('customer_name', `%${trimmed}%`);
+      }
+
+      const { data: bookingData } = await bookingQuery.limit(1).maybeSingle();
+      if (bookingData) {
+        hasBooking = true;
+        if (!resolvedEmail && bookingData.customer_email) {
+          resolvedEmail = bookingData.customer_email.trim().toLowerCase();
+        }
+        if (!resolvedPhone && bookingData.customer_phone) {
+          resolvedPhone = bookingData.customer_phone.replace(/\D/g, '').slice(-10);
+        }
+        if (!resolvedName && bookingData.customer_name) {
+          resolvedName = bookingData.customer_name.trim();
+        }
+      }
+    } catch (bookingErr) {
+      console.warn('Booking search notice:', bookingErr);
+    }
+
+    if (resolvedEmail || resolvedPhone) {
+      return {
+        email: resolvedEmail,
+        phone: resolvedPhone,
+        fullName: resolvedName,
+        hasBooking,
+        hasProfile
+      };
+    }
+  } catch (err) {
+    console.warn('findRiderBookingOrProfile general error:', err);
+  }
+
+  return null;
+}
+
 /**
  * Resolves an identifier (which can be an Email, a Username, or a 10-digit Phone number)
  * to the registered account Email address so Supabase Auth can verify the password.
@@ -226,58 +331,12 @@ export async function resolveLoginIdentifierToEmail(identifier: string): Promise
     return trimmed.toLowerCase();
   }
 
-  const cleanDigits = trimmed.replace(/\D/g, '');
-  const phone10 = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : '';
-
-  try {
-    // 1. Try matching in public.profiles by username, phone, or whatsapp
-    try {
-      let query = supabase.from('profiles').select('email, username, phone, whatsapp');
-      if (phone10) {
-        query = query.or(`phone.eq.${phone10},whatsapp.eq.${phone10},username.ilike.${trimmed},phone.ilike.%${phone10}%`);
-      } else {
-        query = query.ilike('username', trimmed);
-      }
-
-      const { data, error } = await query.limit(1).maybeSingle();
-      if (!error && data?.email) {
-        return data.email;
-      }
-
-      // If query failed due to username column missing in schema cache, try standard phone/whatsapp query
-      if (error && (error.message?.includes('username') || error.code === '42703') && phone10) {
-        const { data: fbData } = await supabase
-          .from('profiles')
-          .select('email, phone, whatsapp')
-          .or(`phone.eq.${phone10},whatsapp.eq.${phone10}`)
-          .limit(1)
-          .maybeSingle();
-        if (fbData?.email) {
-          return fbData.email;
-        }
-      }
-    } catch (profileErr) {
-      console.warn('Profiles query notice:', profileErr);
-    }
-
-    // 2. Also check if there is a booking with this customer_phone or customer_name
-    if (phone10) {
-      const { data: bookingData } = await supabase
-        .from('bookings')
-        .select('customer_email')
-        .ilike('customer_phone', `%${phone10}%`)
-        .not('customer_email', 'is', null)
-        .limit(1)
-        .maybeSingle();
-
-      if (bookingData?.customer_email) {
-        return bookingData.customer_email;
-      }
-    }
-  } catch (e) {
-    console.warn('Identifier lookup error:', e);
+  // Use the unified rider lookup
+  const rider = await findRiderBookingOrProfile(trimmed);
+  if (rider?.email) {
+    return rider.email;
   }
 
-  // Fallback: return input as-is (e.g. if user configured custom Supabase username login)
+  // Fallback: return input as-is
   return trimmed;
 }

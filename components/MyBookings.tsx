@@ -16,11 +16,12 @@ import { Auth } from './Auth';
 import { Modal } from './Modal';
 import type { UserProfile, BookingStatus } from '../types';
 
-const { Link } = ReactRouterDOM;
+const { Link, useNavigate } = ReactRouterDOM;
 
 type DashboardTab = 'rides' | 'identity' | 'profile';
 
 export const MyBookings: React.FC = () => {
+  const navigate = useNavigate();
   const BIKES = getFleetBikes();
   const { showToast } = useToast();
   const [user, setUser] = useState<any>(null);
@@ -525,7 +526,7 @@ export const MyBookings: React.FC = () => {
               onClick={async () => {
                 await supabase.auth.signOut();
                 localStorage.removeItem('rydeit_is_admin');
-                window.location.hash = '#/login';
+                navigate('/login');
               }} 
               className="px-6 py-2.5 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 font-bold uppercase text-xs tracking-wider rounded-xl border border-rose-500/30 transition-all cursor-pointer flex items-center gap-2"
               title="Sign out of current account"

@@ -58,17 +58,28 @@ export const useToast = () => {
   return context;
 };
 
-// Legacy Hash Redirector: smoothly redirects legacy /#/book or /#/bikes links to clean URLs
+// Domain & Hash Redirector: ensures domain stays rydeit.in and cleans OAuth trailing hash
 const LegacyHashRedirect: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
+    // 1. Domain Guard: If accessed via vercel.app, immediately replace with official rydeit.in domain
+    if (typeof window !== 'undefined' && (window.location.hostname === 'rydeit.vercel.app' || window.location.hostname.endsWith('-rydeit.vercel.app'))) {
+      const canonicalTarget = `https://rydeit.in${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.location.replace(canonicalTarget);
+      return;
+    }
+
+    // 2. Legacy hash links (e.g. #/book or #/my-bookings)
     const hash = window.location.hash;
     if (hash && hash.startsWith('#/')) {
       const cleanPath = hash.slice(1);
       window.history.replaceState(null, '', cleanPath);
       navigate(cleanPath, { replace: true });
+    } else if (window.location.href.endsWith('#')) {
+      // 3. Remove trailing bare '#' left by Supabase OAuth token processing
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
   }, [navigate, location]);
 
