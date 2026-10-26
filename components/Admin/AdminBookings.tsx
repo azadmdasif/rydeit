@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../../supabase';
+import { supabase, safeUpdateBooking } from '../../supabase';
 import { useToast } from '../../App';
 import { GOOGLE_MAPS_REVIEW_LINK, UPI_ID, GARAGE_MAPS_LINK, GARAGE_ADDRESS } from '../../constants';
 import { getFleetBikes } from '../../fleetStorage';
@@ -422,7 +422,7 @@ Your booking request for *${bikeName}* has been received! Your booking status is
 
 Once payment is verified, your booking slot will be officially confirmed!
 
-Need assistance? Call/WhatsApp us at +91 76860 22245
+Need assistance? Call/WhatsApp us at +91 79808 69336
 Team Rydeit Kolkata`;
 
     const rawPhone = (booking.customer_phone || '').replace(/\D/g, '');
@@ -465,7 +465,7 @@ Refunds on the booking advance are processed based on the cancellation time befo
 • *Legal Compliance:* Helmets are mandatory. All traffic fines, speeding tickets, or e-challans generated during the rental duration are 100% the rider's responsibility. Racing, stunting, or illegal transport is strictly prohibited.
 
 By booking with Rydeit Rentals, you agree to comply with all safety and traffic laws.
-Helpline / Enquiries: +91 76860 22245
+Helpline / Enquiries: +91 79808 69336
 Team Rydeit Kolkata`;
 
     const rawPhone = (booking.customer_phone || '').replace(/\D/g, '');
@@ -521,7 +521,7 @@ Congratulations! Your reservation for *${bikeName}* is officially *BOOKING CONFI
 
 📍 *Garage Location & Google Maps:* ${GARAGE_MAPS_LINK}
 (${GARAGE_ADDRESS})
-📞 *Support Helpline:* +91 76860 22245
+📞 *Support Helpline:* +91 79808 69336
 
 We can't wait to hand over your machine. Have an incredible ride!
 Team Rydeit Rentals`;
@@ -944,11 +944,8 @@ Team Rydeit Rentals`;
       // Always save locally immediately for cross-device preparation & offline resilience
       saveLocalPillionData(selectedBooking.readable_id || selectedBooking.id, pillionPayload);
 
-      // Try updating in Supabase
-      const { error } = await supabase
-        .from('bookings')
-        .update(pillionPayload)
-        .eq('id', selectedBooking.id);
+      // Try updating in Supabase with automatic schema fallback
+      const { error } = await safeUpdateBooking(selectedBooking.id, pillionPayload);
 
       if (error) {
         console.warn('Supabase pillion update notice:', error);
@@ -1070,7 +1067,7 @@ NOTIFY pgrst, 'reload schema';`;
       const updates: any = {
         customer_name: editForm.customer_name.trim(),
         customer_phone: editForm.customer_phone.trim(),
-        customer_email: editForm.customer_email.trim(),
+        customer_email: editForm.customer_email.trim() || null,
         bike_id: Number(editForm.bike_id),
         pickup_date: editForm.pickup_date,
         pickup_time: editForm.pickup_time,
@@ -1083,10 +1080,9 @@ NOTIFY pgrst, 'reload schema';`;
         needs_delivery: editForm.needs_delivery,
         address: editForm.address.trim(),
         admin_notes: editForm.admin_notes.trim(),
-        has_pillion: Boolean(editForm.has_pillion)
       };
 
-      const pillionData = {
+      const pillionData: any = {
         has_pillion: Boolean(editForm.has_pillion),
         pillion_name: editForm.has_pillion ? (editForm.pillion_name.trim() || null) : null,
         pillion_phone: editForm.has_pillion ? (editForm.pillion_phone.trim() || null) : null,
@@ -1094,21 +1090,14 @@ NOTIFY pgrst, 'reload schema';`;
         emergency_contact_phone: editForm.has_pillion ? (editForm.emergency_contact_phone.trim() || null) : null
       };
 
-      // Cache locally immediately
+      // Cache locally immediately so pillion status is never lost across UI views
       saveLocalPillionData(editingBooking.readable_id || editingBooking.id, pillionData);
 
-      // Attempt update with pillion columns first
-      let { error } = await supabase
-        .from('bookings')
-        .update({ ...updates, ...pillionData })
-        .eq('id', editingBooking.id);
-
-      // If columns don't exist in Supabase yet, retry with base updates so user is not blocked
-      if (error && (error.code === '42703' || error.message?.includes('column') || error.code === 'PGRST204')) {
-        console.warn('Pillion columns not yet in Supabase schema, saving base booking and caching pillion locally');
-        const fallback = await supabase.from('bookings').update(updates).eq('id', editingBooking.id);
-        error = fallback.error;
-      }
+      // Perform resilient update that handles missing pillion / email columns automatically
+      const { error } = await safeUpdateBooking(editingBooking.id, {
+        ...updates,
+        ...pillionData
+      });
 
       if (error) throw error;
 

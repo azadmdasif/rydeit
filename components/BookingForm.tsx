@@ -331,7 +331,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       `*Advance to Pay:* ₹${charges.advance}%0A%0A` +
       `_I have submitted my request on the portal. Please confirm the availability of my machine._`;
 
-    const whatsappUrl = `https://wa.me/917686022245?text=${message}`;
+    const whatsappUrl = `https://wa.me/917980869336?text=${message}`;
     const link = document.createElement('a');
     link.href = whatsappUrl;
     link.target = '_blank';

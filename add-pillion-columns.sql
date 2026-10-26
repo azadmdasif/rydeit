@@ -5,6 +5,7 @@
 
 -- 1. Add Pillion & Emergency Contact columns to public.bookings
 ALTER TABLE public.bookings
+ADD COLUMN IF NOT EXISTS has_pillion BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS pillion_name TEXT,
 ADD COLUMN IF NOT EXISTS pillion_phone TEXT,
 ADD COLUMN IF NOT EXISTS pillion_mobile TEXT,
@@ -12,9 +13,11 @@ ADD COLUMN IF NOT EXISTS pillion_aadhaar_number TEXT,
 ADD COLUMN IF NOT EXISTS pillion_aadhar_number TEXT,
 ADD COLUMN IF NOT EXISTS pillion_aadhaar_url TEXT,
 ADD COLUMN IF NOT EXISTS pillion_aadhar_url TEXT,
+ADD COLUMN IF NOT EXISTS emergency_contact_phone TEXT,
 ADD COLUMN IF NOT EXISTS emergency_contact TEXT,
 ADD COLUMN IF NOT EXISTS pillion_emergency_contact TEXT,
-ADD COLUMN IF NOT EXISTS emergency_relation TEXT;
+ADD COLUMN IF NOT EXISTS emergency_relation TEXT,
+ADD COLUMN IF NOT EXISTS customer_email TEXT;
 
 -- 2. Ensure booking-docs storage bucket exists and allows public uploads for aadhar photos
 INSERT INTO storage.buckets (id, name, public)

@@ -124,10 +124,10 @@ export const OutstationGuidesPage: React.FC = () => {
               Book an Outstation Machine (₹99/day surcharge) →
             </button>
             <a
-              href="tel:+917686022245"
+              href="tel:+917980869336"
               className="bg-white/10 hover:bg-white/20 text-white font-heading text-xs uppercase tracking-widest font-bold py-4 px-8 rounded-full transition-all border border-white/10"
             >
-              Touring Desk: +91 7686022245
+              Touring Desk: +91 7980869336
             </a>
           </div>
         </div>

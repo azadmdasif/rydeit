@@ -190,12 +190,12 @@ export const FAQsPage: React.FC = () => {
           </p>
           <div className="flex flex-wrap justify-center gap-4 pt-2">
             <a
-              href="https://wa.me/917686022245"
+              href="https://wa.me/917980869336"
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-heading text-xs font-bold uppercase tracking-wider transition-all"
             >
-              Chat on WhatsApp (+91 7686022245)
+              Chat on WhatsApp (+91 7980869336)
             </a>
             <Link
               to="/book"

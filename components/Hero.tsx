@@ -47,7 +47,7 @@ export const Hero: React.FC = () => {
                 View Fleet
               </Link>
               <a 
-                href="tel:+917686022245"
+                href="tel:+917980869336"
                 className="bg-brand-teal/20 border border-brand-teal/40 text-brand-teal font-heading tracking-widest text-base py-4 px-6 rounded-full hover:bg-brand-teal hover:text-brand-black transition-all duration-300 transform hover:scale-105 relative z-40 font-bold"
               >
                 Call Us

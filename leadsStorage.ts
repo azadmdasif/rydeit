@@ -110,6 +110,76 @@ export const INITIAL_LEADS: Lead[] = [
     budget_expectation: 'Standard (₹1500/day)',
     status: 'postponed',
     notes: 'Friend cancelled plans. Told us he will book for next month holiday weekend.'
+  },
+  {
+    id: 'lead_1729170007',
+    created_at: new Date(Date.now() - 9 * 86400000).toISOString(),
+    customer_name: 'Anirban Chatterjee',
+    customer_phone: '9831098765',
+    source: 'whatsapp',
+    vehicle_preference: 'sports',
+    specific_vehicle_id: 10,
+    specific_vehicle_name: 'Yamaha R15 V4',
+    pickup_date: new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0],
+    return_date: new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0],
+    rental_duration_days: 2,
+    purpose: 'Weekend Trip / Outing',
+    budget_expectation: 'Standard Rate (₹1800/day)',
+    status: 'booked',
+    converted_booking_id: 'RD-M904123',
+    notes: 'Converted to confirmed booking. Enjoyed riding R15 to Mandarmani.'
+  },
+  {
+    id: 'lead_1729170008',
+    created_at: new Date(Date.now() - 11 * 86400000).toISOString(),
+    customer_name: 'Rupak Sengupta',
+    customer_phone: '8902134567',
+    source: 'call',
+    vehicle_preference: 'scooty',
+    specific_vehicle_id: 17,
+    specific_vehicle_name: 'TVS Jupiter 125',
+    pickup_date: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
+    return_date: new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0],
+    rental_duration_days: 2,
+    purpose: 'Wedding / Family Function',
+    budget_expectation: 'Standard (₹700/day)',
+    status: 'contacted',
+    notes: 'Needed Jupiter for visiting relatives in Howrah and New Town.'
+  },
+  {
+    id: 'lead_1729170009',
+    created_at: new Date(Date.now() - 35 * 86400000).toISOString(),
+    customer_name: 'Tanmoy Roy',
+    customer_phone: '9433120987',
+    source: 'whatsapp',
+    vehicle_preference: 'bullet',
+    specific_vehicle_id: 12,
+    specific_vehicle_name: 'RE Classic 350',
+    pickup_date: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+    return_date: new Date(Date.now() - 27 * 86400000).toISOString().split('T')[0],
+    rental_duration_days: 3,
+    purpose: 'Long Highway Tour',
+    budget_expectation: 'Standard Rate (₹1600/day)',
+    status: 'booked',
+    converted_booking_id: 'RD-M723819',
+    notes: 'Shantiniketan heritage tour booking.'
+  },
+  {
+    id: 'lead_1729170010',
+    created_at: new Date(Date.now() - 42 * 86400000).toISOString(),
+    customer_name: 'Swati Banerjee',
+    customer_phone: '7980123456',
+    source: 'instagram',
+    vehicle_preference: 'scooty',
+    specific_vehicle_id: 19,
+    specific_vehicle_name: 'Ather 450X',
+    pickup_date: new Date(Date.now() - 38 * 86400000).toISOString().split('T')[0],
+    return_date: new Date(Date.now() - 36 * 86400000).toISOString().split('T')[0],
+    rental_duration_days: 2,
+    purpose: 'Local City Errands',
+    budget_expectation: 'Standard (₹900/day)',
+    status: 'contacted',
+    notes: 'Wanted to test drive Ather 450X electric scooter for office commute.'
   }
 ];
 
@@ -124,6 +194,19 @@ export const getStoredLeads = (): Lead[] => {
     if (!Array.isArray(parsed) || parsed.length === 0) {
       localStorage.setItem(LOCAL_STORAGE_LEADS_KEY, JSON.stringify(INITIAL_LEADS));
       return INITIAL_LEADS;
+    }
+    // Merge any new initial demo leads if missing
+    const existingIds = new Set(parsed.map((p: any) => p.id));
+    let hasNew = false;
+    for (const initLead of INITIAL_LEADS) {
+      if (!existingIds.has(initLead.id)) {
+        parsed.push(initLead);
+        hasNew = true;
+      }
+    }
+    if (hasNew) {
+      parsed.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      localStorage.setItem(LOCAL_STORAGE_LEADS_KEY, JSON.stringify(parsed));
     }
     return parsed;
   } catch (err) {

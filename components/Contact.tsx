@@ -11,7 +11,7 @@ export const Contact: React.FC = () => {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     'name': 'Rydeit - Bike & Scooter Rentals in Kolkata',
-    'telephone': '+917686022245',
+    'telephone': '+917980869336',
     'email': 'hi.rydeit@gmail.com',
     'address': {
       '@type': 'PostalAddress',
@@ -34,7 +34,7 @@ export const Contact: React.FC = () => {
       {isStandalonePage && (
         <SEOHead
           title="Contact & Garage Location in Kolkata | Rydeit"
-          description="Visit Rydeit at 6C, Mohammadan Burial Ground Lane, Kolkata - 700023. Call +91 7686022245 or email hi.rydeit@gmail.com. Open daily 06:00 AM - 10:00 PM."
+          description="Visit Rydeit at 6C, Mohammadan Burial Ground Lane, Kolkata - 700023. Call +91 7980869336 or email hi.rydeit@gmail.com. Open daily 06:00 AM - 10:00 PM."
           canonicalPath="/contact"
           image="/images/honda-shine-125.jpg"
           schema={contactSchema}
@@ -82,7 +82,7 @@ export const Contact: React.FC = () => {
                     <div className="text-brand-teal mt-1">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     </div>
-                    <a href="tel:+917686022245" className="text-xl font-bold hover:text-brand-teal transition-colors">+91 7686022245</a>
+                    <a href="tel:+917980869336" className="text-xl font-bold hover:text-brand-teal transition-colors">+91 7980869336</a>
                   </div>
 
                   <div className="flex gap-4">

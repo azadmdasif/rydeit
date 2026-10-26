@@ -16,8 +16,8 @@ if (!fs.existsSync(TEMPLATE_PATH)) {
 const template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
 
 // Business constants
-const PHONE = '+91 7686022245';
-const PHONE_RAW = '+917686022245';
+const PHONE = '+91 7980869336';
+const PHONE_RAW = '+917980869336';
 const EMAIL = 'hi.rydeit@gmail.com';
 const ADDRESS = '6C, Mohammadan Burial Ground Lane, Kolkata - 700023, West Bengal';
 
@@ -691,7 +691,7 @@ const pages = [
     path: '/contact',
     outPath: 'contact/index.html',
     title: 'Contact & Garage Location in Kolkata | Rydeit',
-    description: 'Visit Rydeit at 6C, Mohammadan Burial Ground Lane, Kolkata - 700023. Call +91 7686022245 or email hi.rydeit@gmail.com. Open daily 06:00 AM - 10:00 PM.',
+    description: 'Visit Rydeit at 6C, Mohammadan Burial Ground Lane, Kolkata - 700023. Call +91 7980869336 or email hi.rydeit@gmail.com. Open daily 06:00 AM - 10:00 PM.',
     canonical: 'https://rydeit.in/contact',
     image: 'https://rydeit.in/images/honda-shine-125.jpg',
     schema: {
@@ -735,7 +735,7 @@ const pages = [
                 <p>🕒 <strong>Hours:</strong><br />Daily: 06:00 AM - 10:00 PM</p>
               </div>
               <div class="pt-4 flex flex-wrap gap-4">
-                <a href="https://wa.me/917686022245" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider inline-block">WhatsApp Us</a>
+                <a href="https://wa.me/917980869336" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider inline-block">WhatsApp Us</a>
                 <a href="/book" class="bg-[#FF5F1F] hover:bg-amber-400 hover:text-black text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider inline-block">Book Online</a>
               </div>
             </div>

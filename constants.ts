@@ -11,6 +11,9 @@ export const DELIVERY_PICKUP_FEE = 199;
 export const GOOGLE_MAPS_REVIEW_LINK = 'https://g.page/r/CTu6seBNVsLqEBM/review';
 export const GARAGE_MAPS_LINK = 'https://maps.app.goo.gl/qam5mMjonF66ZHkr6?g_st=ic';
 export const GARAGE_ADDRESS = '6C, Mohammadan Burial Ground Lane, Kolkata - 700023';
+export const BUSINESS_PHONE = '+91 7980869336';
+export const BUSINESS_PHONE_RAW = '+917980869336';
+export const BUSINESS_WHATSAPP_NUMBER = '917980869336';
 
 // All fleet entries are dynamically managed in Supabase backend (public.bikes table)
 export const BIKES: Bike[] = [];

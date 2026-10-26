@@ -18,6 +18,132 @@ interface AdminLeadsProps {
   onNavigateToBooking?: (bookingId: string) => void;
 }
 
+export type LeadDateFilter = 'all' | 'today' | 'yesterday' | 'this_week' | 'last_week' | 'month' | 'last_month' | 'custom';
+
+export const getDateRangeBounds = (
+  filter: LeadDateFilter,
+  customRange?: { start: string; end: string }
+): { start: Date | null; end: Date | null; label: string; sublabel?: string } => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const fmtDay = (d: Date) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const fmtFull = (d: Date) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  switch (filter) {
+    case 'today':
+      return {
+        start: todayStart,
+        end: todayEnd,
+        label: 'Today',
+        sublabel: fmtFull(todayStart)
+      };
+
+    case 'yesterday': {
+      const yStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+      const yEnd = new Date(todayStart.getTime() - 1);
+      return {
+        start: yStart,
+        end: yEnd,
+        label: 'Yesterday',
+        sublabel: fmtFull(yStart)
+      };
+    }
+
+    case 'this_week': {
+      const day = todayStart.getDay();
+      const diffToMonday = (day + 6) % 7;
+      const wStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() - diffToMonday, 0, 0, 0, 0);
+      return {
+        start: wStart,
+        end: todayEnd,
+        label: 'This Week',
+        sublabel: `${fmtDay(wStart)} – ${fmtFull(todayEnd)}`
+      };
+    }
+
+    case 'last_week': {
+      const day = todayStart.getDay();
+      const diffToMonday = (day + 6) % 7;
+      const thisWStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() - diffToMonday, 0, 0, 0, 0);
+      const lastWStart = new Date(thisWStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const lastWEnd = new Date(thisWStart.getTime() - 1);
+      return {
+        start: lastWStart,
+        end: lastWEnd,
+        label: 'Last Week',
+        sublabel: `${fmtDay(lastWStart)} – ${fmtDay(lastWEnd)}`
+      };
+    }
+
+    case 'month': {
+      const mStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const mLabel = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      return {
+        start: mStart,
+        end: todayEnd,
+        label: 'This Month',
+        sublabel: mLabel
+      };
+    }
+
+    case 'last_month': {
+      const lmStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+      const tmStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const lmEnd = new Date(tmStart.getTime() - 1);
+      const lmLabel = lmStart.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      return {
+        start: lmStart,
+        end: lmEnd,
+        label: 'Last Month',
+        sublabel: lmLabel
+      };
+    }
+
+    case 'custom': {
+      if (customRange?.start && customRange?.end) {
+        const cStart = new Date(`${customRange.start}T00:00:00.000`);
+        const cEnd = new Date(`${customRange.end}T23:59:59.999`);
+        return {
+          start: cStart,
+          end: cEnd,
+          label: 'Custom Range',
+          sublabel: `${customRange.start} to ${customRange.end}`
+        };
+      }
+      return { start: null, end: null, label: 'Custom Range' };
+    }
+
+    case 'all':
+    default:
+      return { start: null, end: null, label: 'All Time', sublabel: 'Complete history' };
+  }
+};
+
+export const formatReceivedDate = (createdAt?: string): { full: string; relative: string; isToday: boolean; isYesterday: boolean } => {
+  if (!createdAt) return { full: 'Unknown date', relative: 'Unknown', isToday: false, isYesterday: false };
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return { full: createdAt, relative: createdAt, isToday: false, isYesterday: false };
+
+  const now = new Date();
+  const isToday = d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+
+  const yest = new Date(now.getTime() - 24 * 3600 * 1000);
+  const isYesterday = d.getDate() === yest.getDate() && d.getMonth() === yest.getMonth() && d.getFullYear() === yest.getFullYear();
+
+  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  if (isToday) {
+    return { full: `Today at ${timeStr}`, relative: `Today, ${timeStr}`, isToday: true, isYesterday: false };
+  }
+  if (isYesterday) {
+    return { full: `Yesterday at ${timeStr}`, relative: `Yesterday, ${timeStr}`, isToday: false, isYesterday: true };
+  }
+  return { full: `${dateStr} @ ${timeStr}`, relative: `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${timeStr}`, isToday: false, isYesterday: false };
+};
+
 export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) => {
   const { showToast } = useToast();
   const [leads, setLeads] = useState<Lead[]>(getStoredLeads);
@@ -25,6 +151,15 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
   // Filters - Default to 'follow_up' tab as requested
   const [statusFilter, setStatusFilter] = useState<string>('follow_up');
+  
+  // Date Received Filters: today, yesterday, this week, last week, month, last month, all
+  const [dateFilter, setDateFilter] = useState<LeadDateFilter>('all');
+  const [customDateRange, setCustomDateRange] = useState({
+    start: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+  const [showCustomPicker, setShowCustomPicker] = useState<boolean>(false);
+
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -210,8 +345,63 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
     load();
   }, []);
 
-  // Compute analytics
-  const analytics = useMemo(() => computeDemandAnalytics(leads), [leads]);
+  // Active date bounds for currently selected date filter
+  const activeDateBounds = useMemo(() => {
+    return getDateRangeBounds(dateFilter, customDateRange);
+  }, [dateFilter, customDateRange]);
+
+  // Real-time counts for each date bucket
+  const dateCounts = useMemo(() => {
+    const counts = {
+      all: leads.length,
+      today: 0,
+      yesterday: 0,
+      this_week: 0,
+      last_week: 0,
+      month: 0,
+      last_month: 0,
+    };
+
+    const bToday = getDateRangeBounds('today');
+    const bYest = getDateRangeBounds('yesterday');
+    const bThisW = getDateRangeBounds('this_week');
+    const bLastW = getDateRangeBounds('last_week');
+    const bMonth = getDateRangeBounds('month');
+    const bLastM = getDateRangeBounds('last_month');
+
+    leads.forEach(l => {
+      if (!l.created_at) return;
+      const t = new Date(l.created_at).getTime();
+      if (isNaN(t)) return;
+
+      if (bToday.start && bToday.end && t >= bToday.start.getTime() && t <= bToday.end.getTime()) counts.today++;
+      if (bYest.start && bYest.end && t >= bYest.start.getTime() && t <= bYest.end.getTime()) counts.yesterday++;
+      if (bThisW.start && bThisW.end && t >= bThisW.start.getTime() && t <= bThisW.end.getTime()) counts.this_week++;
+      if (bLastW.start && bLastW.end && t >= bLastW.start.getTime() && t <= bLastW.end.getTime()) counts.last_week++;
+      if (bMonth.start && bMonth.end && t >= bMonth.start.getTime() && t <= bMonth.end.getTime()) counts.month++;
+      if (bLastM.start && bLastM.end && t >= bLastM.start.getTime() && t <= bLastM.end.getTime()) counts.last_month++;
+    });
+
+    return counts;
+  }, [leads]);
+
+  // Filter leads by received date
+  const dateFilteredLeads = useMemo(() => {
+    if (dateFilter === 'all') return leads;
+    const { start, end } = activeDateBounds;
+    if (!start && !end) return leads;
+    return leads.filter(l => {
+      if (!l.created_at) return false;
+      const t = new Date(l.created_at).getTime();
+      if (isNaN(t)) return false;
+      if (start && t < start.getTime()) return false;
+      if (end && t > end.getTime()) return false;
+      return true;
+    });
+  }, [leads, dateFilter, activeDateBounds]);
+
+  // Compute analytics dynamically based on selected date filter
+  const analytics = useMemo(() => computeDemandAnalytics(dateFilteredLeads), [dateFilteredLeads]);
 
   // Handle open add modal
   const handleOpenAddModal = () => {
@@ -512,7 +702,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       `Would you like us to send the booking details and lock your ride?\n\n` +
       `Best regards,\n` +
       `Team Rydeit Kolkata\n` +
-      `📞 +91 76860 22245 | 6C, Mohammadan Burial Ground Lane`;
+      `📞 +91 79808 69336 | 6C, Mohammadan Burial Ground Lane`;
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
   };
@@ -878,7 +1068,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
   // Filtered leads
   const filteredLeads = useMemo(() => {
-    const list = leads.filter(lead => {
+    const list = dateFilteredLeads.filter(lead => {
       if (statusFilter !== 'all') {
         if (statusFilter === 'immediate_follow_up') {
           return lead.status === 'need_follow_up' && (!lead.follow_up_date || lead.follow_up_date <= todayStr);
@@ -917,8 +1107,13 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
       });
     }
 
-    return list;
-  }, [leads, statusFilter, categoryFilter, sourceFilter, searchQuery, todayStr]);
+    // Default sort: most recently received lead first
+    return [...list].sort((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [dateFilteredLeads, statusFilter, categoryFilter, sourceFilter, searchQuery, todayStr]);
 
   return (
     <div className="space-y-6 animate-fade-in p-2 sm:p-4 text-slate-800">
@@ -958,7 +1153,126 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
         </div>
       </div>
 
-      {/* IMMEDIATE FOLLOW-UP ALERT BANNER (Highlight urgent leads) */}
+      {/* LEADS RECEIVED BY DATE - INTERACTIVE FILTER BAR */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Leads Received By Date
+            </h3>
+            {dateFilter !== 'all' ? (
+              <span className="text-[11px] bg-sky-50 text-sky-800 border border-sky-300 px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1.5 shadow-xs">
+                <span>🗓️ {activeDateBounds.label}</span>
+                {activeDateBounds.sublabel && <span className="text-sky-700 font-normal">({activeDateBounds.sublabel})</span>}
+                <span className="bg-sky-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+                  {dateFilteredLeads.length} lead{dateFilteredLeads.length !== 1 ? 's' : ''}
+                </span>
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-500 font-medium">
+                Showing all inquiries ({leads.length})
+              </span>
+            )}
+          </div>
+
+          {dateFilter !== 'all' && (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilter('all');
+                setShowCustomPicker(false);
+              }}
+              className="text-xs font-bold text-sky-700 hover:text-sky-900 underline flex items-center gap-1 cursor-pointer transition-colors self-start sm:self-auto"
+            >
+              <span>✕ Reset to All Time ({dateCounts.all})</span>
+            </button>
+          )}
+        </div>
+
+        {/* Date Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: 'all' as LeadDateFilter, label: 'All Time', count: dateCounts.all, icon: '📅' },
+            { id: 'today' as LeadDateFilter, label: 'Today', count: dateCounts.today, icon: '⚡' },
+            { id: 'yesterday' as LeadDateFilter, label: 'Yesterday', count: dateCounts.yesterday, icon: '⏪' },
+            { id: 'this_week' as LeadDateFilter, label: 'This Week', count: dateCounts.this_week, icon: '📆' },
+            { id: 'last_week' as LeadDateFilter, label: 'Last Week', count: dateCounts.last_week, icon: '🗓️' },
+            { id: 'month' as LeadDateFilter, label: 'This Month', count: dateCounts.month, icon: '📊' },
+            { id: 'last_month' as LeadDateFilter, label: 'Last Month', count: dateCounts.last_month, icon: '📉' },
+            { id: 'custom' as LeadDateFilter, label: 'Custom Range', count: null, icon: '⚙️' }
+          ].map(tab => {
+            const isActive = dateFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setDateFilter(tab.id);
+                  if (tab.id === 'custom') {
+                    setShowCustomPicker(true);
+                  } else {
+                    setShowCustomPicker(false);
+                  }
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 shrink-0 ${
+                  isActive
+                    ? 'bg-sky-600 text-white font-bold shadow-md shadow-sky-600/20 ring-2 ring-sky-500/30'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+                {tab.count !== null && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold font-mono transition-colors ${
+                      isActive
+                        ? 'bg-white/25 text-white'
+                        : tab.count > 0 
+                        ? 'bg-slate-200 text-slate-800' 
+                        : 'bg-slate-200/60 text-slate-400'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom Date Range Controls */}
+        {(showCustomPicker || dateFilter === 'custom') && (
+          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-3 animate-fade-in text-xs">
+            <span className="font-bold text-slate-800 text-xs">Select Date Range:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">From</span>
+              <input
+                type="date"
+                value={customDateRange.start}
+                onChange={(e) => setCustomDateRange(p => ({ ...p, start: e.target.value }))}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-medium outline-none focus:border-sky-500"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">To</span>
+              <input
+                type="date"
+                value={customDateRange.end}
+                onChange={(e) => setCustomDateRange(p => ({ ...p, end: e.target.value }))}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-medium outline-none focus:border-sky-500"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setDateFilter('custom')}
+              className="px-3.5 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-bold hover:bg-sky-500 transition-all cursor-pointer shadow-sm"
+            >
+              Apply Filter
+            </button>
+          </div>
+        )}
+      </div>
       {immediateFollowUps.length > 0 && (
         <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-3">
@@ -1200,6 +1514,12 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                       <span className="text-[10px] text-slate-600 uppercase px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono shrink-0">
                         {lead.source}
                       </span>
+                      {lead.created_at && (
+                        <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-1">
+                          <span>📅</span>
+                          <span>{formatReceivedDate(lead.created_at).relative}</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-600 mt-1">
                       <a href={`tel:${lead.customer_phone}`} className="hover:text-sky-600 font-mono flex items-center gap-1 font-semibold">
@@ -1390,6 +1710,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 text-[10px] uppercase font-bold tracking-wider">
               <tr>
+                <th className="px-5 py-4">Received On</th>
                 <th className="px-5 py-4">Customer & Channel</th>
                 <th className="px-5 py-4">Vehicle Preference</th>
                 <th className="px-5 py-4">Dates & Duration</th>
@@ -1399,15 +1720,15 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-900">
+            <tbody className="divide-y divide-slate-200">
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-neutral-500">
+                  <td colSpan={8} className="text-center py-12 text-slate-500">
                     <div className="max-w-xs mx-auto space-y-2">
-                      <p className="font-semibold text-neutral-400">No inquiry records found</p>
-                      <p className="text-[11px] text-neutral-500">
-                        {searchQuery || statusFilter !== 'all' 
-                          ? 'Try resetting your search filters.' 
+                      <p className="font-semibold text-slate-700">No inquiry records found</p>
+                      <p className="text-[11px] text-slate-500">
+                        {searchQuery || statusFilter !== 'all' || dateFilter !== 'all'
+                          ? 'Try resetting your search or date filters.' 
                           : 'Click "+ Log New Inquiry" to log calls or WhatsApp inquiries.'}
                       </p>
                     </div>
@@ -1419,22 +1740,33 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                   const commentsCount = lead.follow_up_comments?.length || 0;
 
                   return (
-                    <tr key={lead.id} className="hover:bg-neutral-900/40 transition-colors">
+                    <tr key={lead.id} className="hover:bg-slate-50 transition-colors">
+                      {/* Received On Date & Time */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                          <span>📅</span>
+                          <span>{formatReceivedDate(lead.created_at).relative}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono mt-1">
+                          {formatReceivedDate(lead.created_at).full}
+                        </div>
+                      </td>
+
                       {/* Customer & Channel */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-white text-sm">{lead.customer_name}</span>
-                          <span className="text-[10px] text-neutral-500 uppercase px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono">
+                          <span className="font-bold text-slate-900 text-sm">{lead.customer_name}</span>
+                          <span className="text-[10px] text-slate-600 uppercase px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono">
                             {lead.source}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-neutral-400 mt-1">
+                        <div className="flex items-center gap-2 text-slate-500 mt-1">
                           <a 
                             href={`tel:${lead.customer_phone}`}
-                            className="hover:text-sky-400 font-mono text-xs flex items-center gap-1"
+                            className="hover:text-sky-600 font-mono text-xs flex items-center gap-1 font-semibold"
                             title="Call customer"
                           >
-                            <svg className="w-3 h-3 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-3 h-3 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                             </svg>
                             <span>{lead.customer_phone}</span>
@@ -1444,31 +1776,31 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
                       {/* Vehicle Preference */}
                       <td className="px-5 py-4">
-                        <div className="font-semibold text-white">
+                        <div className="font-semibold text-slate-900">
                           {lead.vehicle_preference === 'scooty' && <span>Scooty</span>}
-                          {lead.vehicle_preference === 'bullet' && <span className="text-sky-400">Bullet</span>}
-                          {lead.vehicle_preference === 'sports' && <span className="text-emerald-400">Sports</span>}
+                          {lead.vehicle_preference === 'bullet' && <span className="text-sky-700 font-bold">Bullet</span>}
+                          {lead.vehicle_preference === 'sports' && <span className="text-emerald-700 font-bold">Sports</span>}
                           {lead.vehicle_preference === 'bike' && <span>Commuter Bike</span>}
-                          {lead.vehicle_preference === 'flexible' && <span className="text-neutral-400">Flexible</span>}
+                          {lead.vehicle_preference === 'flexible' && <span className="text-slate-500">Flexible</span>}
                         </div>
-                        <div className="text-[11px] text-neutral-400 mt-0.5">
+                        <div className="text-[11px] text-slate-500 mt-0.5">
                           {lead.specific_vehicle_name || 'Any model in category'}
                         </div>
                       </td>
 
                       {/* Dates & Duration */}
                       <td className="px-5 py-4">
-                        <div className="text-neutral-200 font-medium">{lead.pickup_date}</div>
-                        <div className="text-neutral-400 text-[11px] mt-0.5">
+                        <div className="text-slate-900 font-semibold">{lead.pickup_date}</div>
+                        <div className="text-slate-500 text-[11px] mt-0.5">
                           to {lead.return_date} ({lead.rental_duration_days} Day{lead.rental_duration_days > 1 ? 's' : ''})
                         </div>
                       </td>
 
                       {/* Purpose */}
                       <td className="px-5 py-4">
-                        <span className="text-neutral-300 font-medium block">{lead.purpose}</span>
+                        <span className="text-slate-800 font-medium block">{lead.purpose}</span>
                         {lead.budget_expectation && (
-                          <span className="text-[10px] text-neutral-500 block mt-0.5">{lead.budget_expectation}</span>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">{lead.budget_expectation}</span>
                         )}
                       </td>
 
@@ -1479,14 +1811,14 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                           onChange={(e) => handleQuickStatusChange(lead.id, e.target.value as LeadStatus)}
                           className={`text-xs font-bold rounded-lg px-2.5 py-1.5 border transition-all cursor-pointer focus:outline-none ${
                             lead.status === 'booked' 
-                              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' :
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800' :
                             lead.status === 'need_follow_up' 
-                              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' :
+                              ? 'bg-amber-50 border-amber-300 text-amber-900' :
                             lead.status === 'contacted' 
-                              ? 'bg-sky-500/15 border-sky-500/30 text-sky-300' :
+                              ? 'bg-sky-50 border-sky-300 text-sky-800' :
                             lead.status === 'lost_to_availability'
-                              ? 'bg-rose-500/15 border-rose-500/30 text-rose-300' :
-                              'bg-neutral-900 border-neutral-800 text-neutral-400'
+                              ? 'bg-rose-50 border-rose-300 text-rose-800' :
+                              'bg-slate-100 border-slate-200 text-slate-700'
                           }`}
                         >
                           <option value="need_follow_up">Need Follow-Up</option>
@@ -1504,39 +1836,39 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                         {lead.status === 'need_follow_up' ? (
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                              <span className="text-amber-400 font-bold text-xs">
+                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                              <span className="text-amber-800 font-bold text-xs">
                                 Follow-Up: {lead.follow_up_date || 'Date not set'}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => handleOpenScheduleFollowUpModal(lead)}
-                                className="text-[10px] text-amber-300 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 transition-all cursor-pointer"
+                                className="text-[10px] text-amber-900 hover:text-amber-950 px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all cursor-pointer"
                                 title="Edit follow-up schedule and details"
                               >
                                 ✎ Details
                               </button>
                             </div>
                             {lead.notes && (
-                              <p className="text-neutral-300 text-xs italic truncate" title={lead.notes}>
+                              <p className="text-slate-700 text-xs italic truncate" title={lead.notes}>
                                 "{lead.notes}"
                               </p>
                             )}
                           </div>
                         ) : lead.follow_up_date && !isBooked ? (
-                          <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px]">
+                          <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-[11px]">
                             <span>Follow-Up: {lead.follow_up_date}</span>
                           </div>
                         ) : (
-                          <p className="text-neutral-400 text-xs truncate" title={lead.notes}>
-                            {lead.notes || <span className="text-neutral-600 italic">No notes</span>}
+                          <p className="text-slate-600 text-xs truncate" title={lead.notes}>
+                            {lead.notes || <span className="text-slate-400 italic">No notes</span>}
                           </p>
                         )}
 
                         {/* Latest follow-up comment snippet if logged */}
                         {lead.follow_up_comments && lead.follow_up_comments.length > 0 && (
-                          <p className="text-neutral-300 text-[11px] truncate mt-1 flex items-center gap-1">
-                            <span className="text-sky-400">💬</span>
+                          <p className="text-slate-700 text-[11px] truncate mt-1 flex items-center gap-1">
+                            <span className="text-sky-600">💬</span>
                             <span className="italic truncate">"{lead.follow_up_comments[0].comment}"</span>
                           </p>
                         )}
@@ -1546,13 +1878,13 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                           <button
                             type="button"
                             onClick={() => handleOpenFollowUpCommentsModal(lead)}
-                            className="text-[11px] text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 cursor-pointer bg-neutral-900/80 hover:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-800 transition-colors"
+                            className="text-[11px] text-sky-700 hover:text-sky-800 font-semibold flex items-center gap-1 cursor-pointer bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg border border-slate-200 transition-colors"
                           >
                             <span>💬</span>
                             <span>{commentsCount > 0 ? `${commentsCount} Comment${commentsCount > 1 ? 's' : ''}` : '+ Add Comment'}</span>
                           </button>
                           {lead.converted_booking_id && (
-                            <span className="text-[10px] font-mono text-emerald-400 font-semibold">
+                            <span className="text-[10px] font-mono text-emerald-700 font-semibold">
                               · Ref: {lead.converted_booking_id}
                             </span>
                           )}
@@ -1561,22 +1893,22 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
 
                       {/* Actions */}
                       <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2 flex-wrap">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           {/* Convert to Booking Button */}
                           {!isBooked ? (
                             <button
                               type="button"
                               onClick={() => handleOpenConvertModal(lead)}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
                               title="Convert this lead to a confirmed booking slot"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                               </svg>
-                              <span>Convert to Booking</span>
+                              <span>Convert</span>
                             </button>
                           ) : (
-                            <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
+                            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-300">
                               ✓ Booked
                             </span>
                           )}
@@ -1585,10 +1917,10 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                           <button
                             type="button"
                             onClick={() => handleOpenFollowUpCommentsModal(lead)}
-                            className="p-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 transition-all cursor-pointer"
                             title="Add follow-up notes & view comment history"
                           >
-                            <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
                           </button>
@@ -1598,7 +1930,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                             href={getWhatsAppFollowUpUrl(lead)}
                             target="_blank"
                             rel="noreferrer"
-                            className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/30 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-900 border border-emerald-300 transition-all cursor-pointer"
                             title="Send WhatsApp follow-up message"
                           >
                             <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -1609,10 +1941,10 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                           {/* Direct Call */}
                           <a
                             href={`tel:${lead.customer_phone}`}
-                            className="p-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-800 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-sky-700 hover:text-sky-800 border border-slate-200 transition-all cursor-pointer"
                             title="Call customer"
                           >
-                            <svg className="w-3.5 h-3.5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-3.5 h-3.5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                             </svg>
                           </a>
@@ -1621,7 +1953,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(lead)}
-                            className="p-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 transition-all cursor-pointer"
                             title="Edit details"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1633,7 +1965,7 @@ export const AdminLeads: React.FC<AdminLeadsProps> = ({ onNavigateToBooking }) =
                           <button
                             type="button"
                             onClick={() => handleDeleteLead(lead)}
-                            className="p-1.5 rounded-lg bg-neutral-900 hover:bg-rose-500/20 text-neutral-500 hover:text-rose-400 border border-neutral-800 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-700 border border-slate-200 transition-all cursor-pointer"
                             title="Delete record"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

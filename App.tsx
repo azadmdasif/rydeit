@@ -82,7 +82,7 @@ const homeSchema = {
   'image': 'https://rydeit.in/images/re-hunter-350.jpg',
   '@id': 'https://rydeit.in/#autorental',
   'url': 'https://rydeit.in',
-  'telephone': '+917686022245',
+  'telephone': '+917980869336',
   'email': 'hi.rydeit@gmail.com',
   'priceRange': '₹₹',
   'address': {

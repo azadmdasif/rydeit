@@ -270,14 +270,14 @@ export const BikeDetailPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <a
-                  href="tel:+917686022245"
+                  href="tel:+917980869336"
                   className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-white/10"
                 >
                   <Phone className="w-4 h-4 text-brand-teal" />
-                  Call: +91 7686022245
+                  Call: +91 7980869336
                 </a>
                 <a
-                  href={`https://wa.me/917686022245?text=${encodeURIComponent(`Hi Rydeit, I want to rent the ${bike.name} in Kolkata.`)}`}
+                  href={`https://wa.me/917980869336?text=${encodeURIComponent(`Hi Rydeit, I want to rent the ${bike.name} in Kolkata.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-emerald-500/20"

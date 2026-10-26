@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../../supabase';
+import { supabase, safeUpdateBooking } from '../../supabase';
 import { useToast } from '../../App';
 import { GOOGLE_MAPS_REVIEW_LINK, UPI_ID, GARAGE_MAPS_LINK, GARAGE_ADDRESS } from '../../constants';
 import { getFleetBikes } from '../../fleetStorage';
@@ -338,10 +338,7 @@ NOTIFY pgrst, 'reload schema';`;
         has_pillion: editForm.has_pillion
       });
 
-      const { error } = await supabase
-        .from('bookings')
-        .update(updates)
-        .eq('id', editingBooking.id);
+      const { error } = await safeUpdateBooking(editingBooking.id, updates);
 
       if (error) throw error;
 
@@ -754,7 +751,7 @@ NOTIFY pgrst, 'reload schema';`;
         `2. Mention Payment ID in remarks/notes: *${paymentId}*\n` +
         `3. Reply to this chat with your payment screenshot or transaction UTR.\n\n` +
         `Once payment is verified, your booking slot will be officially confirmed!\n\n` +
-        `Need assistance? Call/WhatsApp us at +91 76860 22245\n` +
+        `Need assistance? Call/WhatsApp us at +91 79808 69336\n` +
         `Team Rydeit Kolkata`;
     } else {
       message = `Hi ${booking.customer_name},\n\n` +
@@ -768,7 +765,7 @@ NOTIFY pgrst, 'reload schema';`;
         `💵 *Balance at Handover:* ₹${balanceDue}\n\n` +
         `📍 *Garage Location & Map:* ${GARAGE_MAPS_LINK} (${GARAGE_ADDRESS})\n` +
         `⚠️ *Please bring:* Original Driving License & Aadhaar Card for biometric verification.\n\n` +
-        `Have a safe & thrilling journey! Reach us at +91 76860 22245 for any assistance.`;
+        `Have a safe & thrilling journey! Reach us at +91 79808 69336 for any assistance.`;
     }
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
@@ -798,7 +795,7 @@ NOTIFY pgrst, 'reload schema';`;
       `• *Refundable Security Deposit:* ₹1,000 security deposit is mandatory at machine handover. A walk-around video inspection is conducted at pickup; new damages forfeit deposit.\n` +
       `• *Legal Compliance:* Helmets are mandatory. All traffic fines, speeding tickets, or e-challans generated during rental duration are 100% the rider's responsibility. Racing, stunting, or illegal transport is strictly prohibited.\n\n` +
       `By booking with Rydeit Rentals, you agree to comply with all safety and traffic laws.\n` +
-      `Helpline / Enquiries: +91 76860 22245\n` +
+      `Helpline / Enquiries: +91 79808 69336\n` +
       `Team Rydeit Kolkata`;
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;

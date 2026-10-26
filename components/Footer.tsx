@@ -66,13 +66,13 @@ export const Footer: React.FC<FooterProps> = ({ onShowPolicy }) => {
         {/* WhatsApp & Phone Support */}
         <div>
           <a 
-            href="https://wa.me/917686022245"
+            href="https://wa.me/917980869336"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-xs text-neutral-300 hover:text-white transition-colors duration-200 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span>Need help or outstation advice? Chat with us on WhatsApp (+91 7686022245)</span>
+            <span>Need help or outstation advice? Chat with us on WhatsApp (+91 7980869336)</span>
           </a>
         </div>
 

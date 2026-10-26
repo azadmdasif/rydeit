@@ -94,7 +94,7 @@ export const About: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-brand-teal shrink-0" />
-                  <span>Direct Hotline: <a href="tel:+917686022245" className="hover:text-white underline">+91 7686022245</a></span>
+                  <span>Direct Hotline: <a href="tel:+917980869336" className="hover:text-white underline">+91 7980869336</a></span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-brand-yellow shrink-0" />
