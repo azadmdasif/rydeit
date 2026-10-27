@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { supabase } from '../supabase';
 import { useAuth } from '../App';
+import { getHotelSession, clearHotelSession, HotelPartner } from '../hotelStorage';
 
 const { Link, useLocation } = ReactRouterDOM;
 
@@ -22,12 +23,20 @@ const NavLink: React.FC<{to: string, children: React.ReactNode}> = ({ to, childr
 
 export const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hotelSession, setHotelSession] = useState<HotelPartner | null>(null);
   const { user, isAdmin } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
     setIsMenuOpen(false);
+    setHotelSession(getHotelSession());
   }, [location.pathname]);
+
+  const handleHotelSignOut = () => {
+    clearHotelSession();
+    setHotelSession(null);
+    window.location.href = '/login';
+  };
 
   const menuItems = [
     { label: 'Home', to: '/' },
@@ -80,18 +89,7 @@ export const Header: React.FC = () => {
 
             {/* Small Sign-In / Account Icon (Right of BOOK button on mobile) */}
             <div className="md:hidden flex items-center">
-              {!user ? (
-                <Link
-                  to="/login"
-                  className="w-8 h-8 rounded-full bg-white/5 border border-white/10 hover:border-brand-teal/50 hover:bg-brand-teal/10 flex items-center justify-center text-white/80 hover:text-brand-teal transition-all active:scale-95"
-                  title="Sign In"
-                  aria-label="Sign In"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </Link>
-              ) : (
+              {user ? (
                 <Link
                   to="/my-bookings"
                   className="relative w-8 h-8 rounded-full bg-brand-teal/10 border border-brand-teal/30 hover:border-brand-teal flex items-center justify-center text-brand-teal transition-all active:scale-95"
@@ -102,6 +100,29 @@ export const Header: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-brand-black"></span>
+                </Link>
+              ) : hotelSession ? (
+                <Link
+                  to="/hotel-dashboard"
+                  className="relative w-8 h-8 rounded-full bg-amber-400/10 border border-amber-400/40 hover:border-amber-400 flex items-center justify-center text-amber-300 transition-all active:scale-95"
+                  title={`Hotel Partner: ${hotelSession.hotel_name}`}
+                  aria-label="Hotel Dashboard"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-brand-black"></span>
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="w-8 h-8 rounded-full bg-white/5 border border-white/10 hover:border-brand-teal/50 hover:bg-brand-teal/10 flex items-center justify-center text-white/80 hover:text-brand-teal transition-all active:scale-95"
+                  title="Sign In"
+                  aria-label="Sign In"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
                 </Link>
               )}
             </div>
@@ -130,15 +151,9 @@ export const Header: React.FC = () => {
                 </Link>
               )}
 
-              <div className="flex items-center gap-4 ml-4 pl-4 border-l border-white/10">
-                {!user ? (
-                  <Link
-                    to="/login"
-                    className="bg-brand-teal text-brand-black font-heading text-[10px] tracking-widest py-2 px-6 rounded-full hover:bg-brand-yellow transition-all shadow-lg"
-                  >
-                    SIGN IN
-                  </Link>
-                ) : (
+              {/* Common Sign In Area: Single button when logged out, or active session when logged in */}
+              <div className="flex items-center gap-3 ml-4 pl-4 border-l border-white/10">
+                {user ? (
                   <div className="flex items-center gap-4">
                     <Link 
                       to="/my-bookings" 
@@ -151,12 +166,37 @@ export const Header: React.FC = () => {
                     </Link>
                     <button 
                       onClick={() => supabase.auth.signOut()}
-                      className="text-white/40 hover:text-red-500 transition-colors"
+                      className="text-white/40 hover:text-red-500 transition-colors cursor-pointer"
                       title="Sign Out"
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     </button>
                   </div>
+                ) : hotelSession ? (
+                  <div className="flex items-center gap-3">
+                    <Link 
+                      to="/hotel-dashboard" 
+                      className="flex items-center gap-2 bg-amber-400/10 border border-amber-400/30 px-4 py-2 rounded-full hover:bg-amber-400/20 transition-all text-amber-300 group"
+                      title="Hotel Partner Dashboard"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider truncate max-w-[140px]">{hotelSession.hotel_name}</span>
+                    </Link>
+                    <button 
+                      onClick={handleHotelSignOut}
+                      className="text-white/40 hover:text-red-500 transition-colors cursor-pointer"
+                      title="Sign Out Hotel"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <Link
+                    to="/login"
+                    className="bg-brand-teal text-brand-black font-heading text-[10px] tracking-widest py-2 px-6 rounded-full hover:bg-brand-yellow transition-all shadow-lg"
+                  >
+                    SIGN IN
+                  </Link>
                 )}
               </div>
             </nav>
@@ -185,7 +225,8 @@ export const Header: React.FC = () => {
                 ))}
                 {isAdmin && <Link to="/admin" className="text-xl text-brand-teal font-bold uppercase tracking-widest">Admin Panel</Link>}
                 {user && <Link to="/my-bookings" className="text-xl text-brand-teal font-bold uppercase tracking-widest">My Dashboard</Link>}
-                {!user && <Link to="/login" className="text-xl text-brand-teal font-bold uppercase tracking-widest">Sign In</Link>}
+                {hotelSession && !user && <Link to="/hotel-dashboard" className="text-xl text-amber-400 font-bold uppercase tracking-widest">Hotel Dashboard</Link>}
+                {!user && !hotelSession && <Link to="/login" className="text-xl text-brand-teal font-bold uppercase tracking-widest">Sign In</Link>}
             </nav>
         </div>
       </div>

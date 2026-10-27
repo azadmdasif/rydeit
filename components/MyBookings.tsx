@@ -503,7 +503,13 @@ export const MyBookings: React.FC = () => {
 
   if (!user) return (
     <section className="py-24 bg-brand-black min-h-screen flex items-center justify-center px-4">
-      <div className="max-w-md w-full"><Auth onSuccess={() => {}} /></div>
+      <div className="max-w-md w-full">
+        <Auth onSuccess={(role) => {
+          if (role === 'hotel') {
+            navigate('/hotel-dashboard');
+          }
+        }} />
+      </div>
     </section>
   );
 

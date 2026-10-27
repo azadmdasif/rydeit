@@ -14,7 +14,8 @@ import {
 import { supabase } from '../supabase';
 import { Auth } from './Auth';
 import { TERMS_AND_CONDITIONS } from '../legal';
-import { Check, Copy, QrCode, Upload, ArrowRight, ArrowLeft, ShieldCheck, Clock, Sparkles, Smartphone, ExternalLink, ChevronDown, X, Edit3, RotateCcw, User, Calendar, MapPin, FileText } from 'lucide-react';
+import { validateCouponCode, creditHotelCommission } from '../hotelStorage';
+import { Check, Copy, QrCode, Upload, ArrowRight, ArrowLeft, ShieldCheck, Clock, Sparkles, Smartphone, ExternalLink, ChevronDown, X, Edit3, RotateCcw, User, Calendar, MapPin, FileText, CheckCircle2, AlertCircle, Tag } from 'lucide-react';
 
 const { useSearchParams, useNavigate, Link } = ReactRouterDOM;
 
@@ -82,6 +83,85 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
   const [showAuthOrUpload, setShowAuthOrUpload] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const authSectionRef = React.useRef<HTMLDivElement>(null);
+
+  // Hotel & Referral Coupon System (₹150 Discount & Attribution)
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discount: number;
+    hotel_name: string;
+    hotel_id: string;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem('rydeit_applied_coupon');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState('');
+
+  // Auto-detect and apply coupon from URL params (?coupon=... or ?ref=...)
+  useEffect(() => {
+    const urlCoupon = searchParams.get('coupon') || searchParams.get('ref') || searchParams.get('code');
+    if (urlCoupon) {
+      const clean = urlCoupon.trim().toUpperCase();
+      setCouponInput(clean);
+      validateCouponCode(clean).then(res => {
+        if (res.isValid && res.hotel) {
+          const couponObj = {
+            code: res.hotel.coupon_code,
+            discount: 150,
+            hotel_name: res.hotel.hotel_name,
+            hotel_id: res.hotel.id
+          };
+          setAppliedCoupon(couponObj);
+          localStorage.setItem('rydeit_applied_coupon', JSON.stringify(couponObj));
+          showToast(`Hotel Coupon ${res.hotel.coupon_code} applied! ₹150 off for ${res.hotel.hotel_name} guests.`, 'success');
+        }
+      });
+    }
+  }, [searchParams]);
+
+  const handleApplyCoupon = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setCouponError('');
+    if (!couponInput.trim()) {
+      setCouponError('Please enter your hotel coupon code');
+      return;
+    }
+    setCouponLoading(true);
+    try {
+      const res = await validateCouponCode(couponInput);
+      if (res.isValid && res.hotel) {
+        const couponObj = {
+          code: res.hotel.coupon_code,
+          discount: 150,
+          hotel_name: res.hotel.hotel_name,
+          hotel_id: res.hotel.id
+        };
+        setAppliedCoupon(couponObj);
+        localStorage.setItem('rydeit_applied_coupon', JSON.stringify(couponObj));
+        setCouponError('');
+        showToast(`Coupon applied! ₹150 discount for ${res.hotel.hotel_name} guests.`, 'success');
+      } else {
+        setCouponError(res.error || 'Invalid coupon code. Please verify and try again.');
+      }
+    } catch (err: any) {
+      setCouponError(err.message || 'Error validating coupon');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponError('');
+    localStorage.removeItem('rydeit_applied_coupon');
+    showToast('Coupon removed.', 'info');
+  };
 
   const handleSignInOrUploadClick = () => {
     setShowAuthOrUpload(prev => !prev);
@@ -275,13 +355,18 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
     const discountPercent = Math.round((discountAmount / referencePrice) * 100);
     const hasDiscount = discountAmount > 0;
 
+    const couponDiscount = appliedCoupon ? 150 : 0;
+
     const finalRent = applyDiscount && hasDiscount ? basePrice : referencePrice;
-    const finalPayable = Math.floor(finalRent + earlyLatePickupFee + earlyLateDropFee + deliveryFee + homePickupFee);
+    const rawTotal = finalRent + earlyLatePickupFee + earlyLateDropFee + deliveryFee + homePickupFee;
+    const finalPayable = Math.max(100, Math.floor(rawTotal - couponDiscount));
 
     return {
       referencePrice,
       basePrice: Math.floor(basePrice),
       discountAmount: Math.floor(discountAmount),
+      couponDiscount,
+      appliedCoupon,
       discountPercent,
       hasDiscount,
       earlyLatePickupFee,
@@ -296,7 +381,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       advance: Math.floor(finalPayable * 0.4),
       security: SECURITY_DEPOSIT_AMOUNT
     };
-  }, [formData, bike, applyDiscount]);
+  }, [formData, bike, applyDiscount, appliedCoupon]);
 
   const sendWhatsAppConfirmation = () => {
     if (!bike || !charges) return;
@@ -772,7 +857,12 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         needs_delivery: formData.pickupMethod === 'home',
         needs_return_pickup: formData.dropMethod === 'home',
         address: combinedAddress,
-        status: 'pending_payment'
+        status: 'pending_payment',
+        coupon_code: appliedCoupon ? appliedCoupon.code : null,
+        discount_amount: appliedCoupon ? 150 : 0,
+        hotel_name: appliedCoupon ? appliedCoupon.hotel_name : null,
+        hotel_id: appliedCoupon ? appliedCoupon.hotel_id : null,
+        hotel_commission: appliedCoupon ? 150 : 0
       };
 
       // Always cache pillion preference locally for instant admin visibility
@@ -809,11 +899,23 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         insertError = error;
       }
 
-      // If has_pillion column does not exist yet in Supabase schema, retry safely without it
-      if (insertError && (insertError.message?.includes('has_pillion') || insertError.message?.includes('column "has_pillion"'))) {
-        console.warn('has_pillion column not found in Supabase schema, retrying without has_pillion');
+      // If coupon/hotel columns or has_pillion do not exist yet in Supabase schema, retry safely
+      if (insertError && (
+        insertError.message?.includes('coupon') ||
+        insertError.message?.includes('hotel') ||
+        insertError.message?.includes('discount_amount') ||
+        insertError.message?.includes('has_pillion') ||
+        insertError.message?.includes('column')
+      )) {
+        console.warn('Supabase schema does not have latest columns yet, retrying with core payload:', insertError.message);
         const fallbackPayload = { ...payload };
         delete fallbackPayload.has_pillion;
+        delete fallbackPayload.coupon_code;
+        delete fallbackPayload.discount_amount;
+        delete fallbackPayload.hotel_name;
+        delete fallbackPayload.hotel_id;
+        delete fallbackPayload.hotel_commission;
+
         if (existingBooking) {
           const { error: retryError } = await supabase
             .from('bookings')
@@ -831,7 +933,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
       if (insertError && (insertError.message?.includes('foreign key') || insertError.message?.includes('fkey')) && payload.user_id) {
         console.warn('Booking user_id foreign key constraint encountered, retrying with guest payload:', insertError.message);
         const retryPayload = { ...payload, user_id: null };
-        delete retryPayload.has_pillion; // safe retry
+        delete retryPayload.has_pillion;
+        delete retryPayload.coupon_code;
+        delete retryPayload.discount_amount;
+        delete retryPayload.hotel_name;
+        delete retryPayload.hotel_id;
+        delete retryPayload.hotel_commission;
+
         if (existingBooking) {
           const { error: retryError } = await supabase
             .from('bookings')
@@ -846,6 +954,11 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
         }
       }
       if (insertError) throw insertError;
+
+      // Credit ₹150 to hotel partner account and record attribution
+      if (appliedCoupon) {
+        creditHotelCommission(appliedCoupon.code, bookingId, appliedCoupon.hotel_id);
+      }
 
       // SEND TO WEB3FORMS FOR EMAIL NOTIFICATION
       try {
@@ -1858,6 +1971,79 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                         <span className="text-[11px] text-neutral-400 font-medium">Transparent & Fixed</span>
                       </div>
 
+                      {/* Hotel / Referral Coupon Box */}
+                      <div className="mb-3 p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <Tag className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Hotel Coupon Code</span>
+                          </label>
+                          <span className="text-[10px] text-amber-400 font-mono font-bold">FLAT ₹150 OFF</span>
+                        </div>
+
+                        {!appliedCoupon ? (
+                          <div className="space-y-1">
+                            <div className="flex gap-1.5">
+                              <input
+                                type="text"
+                                value={couponInput}
+                                onChange={(e) => {
+                                  setCouponInput(e.target.value.toUpperCase());
+                                  if (couponError) setCouponError('');
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleApplyCoupon();
+                                  }
+                                }}
+                                placeholder="e.g. TAJ150, JW150"
+                                className="bg-[#08080a] border border-white/15 focus:border-amber-400 rounded-lg px-3 py-1.5 text-xs text-amber-300 font-mono uppercase tracking-wider placeholder:text-neutral-500 flex-1 outline-none transition-all"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleApplyCoupon}
+                                disabled={couponLoading || !couponInput.trim()}
+                                className="bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-brand-black text-xs font-bold px-3 py-1.5 rounded-lg transition-all font-heading tracking-wider cursor-pointer shrink-0"
+                              >
+                                {couponLoading ? '...' : 'APPLY'}
+                              </button>
+                            </div>
+                            {couponError && (
+                              <p className="text-[10px] text-red-400 flex items-center gap-1 pt-0.5">
+                                <AlertCircle className="w-3 h-3 shrink-0" />
+                                <span>{couponError}</span>
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <div className="leading-tight">
+                                <span className="font-mono text-xs font-bold text-amber-300">
+                                  {appliedCoupon.code}
+                                </span>
+                                <span className="text-[10px] text-neutral-300 ml-1.5">
+                                  ({appliedCoupon.hotel_name})
+                                </span>
+                                <p className="text-[10px] text-emerald-400 font-medium">
+                                  ₹150 discount applied!
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleRemoveCoupon}
+                              className="text-neutral-400 hover:text-red-400 p-1 text-xs cursor-pointer transition-colors"
+                              title="Remove coupon"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-xs text-neutral-300">
                           <span>Standard Fare ({daysCount} {daysCount === 1 ? 'day' : 'days'})</span>
@@ -1878,6 +2064,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                             <span className="font-mono">{applyDiscount ? `-₹${charges.discountAmount}` : '₹0'}</span>
                           </div>
                         )}
+
+                        {charges?.couponDiscount ? (
+                          <div className="flex justify-between items-center text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
+                            <span className="flex items-center gap-1 font-medium">
+                              <Sparkles className="w-3 h-3 text-amber-400" />
+                              <span>Hotel Discount ({appliedCoupon?.code})</span>
+                            </span>
+                            <span className="font-mono font-bold">-₹{charges.couponDiscount}</span>
+                          </div>
+                        ) : null}
                         
                         {charges?.earlyLatePickupFee ? (
                           <div className="flex justify-between items-center text-[11px] text-neutral-300">
@@ -2158,7 +2354,11 @@ export const BookingForm: React.FC<BookingFormProps> = ({ bikes, onShowPolicy })
                           <X className="w-4 h-4" />
                         </button>
                       </div>
-                      <Auth onSuccess={() => {
+                      <Auth onSuccess={(role) => {
+                        if (role === 'hotel') {
+                          window.location.href = '/hotel-dashboard';
+                          return;
+                        }
                         showToast("Signed in! Now upload your payment screenshot.", "success");
                         setShowAuthOrUpload(true);
                         fileInputRef.current?.click();

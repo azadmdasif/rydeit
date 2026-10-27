@@ -31,6 +31,7 @@ import { BikeDetailPage } from './components/BikeDetailPage';
 import { TransitPickupPage } from './components/TransitPickupPage';
 import { OutstationGuidesPage } from './components/OutstationGuidesPage';
 import { GigDeliveryPage } from './components/GigDeliveryPage';
+import { HotelDashboard } from './components/Hotel/HotelDashboard';
 import { ADDITIONAL_CHARGES, TESTIMONIALS } from './constants';
 import { useFleetBikes } from './fleetStorage';
 import { supabase } from './supabase';
@@ -158,16 +159,20 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   
-  const handleAuthSuccess = () => {
-    showToast('Welcome back!', 'success');
-    navigate('/my-bookings');
+  const handleAuthSuccess = (role?: 'user' | 'hotel') => {
+    if (role === 'hotel') {
+      navigate('/hotel-dashboard');
+    } else {
+      showToast('Welcome back!', 'success');
+      navigate('/my-bookings');
+    }
   };
 
   return (
     <div className="py-24 bg-brand-black min-h-[80vh] flex items-center justify-center px-4">
       <SEOHead
-        title="Sign In - Customer Account | Rydeit"
-        description="Sign in to your Rydeit customer account to manage your active bookings, rental invoices, and KYC documents."
+        title="Sign In | Rydeit Kolkata"
+        description="Sign in to your Rydeit account to manage your bookings and rentals, or access your Hotel Partner Dashboard."
         canonicalPath="/login"
         robots="noindex, follow"
       />
@@ -227,6 +232,10 @@ const AppContent: React.FC = () => {
           <Route path="/contact" element={<Contact />} />
           <Route path="/book" element={<BookingPageWrapper bikes={fleetBikes} additionalCharges={ADDITIONAL_CHARGES} onShowPolicy={setModalContent} />} />
           <Route path="/my-bookings" element={<MyBookings />} />
+          <Route path="/hotel-login" element={<Navigate to="/login" replace />} />
+          <Route path="/hotels" element={<Navigate to="/login" replace />} />
+          <Route path="/partner-login" element={<Navigate to="/login" replace />} />
+          <Route path="/hotel-dashboard" element={<HotelDashboard />} />
           <Route path="/admin/*" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
