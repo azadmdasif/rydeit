@@ -563,7 +563,7 @@ export async function fetchHotelBookings(
           coupon_code: b.coupon_code || cleanCode,
           discount_amount: Number(b.discount_amount || 150),
           hotel_name: b.hotel_name || cleanName,
-          hotel_commission: Number(b.hotel_commission || 150),
+          hotel_commission: String(b.status || '').toLowerCase() === 'cancelled' ? 0 : Number(b.hotel_commission || 150),
           created_at: b.created_at || new Date().toISOString(),
           customer_profile: profile ? {
             is_verified: profile.is_verified,

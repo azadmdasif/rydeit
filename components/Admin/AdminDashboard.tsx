@@ -8,11 +8,12 @@ import { AdminUsers } from './AdminUsers';
 import { FinanceLedger } from './Finance/FinanceLedger';
 import { UpcomingReservations } from './UpcomingReservations';
 import { AdminLeads } from './AdminLeads';
+import { AdminHotels } from './AdminHotels';
 import { AvailabilityCalendar } from '../AvailabilityCalendar';
 import { getFleetBikes } from '../../fleetStorage';
 import { getStoredLeads, fetchLeadsFromSupabase } from '../../leadsStorage';
 
-type AdminTab = 'overview' | 'leads' | 'calendar' | 'upcoming' | 'bookings' | 'fleet' | 'users' | 'finance' | 'reports';
+type AdminTab = 'overview' | 'leads' | 'calendar' | 'upcoming' | 'bookings' | 'hotels' | 'fleet' | 'users' | 'finance' | 'reports';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -146,6 +147,15 @@ export const AdminDashboard: React.FC = () => {
       icon: (
         <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      ) 
+    },
+    { 
+      id: 'hotels', 
+      label: 'Hotel Partners', 
+      icon: (
+        <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
       ) 
     },
@@ -721,6 +731,7 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'calendar' && <AvailabilityCalendar bikes={getFleetBikes()} isAdminMode={true} />}
         {activeTab === 'upcoming' && <UpcomingReservations onRefreshStats={fetchStats} />}
         {activeTab === 'bookings' && <AdminBookings initialFilter={bookingFilter} />}
+        {activeTab === 'hotels' && <AdminHotels />}
         {activeTab === 'fleet' && <AdminFleet />}
         {activeTab === 'finance' && <FinanceLedger currentSubView={financeSubView} onSubViewChange={setFinanceSubView} />}
         {activeTab === 'users' && <AdminUsers />}

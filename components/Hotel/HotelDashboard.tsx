@@ -183,12 +183,14 @@ export const HotelDashboard: React.FC = () => {
 
   // KPI Calculations & Wallet Balance
   // IMPORTANT: Only bookings with confirmed payment credit money into the hotel's wallet.
+  // If any booking is cancelled, it is excluded from total booking count and earnings.
   const stats = useMemo(() => {
-    const totalBookingsCount = bookings.length;
-    const confirmedList = bookings.filter(isPaymentConfirmed);
-    const pendingList = bookings.filter(
-      (b) => !isPaymentConfirmed(b) && b.status !== 'cancelled'
-    );
+    const isCancelled = (b: any) => String(b.status || '').toLowerCase() === 'cancelled';
+    const activeBookings = bookings.filter((b) => !isCancelled(b));
+    const confirmedList = activeBookings.filter(isPaymentConfirmed);
+    const pendingList = activeBookings.filter((b) => !isPaymentConfirmed(b));
+
+    const totalBookingsCount = activeBookings.length;
 
     // Hotel wallet shows money only for confirmed payments (₹150 each)
     const walletBalance = confirmedList.length * 150;
@@ -573,12 +575,17 @@ export const HotelDashboard: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Hotel Commission: In Wallet vs Pending */}
+                        {/* Hotel Commission: In Wallet vs Pending vs Cancelled */}
                         <td className="py-3.5 px-4">
                           {confirmed ? (
                             <div className="inline-flex items-center gap-1.5 font-mono text-emerald-400 text-xs">
                               <span>150 INR</span>
                               <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-sans">In Wallet</span>
+                            </div>
+                          ) : b.status === 'cancelled' ? (
+                            <div className="inline-flex items-center gap-1.5 font-mono text-neutral-500 text-xs">
+                              <span>0 INR</span>
+                              <span className="text-[10px] text-neutral-500 bg-neutral-800 border border-neutral-700 px-1.5 py-0.5 rounded font-sans">Cancelled</span>
                             </div>
                           ) : (
                             <div className="inline-flex items-center gap-1.5 font-mono text-amber-300 text-xs">
